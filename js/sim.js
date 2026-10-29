@@ -460,10 +460,28 @@
     if (!ccwWindows[name]) toast('팝업이 차단되었습니다. 주소창의 팝업 허용을 눌러 주세요.');
   }
   function care(name) {
-    const live = director.cases.find((c) => c.kind === 'emergency' && c.contact < 3);
-    if (!live && name !== 'careReset') { toast('먼저 경고등(W)을 발생시켜 주십시오. 긴급 경고가 e-Care 상담 케이스로 등록됩니다.'); return; }
     if (name === 'careReset') { director.command('reset', {}); toast('e-Care 시나리오를 초기화했습니다'); return; }
+    if (name === 'noAnswer') {
+      director.command('noAnswer', {});
+      toast(director.noAnswer ? '고객 미응답 시나리오 ON · 아웃바운드 3회 발신 실패 → SMS 자동 발송' : '고객 미응답 시나리오 OFF');
+      syncCare();
+      return;
+    }
+    if (!director.live()) { toast('먼저 경고등(W)을 발생시켜 주십시오. 긴급 경고가 e-Care 상담 케이스로 등록됩니다.'); return; }
     director.command(name, {});
+  }
+  let noiseOn = true;
+  function ccwNoise() {
+    noiseOn = !noiseOn;
+    Link.send('ccw-noise', { on: noiseOn });
+    toast(noiseOn ? '콜센터 주변 소음 켜짐' : '콜센터 주변 소음 꺼짐');
+    syncCare();
+  }
+  function syncCare() {
+    const na = document.querySelector('[data-action="noAnswer"]');
+    if (na) na.setAttribute('aria-pressed', director.noAnswer ? 'true' : 'false');
+    const nz = document.querySelector('[data-action="ccwNoise"]');
+    if (nz) nz.setAttribute('aria-pressed', noiseOn ? 'true' : 'false');
   }
   // vehicle state for every connected screen, 4 times a second
   setInterval(() => Link.send('veh', {
@@ -480,13 +498,14 @@
     const el = $('#careState');
     const lk = $('#linkState');
     lk.textContent = Link.transport === 'lan' ? 'LAN 동기화' : '이 PC 화면 동기화';
-    st.ecareCall = c && c.call && c.call.state !== 'ended' ? c.call : null;
+    st.ecareCall = c && c.call && (c.call.state === 'connected' || c.call.state === 'dialing') ? c.call : null;
     if (!c) { el.textContent = '대기 · 상담원 3명'; return; }
     const sla = ECare.mmss(Math.max(0, ECare.SLA - (Date.now() - c.slaBase)));
     const contact = ECare.CONTACT[c.contact];
-    const call = c.call ? (c.call.state === 'dialing' ? ' · 발신 중' : c.call.state === 'connected' ? ' · 통화 중' : '') : '';
+    const call = c.inbound && !c.call ? ' · 전화 수신' : c.assign && !c.assign.done && c.contact === 0 ? ' · 경고 알림 팝업' : c.call ? ({ dialing: ' · 발신 중', connected: ' · 통화 중', failed: ` · 연결 실패 ${c.retry ? c.retry.count : 0}/2` }[c.call.state] || '') : '';
+    const memo = c.sheet && !c.sheet.saved ? ` · 상담 메모 ${c.sheet.step}/3` : c.sms ? ' · SMS 발송' : '';
     const disp = c.dispatch >= 0 ? ` · 출동 ${ECare.DISPATCH[c.dispatch]}` : '';
-    el.textContent = `${c.id.slice(-4)} · ${contact}${call}${disp}${c.contact === 0 ? ` · SLA ${sla}` : ''}`;
+    el.textContent = `${c.id.slice(-4)} · ${contact}${call}${memo}${disp}${c.contact === 0 && !c.assign && !c.inbound ? ` · SLA ${sla}` : ''}`;
   }
 
   const actions = {
@@ -516,6 +535,9 @@
     dispatch: () => care('dispatch'),
     complete: () => care('complete'),
     careReset: () => care('careReset'),
+    inbound: () => care('inbound'),
+    noAnswer: () => care('noAnswer'),
+    ccwNoise,
   };
 
   document.querySelectorAll('[data-action]').forEach((el) => {
@@ -532,7 +554,7 @@
     KeyS: 'stop', ArrowDown: 'stop', Space: 'toggle',
     KeyW: 'red', KeyC: 'amber', KeyX: 'clear', KeyN: 'mode',
     KeyV: 'view', KeyM: 'sound', KeyF: 'full', KeyH: 'ui',
-    KeyO: 'openCcw', KeyY: 'openTranscript', KeyT: 'sla25', KeyA: 'accept', KeyE: 'dispatch', KeyK: 'complete', KeyR: 'careReset',
+    KeyO: 'openCcw', KeyY: 'openTranscript', KeyT: 'sla25', KeyA: 'accept', KeyE: 'dispatch', KeyK: 'complete', KeyR: 'careReset', KeyG: 'inbound', KeyU: 'noAnswer', KeyL: 'ccwNoise',
   };
   window.addEventListener('keydown', (e) => {
     const act = KEYS[e.code];

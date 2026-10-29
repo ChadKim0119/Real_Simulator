@@ -1,0 +1,20 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Mask group">
+<g id="Group 61">
+<path id="Ellipse 2" d="M29.25 15C29.25 22.8701 22.8701 29.25 15 29.25C7.12994 29.25 0.75 22.8701 0.75 15C0.75 7.12994 7.12994 0.75 15 0.75C22.8701 0.75 29.25 7.12994 29.25 15Z" stroke-width="1.5" stroke="black"/>
+<mask id="mask0_0_4382" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="30" height="30">
+<path id="Ellipse 4" d="M29.5 15C29.5 23.0081 23.0081 29.5 15 29.5C6.99187 29.5 0.5 23.0081 0.5 15C0.5 6.99187 6.99187 0.5 15 0.5C23.0081 0.5 29.5 6.99187 29.5 15Z" fill="#D9D9D9" stroke="#1D1D1D"/>
+</mask>
+<g mask="url(#mask0_0_4382)">
+<g id="Rectangle 11">
+<path d="M4 27.0898C4 22.6716 7.58172 19.0898 12 19.0898H17.8182C22.2365 19.0898 25.8182 22.6716 25.8182 27.0898V32.7262H4V27.0898Z" fill="black"/>
+<mask id="stroke0_0_4382" fill="white">
+<path d="M4 27.0898C4 22.6716 7.58172 19.0898 12 19.0898H17.8182C22.2365 19.0898 25.8182 22.6716 25.8182 27.0898V32.7262H4V27.0898Z"/>
+</mask>
+<path d="M25.8182 32.7262V27.0898C25.8182 22.6716 22.2365 19.0898 17.8182 19.0898H12C7.58172 19.0898 4 22.6716 4 27.0898V32.7262H25.8182Z" stroke-width="2" stroke="black" mask="url(#stroke0_0_4382)"/>
+</g>
+</g>
+</g>
+<path id="Ellipse 3" d="M19.8622 12.271C19.8622 15.0073 17.644 17.2255 14.9077 17.2255C12.1714 17.2255 9.95312 15.0073 9.95312 12.271C9.95312 9.53463 12.1714 7.31641 14.9077 7.31641C17.644 7.31641 19.8622 9.53463 19.8622 12.271Z" fill="black" stroke="black"/>
+</g>
+</svg>

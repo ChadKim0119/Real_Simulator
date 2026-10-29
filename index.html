@@ -73,10 +73,13 @@
       <div class="grid care">
         <button class="btn small accent" data-action="openCcw" title="상담원 화면을 새 창으로 엽니다 (O)"><span>상담원 화면 띄우기</span><kbd>O</kbd></button>
         <button class="btn small" data-action="openTranscript" title="상담 대화 텍스트 화면 (Y)"><span>대화 화면</span><kbd>Y</kbd></button>
-        <button class="btn small" data-action="sla25" title="고객이 25분간 연락하지 않음 (T)"><span>25분 경과</span><kbd>T</kbd></button>
-        <button class="btn small" data-action="accept" title="상담원 응대 시작 · 고객에게 발신 (A)"><span>상담원 응대</span><kbd>A</kbd></button>
+        <button class="btn small" data-action="inbound" title="고객이 e-Care 상담센터로 전화 (MM 콜 · 인바운드) (G)"><span>고객 전화</span><kbd>G</kbd></button>
+        <button class="btn small" data-action="sla25" title="고객이 25분간 연락하지 않음 → 자동 아웃바운드 · 재연결 대기 건너뛰기 (T)"><span>25분 경과</span><kbd>T</kbd></button>
+        <button class="btn small" data-action="accept" title="경고 알림 팝업 [전화 걸기] · 고객에게 발신 (A)"><span>상담원 전화 걸기</span><kbd>A</kbd></button>
         <button class="btn small" data-action="dispatch" title="긴급출동 요청 (E)"><span>긴급출동</span><kbd>E</kbd></button>
         <button class="btn small" data-action="complete" title="상담 완료 · 서비스센터 이관 (K)"><span>완료 · 이관</span><kbd>K</kbd></button>
+        <button class="btn small toggle" data-action="noAnswer" aria-pressed="false" title="고객 미응답: 아웃바운드 3회 발신 실패 예외 (U)"><span>고객 미응답</span><kbd>U</kbd></button>
+        <button class="btn small toggle" data-action="ccwNoise" aria-pressed="true" title="상담센터 화면의 주변 소음 켜기/끄기 (L)"><span>콜센터 소음</span><kbd>L</kbd></button>
         <button class="btn small muted" data-action="careReset" title="e-Care 시나리오 초기화 (R)"><span>시나리오 초기화</span><kbd>R</kbd></button>
       </div>
     </div>

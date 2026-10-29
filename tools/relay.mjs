@@ -72,7 +72,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`e-Care demo relay on port ${PORT}`);
   for (const ip of ips.length ? ips : ['localhost']) {
     console.log(`  vehicle     http://${ip}:${PORT}/`);
-    console.log(`  call center http://${ip}:${PORT}/ccw.html`);
+    console.log(`  call center http://${ip}:${PORT}/ccw.html   (agent screen only: /ccw.html?view=app)`);
     console.log(`  transcript  http://${ip}:${PORT}/ccw.html?view=transcript`);
   }
 });
