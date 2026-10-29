@@ -260,7 +260,7 @@
 
     guidance(ctx, st) {
       const j = Road.nextJunction(st.odoMeters);
-      const x = 446, y = 240, w = 172, h = 58;
+      const x = 446, y = 236, w = 172, h = 56;
       const bend = Road.nextCorner(st.odoMeters, 350);
       ctx.save();
       ctx.beginPath();
@@ -336,13 +336,13 @@
       ctx.fill();
       this.text(ctx, name, MAP.x + MAP.w / 2, 361, 10.5, 'rgba(225,233,245,0.92)', { kr: true, weight: 500 });
       ctx.beginPath();
-      ctx.arc(470, 338, 15, 0, Math.PI * 2);
+      ctx.arc(624, 361, 12, 0, Math.PI * 2);
       ctx.fillStyle = '#ffffff';
       ctx.fill();
       ctx.lineWidth = 3.4;
       ctx.strokeStyle = '#e1251b';
       ctx.stroke();
-      this.text(ctx, String(st.limit), 470, 339, 13, '#111111', { weight: 700 });
+      this.text(ctx, String(st.limit), 624, 362, 11, '#111111', { weight: 700 });
     }
 
     shade(ctx) {
@@ -456,7 +456,7 @@
       const cx = 1020, cy = 287;           // car centre
       const L = 118, Wd = 52;              // body length and width (design px)
       const pxm = L / 4.95;                // GX length 4.95 m
-      const fy = cy - 0.30 * L, ry = cy + 0.31 * L, track = 0.43 * Wd;
+      const fy = cy - 0.30 * L, ry = cy + 0.31 * L, track = Wd / 2 - 2.5;
       const steer = st.wheel || 0;                         // steering-wheel angle, degrees
       const roadWheel = steer / 16;                        // actual front-wheel angle
       const shown = clamp(roadWheel * 6, -16, 16);         // drawn 6x so it can be seen
@@ -496,7 +496,7 @@
         ctx.rotate(ang * DEG);
         ctx.beginPath();
         ctx.roundRect(-5, -11, 10, 22, 3);
-        ctx.fillStyle = '#0b0e13';
+        ctx.fillStyle = front ? 'rgba(10,24,44,0.95)' : 'rgba(10,16,26,0.9)';
         ctx.fill();
         ctx.strokeStyle = front ? 'rgba(120,205,255,0.95)' : 'rgba(150,175,205,0.55)';
         ctx.lineWidth = 1.1;
@@ -511,10 +511,6 @@
         }
         ctx.restore();
       };
-      wheel(cx - track, fy, shown, true);
-      wheel(cx + track, fy, shown, true);
-      wheel(cx - track, ry, 0, false);
-      wheel(cx + track, ry, 0, false);
 
       // body silhouette (boxy GX: flat sides, squared nose and tail, flared arches)
       const hw = Wd / 2, top = cy - L / 2, bot = cy + L / 2;
@@ -537,11 +533,16 @@
       body.quadraticCurveTo(cx - hw, top + 4, cx - hw + 7, top + 2);
       body.closePath();
       const fill = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0);
-      fill.addColorStop(0, 'rgba(30,52,86,0.95)');
-      fill.addColorStop(0.5, 'rgba(48,82,128,0.95)');
-      fill.addColorStop(1, 'rgba(30,52,86,0.95)');
+      fill.addColorStop(0, 'rgba(30,52,86,0.62)');
+      fill.addColorStop(0.5, 'rgba(48,82,128,0.55)');
+      fill.addColorStop(1, 'rgba(30,52,86,0.62)');
       ctx.fillStyle = fill;
       ctx.fill(body);
+      // wheels show through the translucent body; the fronts turn with the steering
+      wheel(cx - track, fy, shown, true);
+      wheel(cx + track, fy, shown, true);
+      wheel(cx - track, ry, 0, false);
+      wheel(cx + track, ry, 0, false);
 
       // mesh: longitudinal and transverse lines clipped to the body
       ctx.save();
@@ -609,7 +610,7 @@
       });
 
       // headings: drive mode, steering angle
-      this.text(ctx, `MTS  ${st.modes[st.modeIndex]}`, cx, 207, 11, 'rgba(215,226,242,0.9)', { weight: 500 });
+      this.text(ctx, `${st.modeTitle}  ${st.modes[st.modeIndex]}`, cx, 207, 11, 'rgba(215,226,242,0.9)', { weight: 500 });
       const dir = Math.abs(steer) < 0.5 ? '' : steer > 0 ? ' R' : ' L';
       this.text(ctx, `핸들 ${Math.abs(steer).toFixed(0)}°${dir}`, cx - 4, 362, 11, '#ffffff', { weight: 500, kr: true });
       this.text(ctx, `바퀴 ${Math.abs(roadWheel).toFixed(1)}°`, cx - 4, 375, 9, 'rgba(190,205,225,0.8)', { kr: true });
@@ -638,62 +639,300 @@
       this.text(ctx, `${gt.toFixed(2)} G`, x, y + r + 9, 9.5, 'rgba(200,215,235,0.85)');
     }
 
-    /* ---------- start-up ceremony with the GX render ---------- */
+    /* ---------- ignition ceremony: "Welcome to Global South 개발 진척 보고회" ---------- */
+    sparks() {
+      if (!this.sparkSet) {
+        this.sparkSet = [];
+        for (let i = 0; i < 90; i++) {
+          this.sparkSet.push({
+            a: Math.random() * Math.PI * 2,
+            v: 70 + Math.random() * 260,
+            r: 0.6 + Math.random() * 1.6,
+            d: Math.random() * 0.5,
+            gold: Math.random() < 0.35,
+          });
+        }
+      }
+      return this.sparkSet;
+    }
+
+    // letters of `str` rise into place one by one, blurred then sharp
+    stagger(ctx, str, x, y, size, weight, font, t0, step, color, glow) {
+      ctx.font = `${weight} ${size}px ${font}`;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      const chars = [...str];
+      const widths = chars.map((c) => ctx.measureText(c).width);
+      let cx = x - widths.reduce((a, b) => a + b, 0) / 2;
+      chars.forEach((c, i) => {
+        const p = clamp((this.cerT - t0 - i * step) / 0.45, 0, 1);
+        if (p > 0) {
+          const e = ease(p);
+          ctx.save();
+          ctx.globalAlpha *= e;
+          ctx.fillStyle = color;
+          ctx.shadowColor = glow;
+          ctx.shadowBlur = this.glow(4 + 14 * (1 - e));
+          ctx.fillText(c, cx, y + (1 - e) * size * 0.55);
+          ctx.restore();
+        }
+        cx += widths[i];
+      });
+      return widths.reduce((a, b) => a + b, 0);
+    }
+
     ceremony(ctx, k) {
-      if (k > 3.3 || !this.hero || !this.hero.complete || !this.hero.naturalWidth) return;
-      const fade = smooth(0.15, 0.6, k) * (1 - smooth(2.5, 3.2, k));
-      if (fade <= 0) return;
-      const iw = 384, ih = 133;                         // hero size in design px
-      const zoom = 1.05 + 0.08 * smooth(0.2, 3.2, k);
-      const hx = 700 - iw * zoom / 2, hy = 286 - ih * zoom / 2;
+      if (k > 3.3) return;
+      this.cerT = k;
+      const fade = 1 - smooth(2.55, 3.2, k);
+      const cx = 700, cy = 286;
       ctx.save();
       ctx.globalAlpha *= fade;
-      // deep blue haze behind the car
-      const halo = ctx.createRadialGradient(700, 290, 20, 700, 290, 360);
-      halo.addColorStop(0, 'rgba(50,110,210,0.45)');
-      halo.addColorStop(1, 'rgba(10,25,60,0)');
-      ctx.fillStyle = halo;
+
+      // background: deep blue bloom that breathes in
+      const bloom = ctx.createRadialGradient(cx, cy, 10, cx, cy, 420);
+      bloom.addColorStop(0, `rgba(60,120,230,${0.42 * smooth(0, 0.8, k)})`);
+      bloom.addColorStop(0.5, `rgba(30,60,140,${0.22 * smooth(0, 0.8, k)})`);
+      bloom.addColorStop(1, 'rgba(5,10,30,0)');
+      ctx.fillStyle = bloom;
       ctx.fillRect(X0, Y0, CW, CH);
-      // the car is revealed by a light sweeping from left to right
-      const reveal = smooth(0.3, 1.5, k);
-      const edge = hx - 60 + (iw * zoom + 120) * reveal;
+
+      // perspective light lanes racing toward the centre
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(X0, Y0, edge - X0, CH);
-      ctx.clip();
-      ctx.drawImage(this.hero, hx, hy, iw * zoom, ih * zoom);
-      ctx.restore();
-      if (reveal > 0 && reveal < 1) {
-        const lg = ctx.createLinearGradient(edge - 40, 0, edge + 6, 0);
-        lg.addColorStop(0, 'rgba(140,200,255,0)');
-        lg.addColorStop(0.85, 'rgba(210,235,255,0.75)');
-        lg.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = lg;
-        ctx.fillRect(edge - 40, hy - 8, 46, ih * zoom + 16);
-        ctx.fillStyle = 'rgba(235,245,255,0.95)';
-        ctx.shadowColor = 'rgba(140,200,255,1)';
-        ctx.shadowBlur = this.glow(16);
-        ctx.fillRect(edge, hy - 20, 1.6, ih * zoom + 40);
-        ctx.shadowBlur = 0;
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 14; i++) {
+        const side = i % 2 ? 1 : -1;
+        const yy = cy - 60 + (i * 37) % 130;
+        const ph = ((k * 1.6 + i * 0.137) % 1);
+        const x0 = cx + side * (520 - ph * 520);
+        const len = 60 + 140 * ph;
+        const g = ctx.createLinearGradient(x0, 0, x0 - side * len, 0);
+        g.addColorStop(0, `rgba(140,200,255,${0.35 * (1 - ph) * smooth(0.1, 0.6, k)})`);
+        g.addColorStop(1, 'rgba(140,200,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(Math.min(x0, x0 - side * len), yy, len, 1.2);
       }
-      // model name, spaced wide, drawn in after the car
-      const ta = smooth(1.2, 1.9, k);
-      if (ta > 0) {
-        ctx.globalAlpha = fade * ta;
-        ctx.font = `300 34px ${FONT}`;
+      ctx.restore();
+
+      // horizon line opening from the centre
+      const lw = CW * ease(clamp(k / 0.7, 0, 1));
+      const hl = ctx.createLinearGradient(cx - lw / 2, 0, cx + lw / 2, 0);
+      hl.addColorStop(0, 'rgba(120,180,255,0)');
+      hl.addColorStop(0.5, 'rgba(240,248,255,0.95)');
+      hl.addColorStop(1, 'rgba(120,180,255,0)');
+      ctx.fillStyle = hl;
+      ctx.shadowColor = 'rgba(120,190,255,1)';
+      ctx.shadowBlur = this.glow(14);
+      ctx.fillRect(cx - lw / 2, cy + 34, lw, 1.3);
+      ctx.shadowBlur = 0;
+
+      // spark burst from the centre, gold and ice blue
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const p of this.sparks()) {
+        const tt = k - 0.35 - p.d;
+        if (tt <= 0 || tt > 1.8) continue;
+        const dist = p.v * (1 - Math.exp(-tt * 2.2));
+        const x = cx + Math.cos(p.a) * dist * 1.6, y = cy + Math.sin(p.a) * dist * 0.55;
+        const al = (1 - tt / 1.8);
+        ctx.fillStyle = p.gold ? `rgba(255,214,140,${al})` : `rgba(170,215,255,${al})`;
+        ctx.beginPath();
+        ctx.arc(x, y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // the words
+      this.stagger(ctx, 'Welcome to', cx, cy - 48, 15, 300, FONT, 0.35, 0.04, 'rgba(220,232,250,0.95)', 'rgba(120,180,255,0.9)');
+      const gw = this.stagger(ctx, 'Global South', cx, cy - 8, 46, 300, FONT, 0.7, 0.055, '#ffffff', 'rgba(130,190,255,1)');
+      // shimmer sweeping across "Global South"
+      const sp = smooth(1.5, 2.3, k);
+      if (sp > 0 && sp < 1) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.font = `300 46px ${FONT}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        if ('letterSpacing' in ctx) ctx.letterSpacing = `${18 - 8 * ta}px`;
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowColor = 'rgba(140,200,255,0.8)';
-        ctx.shadowBlur = this.glow(10);
-        ctx.fillText('GX', 700, 168);
-        ctx.font = `400 10px ${FONT}`;
-        if ('letterSpacing' in ctx) ctx.letterSpacing = '6px';
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = 'rgba(205,222,245,0.9)';
-        ctx.fillText('550  OVERTRAIL+', 700, 196);
+        const sx = cx - gw / 2 - 60 + (gw + 120) * sp;
+        const sg = ctx.createLinearGradient(sx - 40, 0, sx + 40, 0);
+        sg.addColorStop(0, 'rgba(255,230,170,0)');
+        sg.addColorStop(0.5, 'rgba(255,236,190,0.95)');
+        sg.addColorStop(1, 'rgba(255,230,170,0)');
+        ctx.fillStyle = sg;
+        ctx.fillText('Global South', cx, cy - 8);
+        ctx.restore();
+      }
+      // subtitle with a gold rule either side
+      const ta = smooth(1.35, 2.0, k);
+      if (ta > 0) {
+        ctx.save();
+        ctx.globalAlpha *= ta;
+        ctx.font = `500 15px ${KR}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if ('letterSpacing' in ctx) ctx.letterSpacing = `${2 + 8 * (1 - ta)}px`;
+        ctx.fillStyle = '#ffe2a8';
+        ctx.shadowColor = 'rgba(255,190,90,0.8)';
+        ctx.shadowBlur = this.glow(8);
+        ctx.fillText('개발 진척 보고회', cx, cy + 34 + 18);
         if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+        ctx.shadowBlur = 0;
+        const rw = 70 * ease(ta);
+        const rg = (x0, x1) => { const g = ctx.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, 'rgba(255,210,140,0)'); g.addColorStop(1, 'rgba(255,210,140,0.9)'); return g; };
+        ctx.fillStyle = rg(cx - 82 - rw, cx - 82);
+        ctx.fillRect(cx - 82 - rw, cy + 51.5, rw, 1);
+        ctx.fillStyle = rg(cx + 82 + rw, cx + 82);
+        ctx.fillRect(cx + 82, cy + 51.5, rw, 1);
+        ctx.restore();
+      }
+      // a white flash as the gauges take over
+      const fl = smooth(2.5, 2.65, k) * (1 - smooth(2.65, 3.0, k));
+      if (fl > 0) {
+        ctx.fillStyle = `rgba(210,230,255,${0.14 * fl})`;
+        ctx.fillRect(X0, Y0, CW, CH);
+      }
+      ctx.restore();
+    }
+
+    /* ---------- ignition off: the gauges dissolve, a farewell, the line collapses ---------- */
+    farewell(ctx, k) {
+      const cx = 700, cy = 286;
+      ctx.save();
+      const a = smooth(0.25, 0.7, k) * (1 - smooth(1.7, 2.3, k));
+      if (a > 0) {
+        ctx.globalAlpha *= a;
+        const bloom = ctx.createRadialGradient(cx, cy, 10, cx, cy, 380);
+        bloom.addColorStop(0, 'rgba(50,100,200,0.32)');
+        bloom.addColorStop(1, 'rgba(5,10,30,0)');
+        ctx.fillStyle = bloom;
+        ctx.fillRect(X0, Y0, CW, CH);
+        ctx.font = `300 30px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if ('letterSpacing' in ctx) ctx.letterSpacing = `${4 + 10 * smooth(0.3, 2.2, k)}px`;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(130,190,255,0.9)';
+        ctx.shadowBlur = this.glow(10);
+        ctx.fillText('See you soon', cx, cy - 14);
+        ctx.font = `500 12px ${KR}`;
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '3px';
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255,226,168,0.9)';
+        ctx.fillText('Global South 개발 진척 보고회', cx, cy + 18);
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+      }
+      ctx.globalAlpha = 1;
+      // the horizon line shrinks to a point, flares and goes out
+      const lk = smooth(1.6, 2.5, k);
+      const lw = CW * 0.8 * (1 - lk);
+      const la = smooth(0.2, 0.6, k) * (1 - smooth(2.5, 2.9, k));
+      if (la > 0) {
+        const hl = ctx.createLinearGradient(cx - lw / 2 - 1, 0, cx + lw / 2 + 1, 0);
+        hl.addColorStop(0, 'rgba(120,180,255,0)');
+        hl.addColorStop(0.5, `rgba(240,248,255,${la})`);
+        hl.addColorStop(1, 'rgba(120,180,255,0)');
+        ctx.fillStyle = hl;
+        ctx.shadowColor = 'rgba(120,190,255,1)';
+        ctx.shadowBlur = this.glow(12);
+        ctx.fillRect(cx - lw / 2 - 1, cy + 40, lw + 2, 1.3);
+        const dot = smooth(2.2, 2.5, k) * (1 - smooth(2.5, 2.9, k));
+        if (dot > 0) {
+          ctx.fillStyle = `rgba(235,245,255,${dot})`;
+          ctx.beginPath(); ctx.arc(cx, cy + 40.6, 2.5 + 3 * dot, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    /* ---------- now playing ---------- */
+    cover() {
+      if (this.coverArt) return this.coverArt;
+      // a stand-in cover drawn in code (no album art is bundled)
+      const c = document.createElement('canvas');
+      c.width = c.height = 160;
+      const g = c.getContext('2d');
+      const bg = g.createLinearGradient(0, 0, 160, 160);
+      bg.addColorStop(0, '#1a0638');
+      bg.addColorStop(0.55, '#3b0a5e');
+      bg.addColorStop(1, '#06213f');
+      g.fillStyle = bg;
+      g.fillRect(0, 0, 160, 160);
+      for (let i = 0; i < 6; i++) {
+        g.strokeStyle = i % 2 ? 'rgba(0,240,255,0.55)' : 'rgba(255,60,200,0.55)';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.arc(80, 170, 40 + i * 22, Math.PI * 1.1, Math.PI * 1.9);
+        g.stroke();
+      }
+      g.font = '700 38px "Barlow", Arial, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.shadowColor = '#ff3fd2';
+      g.shadowBlur = 16;
+      g.fillStyle = '#ffd6f6';
+      g.fillText('NEON', 80, 70);
+      g.shadowColor = '#00eaff';
+      g.shadowBlur = 8;
+      g.font = '600 14px "Barlow", Arial, sans-serif';
+      g.fillStyle = '#c8fbff';
+      g.fillText('A2O LITE', 80, 104);
+      this.coverArt = c;
+      return c;
+    }
+
+    nowPlaying(ctx, st, t) {
+      const m = st.music;
+      if (!m) return;
+      const x = 446, y = 298, w = 172, h = 46;
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 8);
+      ctx.fillStyle = 'rgba(8,13,22,0.82)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,90,210,0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.drawImage(this.cover(), x + 5, y + 5, 36, 36);
+      // title and artist scroll as a marquee inside the panel
+      const tx = x + 48, tw = w - 54;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(tx, y + 3, tw, 26);
+      ctx.clip();
+      const line = `${m.title}  ·  ${m.artist}  ·  ${m.single}`;
+      ctx.font = `600 12px ${FONT}`;
+      const lw = ctx.measureText(line).width + 40;
+      const off = (t * 28) % lw;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(line, tx - off, y + 15);
+      ctx.fillText(line, tx - off + lw, y + 15);
+      ctx.restore();
+      // edge fades so the marquee runs out softly
+      for (const [fx, dir] of [[tx, 1], [tx + tw, -1]]) {
+        const g = ctx.createLinearGradient(fx, 0, fx + dir * 10, 0);
+        g.addColorStop(0, 'rgba(8,13,22,1)');
+        g.addColorStop(1, 'rgba(8,13,22,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(dir > 0 ? fx : fx - 10, y + 3, 10, 26);
+      }
+      // progress
+      const p = m.pos / m.len;
+      ctx.fillStyle = 'rgba(200,212,230,0.25)';
+      ctx.fillRect(tx, y + 32, tw - 40, 2);
+      const pg = ctx.createLinearGradient(tx, 0, tx + tw - 40, 0);
+      pg.addColorStop(0, '#ff4fd8');
+      pg.addColorStop(1, '#3fe4ff');
+      ctx.fillStyle = pg;
+      ctx.fillRect(tx, y + 32, (tw - 40) * p, 2);
+      const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+      this.text(ctx, `${fmt(m.pos)} / ${fmt(m.len)}`, x + w - 6, y + 34, 8.5, 'rgba(205,215,232,0.85)', { align: 'right' });
+      // little equaliser beside the cover
+      for (let i = 0; i < 3; i++) {
+        const hh = 3 + 5 * Math.abs(Math.sin(t * (5 + i * 1.7) + i));
+        ctx.fillStyle = 'rgba(63,228,255,0.9)';
+        ctx.fillRect(x + 7 + i * 4, y + 39 - hh, 2.4, hh);
       }
       ctx.restore();
     }
@@ -805,8 +1044,9 @@
       ctx.globalAlpha = st.backlight;
       const k = st.bootT;                      // seconds since the display woke up
       const boot = st.ceremony ? 2.6 : 0;        // the start-up ceremony plays first
-      const mapA = smooth(0.35 + boot, 1.2 + boot, k);
-      const uiA = smooth(0.9 + boot * 0.85, 1.7 + boot * 0.85, k);
+      const offA = st.ign === 'off' ? 1 - smooth(0, 0.5, st.ignT) : 1;   // gauges dissolve at switch-off
+      const mapA = smooth(0.35 + boot, 1.2 + boot, k) * offA;
+      const uiA = smooth(0.9 + boot * 0.85, 1.7 + boot * 0.85, k) * offA;
 
       this.drawBackground(ctx);
       ctx.globalAlpha = st.backlight * mapA;
@@ -816,6 +1056,11 @@
       this.shade(ctx);
       if (st.ceremony) this.ceremony(ctx, k);
       else this.welcome(ctx, k);
+      if (st.ign === 'off') {                   // ignition off: gauges dissolve into the farewell
+        ctx.globalAlpha = 1;
+        this.farewell(ctx, st.ignT);
+        ctx.globalAlpha = st.backlight;
+      }
 
       ctx.globalAlpha = st.backlight * uiA;
       const rpm = st.sweep >= 0 ? st.sweep * TACH.max : st.rpm;
@@ -823,6 +1068,7 @@
       this.drawTopView(ctx, st, t);
       this.drawG(ctx, st);
       this.guidance(ctx, st);
+      this.nowPlaying(ctx, st, t);
       // live engine speed under the tachometer scale
       this.text(ctx, Math.round(rpm / 10 * 10).toLocaleString('en-US'), 392, 366, 19, '#ffffff', { weight: 500 });
       this.text(ctx, 'rpm', 392, 382, 9.5, 'rgba(200,212,230,0.8)');

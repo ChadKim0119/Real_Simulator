@@ -247,10 +247,19 @@
       o.stop(t0 + len + 0.02);
     }
 
+    /* rising, shimmering arpeggio under the welcome words */
     welcome() {
       if (!this.ctx) return;
-      this.bell(784, 0, 0.09, 1.6, [[1, 1], [2, 0.2]]);
-      this.bell(1175, 0.16, 0.08, 1.8, [[1, 1], [2, 0.15]]);
+      [[523.3, 0], [659.3, 0.14], [784, 0.28], [1046.5, 0.46], [1318.5, 0.72]].forEach(([f, at], i) =>
+        this.bell(f, at, 0.06 + i * 0.008, 2.2, [[1, 1], [2, 0.18], [3.01, 0.05]]));
+      this.bell(2093, 1.5, 0.035, 2.4, [[1, 1], [1.5, 0.3]]);   // sparkle as the subtitle lands
+    }
+
+    /* soft falling farewell at switch-off */
+    goodbye() {
+      if (!this.ctx) return;
+      [[1046.5, 0], [784, 0.2], [659.3, 0.42], [523.3, 0.68]].forEach(([f, at]) =>
+        this.bell(f, at, 0.06, 1.8, [[1, 1], [2, 0.15]]));
     }
 
     stopRepeat() {

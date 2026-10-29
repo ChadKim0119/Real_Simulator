@@ -45,7 +45,8 @@
     mode: 'park', holdT: 0, cruise: false, setSpeed: 80, limit: 80, eco: false,
     odoMeters: 0, odo: 4236.2, range: 455, fuel: 0.62, outside: 18, coolant: 40,
     redActive: new Set(), amberActive: new Set(), popup: null, clock: '7:17', ampm: 'AM',
-    modeTitle: 'MTS', modes: ['DEEP SNOW', 'MUD', 'SAND', 'DIRT', 'AUTO'], modeIndex: 0,
+    modeTitle: 'DRIVE MODE', modes: ['ECO', 'NORMAL', 'COMFORT', 'SPORT S', 'SPORT S+'], modeIndex: 1,
+    music: { title: 'NEON', artist: 'A2O LITE', single: 'Debut Single · 2026', len: 208, pos: 0 },
     wheel: 0, yawErr: 0, laneOffset: 0, pitch: 0, bump: 0, pendingDrive: false,
   };
 
@@ -192,6 +193,7 @@
       }
       audio.click();
       audio.stopRepeat();
+      audio.goodbye();
       Object.assign(st, {
         ign: 'off', ignT: 0, engine: false, gear: 'P', mode: 'park', cruise: false,
         popup: null, bulbCheck: false, sweep: -1, pendingDrive: false,
@@ -298,10 +300,13 @@
         if (st.pendingDrive) { st.pendingDrive = false; drive(); }
       }
     } else if (st.ign === 'off') {
-      st.backlight = st.ignT > 50 ? 0 : 1 - smooth(0.15, 1.0, st.ignT);
+      st.backlight = st.ignT > 50 ? 0 : 1 - smooth(2.6, 3.1, st.ignT);   // after the farewell
     } else {
       st.backlight = 1;
     }
+
+    // the radio plays while the system is on
+    if (st.ign === 'on' && st.music) st.music.pos = (st.music.pos + dt) % st.music.len;
 
     // longitudinal dynamics
     let vm = st.speed / 3.6, a = 0, thr = 0;

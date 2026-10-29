@@ -193,9 +193,11 @@ for (cx_, cy_, a0) in ((sx1 - rr, sy0 + rr, -90), (sx1 - rr, sy1 - rr, 0), (sx0 
         ang = np.deg2rad(a0 + t)
         screen_pts.append((cx_ + rr * np.cos(ang), cy_ + rr * np.sin(ang)))
 screen = smooth_poly(screen_pts)
-boss = smooth_poly([(721, 362), (723, 347), (731, 340), (760, 336.5), (870, 336.5), (896, 340), (904, 347), (906, 362)])
-stalk_l = smooth_poly([(540, 344), (590, 344), (597, 362), (540, 362)])
-stalk_r = smooth_poly([(1037, 344), (1080, 344), (1080, 362), (1036, 362)])
+# outlines traced on the photo at 9x: the column cover's shoulders and the curved stalk tips
+boss = smooth_poly([(720, 362), (721.5, 355), (724.5, 348), (729.5, 344), (737, 340.5), (750, 338.5), (760, 338), (870, 338),
+                    (882, 339), (890, 341.5), (897, 345.5), (902, 351), (905, 358), (906, 362)])
+stalk_l = smooth_poly([(540, 341), (560, 341), (575, 343), (585, 346), (592, 350), (597, 355), (601, 362), (604, 372), (540, 372)])
+stalk_r = smooth_poly([(1085, 341), (1062, 343), (1048, 347), (1040, 351), (1034, 356), (1028, 362), (1022, 372), (1085, 372)])
 screen_hole = np.clip(screen - boss - stalk_l - stalk_r, 0, 1)
 
 # the display lit everything around it blue (bezel lip, top of the boss, stalk
