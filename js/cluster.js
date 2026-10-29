@@ -1,5 +1,6 @@
 /* Lexus GX-style 12.3" digital cluster renderer.
  *
+ * Centre: heading-up navigation mini map that follows the shared road model.
  * Design coordinates are the pixel coordinates of the close-up reference photo
  * (assets/gx_cluster.jpg); the display occupies x 245..1150, y 118..455 there.
  * The canvas is placed over the black glass of the wide interior photo.
@@ -16,6 +17,8 @@
   const TACH = { cx: 490, cy: 305, r: 192, a0: 148, a1: 218, max: 8000, red: 6000 };
   const MODE_ARC = { cx: 900, cy: 305, r: 192, a0: -40, a1: 32 };
   const MODE_Y = [253, 274, 295, 316, 337];
+  const MAP = { x: 430, y: 130, w: 520, h: 262 };
+  const MAP_TD = { w: 620, h: 420, carV: 0.85 };
 
   const RED_X = [352, 386, 420, 454, 488, 522];
   const AMBER_X = [868, 902, 936, 970, 1004, 1038];
@@ -39,17 +42,19 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
   const ease = (t) => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
+  const hash = (i, j, k) => {
+    const v = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
 
   class Cluster {
-    constructor(canvas, wallpaper) {
+    constructor(canvas) {
       this.canvas = canvas;
       this.ctx = canvas.getContext('2d');
-      this.wall = wallpaper;
+      this.td = document.createElement('canvas');        // top-down map
+      this.mapCanvas = document.createElement('canvas'); // after perspective tilt
+      this.mapZoom = 1;
       this.scale = 0;
-      this.flakes = [];
-      for (let i = 0; i < 70; i++) this.flakes.push(this.newFlake(true));
-      this.puffs = [];
-      this.emit = 0;
       this.setScale(1);
     }
 
@@ -61,101 +66,252 @@
       this.scale = s;
       this.canvas.width = Math.round(CW * s);
       this.canvas.height = Math.round(CH * s);
+      const ms = Math.min(s, 2.4);
+      this.mapScale = ms;
+      this.td.width = Math.round(MAP_TD.w * ms);
+      this.td.height = Math.round(MAP_TD.h * ms);
+      this.mapCanvas.width = Math.round(MAP.w * ms);
+      this.mapCanvas.height = Math.round(MAP.h * ms);
     }
 
     glow(px) { return px * this.scale; }
 
-    newFlake(anywhere) {
-      return {
-        x: X0 + Math.random() * CW,
-        y: anywhere ? Y0 + Math.random() * CH : Y0 - 10,
-        z: 0.3 + Math.random() * 0.7,
-        ph: Math.random() * 10,
+    drawBackground(ctx) {
+      const g = ctx.createLinearGradient(0, Y0, 0, Y0 + CH);
+      g.addColorStop(0, '#03060c');
+      g.addColorStop(1, '#08101b');
+      ctx.fillStyle = g;
+      ctx.fillRect(X0, Y0, CW, CH);
+      const r = ctx.createRadialGradient(690, 300, 10, 690, 300, 430);
+      r.addColorStop(0, 'rgba(40,95,180,0.22)');
+      r.addColorStop(1, 'rgba(40,95,180,0)');
+      ctx.fillStyle = r;
+      ctx.fillRect(X0, Y0, CW, CH);
+    }
+
+    /* ---------- navigation mini map (heading-up, tilted) ---------- */
+    drawMap(ctx, st, dt) {
+      const ms = this.mapScale;
+      const td = this.td.getContext('2d');
+      const { w: tw, h: th, carV } = MAP_TD;
+      // zoom out as speed rises, like a real navigation display
+      const targetZoom = 1.05 - 0.55 * clamp(st.speed / 100, 0, 1);
+      this.mapZoom += (targetZoom - this.mapZoom) * (1 - Math.exp(-dt / 1.5));
+      const k = this.mapZoom;
+      const s = st.odoMeters;
+      td.setTransform(ms, 0, 0, ms, 0, 0);
+      td.fillStyle = '#0a1019';
+      td.fillRect(0, 0, tw, th);
+
+      td.save();
+      td.translate(tw / 2, th * carV);
+      td.rotate(-Road.heading(s) - st.yawErr);
+      td.scale(k, k);
+      td.translate(-Road.x(s), s);
+      const s0 = s - (th * (1 - carV)) / k - 150, s1 = s + (th * carV) / k + 250;
+      const P = (S) => [Road.x(S), -S];
+      const frame = (S) => {
+        const m = Road.slope(S), n = Math.hypot(m, 1);
+        return { t: [m / n, -1 / n], r: [1 / n, m / n] };
       };
-    }
+      const line = (pts, w, col) => {
+        td.beginPath();
+        td.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) td.lineTo(pts[i][0], pts[i][1]);
+        td.lineWidth = w / k;
+        td.strokeStyle = col;
+        td.lineCap = 'round';
+        td.lineJoin = 'round';
+        td.stroke();
+      };
 
-    /* ---------- animated layers on top of the photographic backdrop ---------- */
-    updateFx(st, dt, t) {
-      const vf = clamp(st.speed / 100, 0, 1.3);
-      const vpx = 780, vpy = 270;
-      for (const f of this.flakes) {
-        f.y += (8 + 14 * f.z) * dt;
-        f.x += Math.sin(t * 0.6 + f.ph) * 4 * dt;
-        // when moving the snow streams outward from the vanishing point
-        f.x += (f.x - vpx) * vf * 1.6 * f.z * dt;
-        f.y += (f.y - vpy) * vf * 1.2 * f.z * dt;
-        if (f.y > Y0 + CH + 10 || f.x < X0 - 10 || f.x > X0 + CW + 10 || f.y < Y0 - 20) {
-          Object.assign(f, this.newFlake(vf < 0.05));
-          if (vf >= 0.05) {
-            f.x = vpx + (Math.random() - 0.5) * 200;
-            f.y = vpy + (Math.random() - 0.5) * 90;
+      // forests and lakes
+      for (let n = Math.floor(s0 / 140); n <= Math.floor(s1 / 140); n++) {
+        const S = n * 140 + hash(n, 1, 9) * 100;
+        if (hash(n, 2, 9) > 0.55) continue;
+        const side = hash(n, 3, 9) < 0.5 ? -1 : 1;
+        const { r } = frame(S);
+        const d = 70 + hash(n, 4, 9) * 220;
+        const [x, y] = P(S);
+        td.beginPath();
+        td.ellipse(x + r[0] * d * side, y + r[1] * d * side, 50 + hash(n, 5, 9) * 110, 40 + hash(n, 6, 9) * 80, hash(n, 7, 9) * 3, 0, Math.PI * 2);
+        td.fillStyle = hash(n, 8, 9) < 0.15 ? '#0d2238' : '#0e1f19';
+        td.fill();
+      }
+      // a river now and then (the road crosses it on a bridge)
+      for (let n = Math.floor(s0 / 2600); n <= Math.floor(s1 / 2600); n++) {
+        const S = n * 2600 + 900;
+        const [cx, cy] = P(S);
+        const pts = [];
+        for (let x = -700; x <= 700; x += 25) pts.push([cx + x, cy + Math.sin(x / 140 + n) * 45 + x * 0.15]);
+        line(pts, 26 * k, '#0f2740');
+      }
+
+      // side roads, crossroads and small villages
+      const roads = [];
+      for (let n = Math.floor(s0 / 230); n <= Math.floor(s1 / 230); n++) {
+        const S = n * 230 + hash(n, 1, 3) * 140;
+        const { t, r } = frame(S);
+        const [x, y] = P(S);
+        const sides = hash(n, 2, 3) < 0.3 ? [-1, 1] : [hash(n, 3, 3) < 0.5 ? -1 : 1];
+        for (const side of sides) {
+          const a = (70 + hash(n, 4, 3) * 40) * DEG;
+          const dx = r[0] * side * Math.sin(a) + t[0] * Math.cos(a);
+          const dy = r[1] * side * Math.sin(a) + t[1] * Math.cos(a);
+          const len = 140 + hash(n + side, 5, 3) * 480;
+          const bend = (hash(n + side, 6, 3) - 0.5) * 0.9;
+          const pts = [];
+          for (let i = 0; i <= 12; i++) {
+            const q = i / 12, ang = bend * q;
+            const cx = dx * Math.cos(ang) - dy * Math.sin(ang), cy = dx * Math.sin(ang) + dy * Math.cos(ang);
+            pts.push([x + cx * len * q, y + cy * len * q]);
           }
+          roads.push({ pts, major: false });
         }
       }
-      // snow spray kicked up by the tyres
-      this.emit += dt * st.speed * 0.28;
-      while (this.emit > 1) {
-        this.emit -= 1;
-        for (const [wx, wy] of [[878, 362], [628, 380]]) {
-          this.puffs.push({ x: wx + Math.random() * 14, y: wy + Math.random() * 8, vx: -(40 + Math.random() * 70) * (0.5 + vf), vy: -(8 + Math.random() * 22), r: 6 + Math.random() * 8, age: 0, life: 0.9 + Math.random() * 0.8 });
+      for (let n = Math.floor(s0 / Road.JUNCTION_EVERY); n <= Math.floor(s1 / Road.JUNCTION_EVERY) + 1; n++) {
+        const S = n * Road.JUNCTION_EVERY;
+        const { t, r } = frame(S);
+        const [x, y] = P(S);
+        const side = n % 3 !== 0 ? 1 : -1;
+        roads.push({ pts: [[x, y], [x + r[0] * side * 260 + t[0] * 120, y + r[1] * side * 260 + t[1] * 120], [x + r[0] * side * 700 + t[0] * 200, y + r[1] * side * 700 + t[1] * 200]], major: true });
+        // village grid beside the junction
+        const ox = x + r[0] * side * 160 - t[0] * 60, oy = y + r[1] * side * 160 - t[1] * 60;
+        for (let i = -2; i <= 2; i++) {
+          roads.push({ pts: [[ox + t[0] * i * 45 - r[0] * 90, oy + t[1] * i * 45 - r[1] * 90], [ox + t[0] * i * 45 + r[0] * 90, oy + t[1] * i * 45 + r[1] * 90]], major: false });
+          roads.push({ pts: [[ox + r[0] * i * 45 - t[0] * 90, oy + r[1] * i * 45 - t[1] * 90], [ox + r[0] * i * 45 + t[0] * 90, oy + r[1] * i * 45 + t[1] * 90]], major: false });
         }
       }
-      for (const p of this.puffs) {
-        p.age += dt;
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        p.vy += 6 * dt;
-        p.r += 26 * dt;
+      for (const rd of roads) line(rd.pts, rd.major ? 7.5 : 5, '#1b2430');
+      for (const rd of roads) line(rd.pts, rd.major ? 4.6 : 2.6, rd.major ? '#6d7888' : '#3e4959');
+
+      // route: travelled part dimmed, the road ahead highlighted
+      const back = [], ahead = [];
+      for (let S = s0; S <= s; S += 6) back.push(P(S));
+      back.push(P(s));
+      for (let S = s; S <= s1; S += 6) ahead.push(P(S));
+      line(back, 8, '#1b2430');
+      line(back, 5, '#5e6a7a');
+      line(ahead, 16, 'rgba(40,140,255,0.22)');
+      line(ahead, 7.5, '#2a86f5');
+      line(ahead, 2.2, '#a6d6ff');
+      td.restore();
+
+      // perspective tilt by horizontal slices
+      const mc = this.mapCanvas.getContext('2d');
+      const mw = this.mapCanvas.width, mh = this.mapCanvas.height;
+      mc.setTransform(1, 0, 0, 1, 0, 0);
+      mc.globalCompositeOperation = 'source-over';
+      mc.clearRect(0, 0, mw, mh);
+      const N = 90;
+      const gF = (v) => v * (1.5 - 0.5 * v);
+      const tdw = this.td.width, tdh = this.td.height;
+      for (let n = 0; n < N; n++) {
+        const v0 = n / N, v1 = (n + 1) / N;
+        const sw = tdw * (1 - 0.45 * (v0 + v1) / 2);
+        const sy0 = tdh * gF(v0), sy1 = tdh * gF(v1);
+        mc.drawImage(this.td, (tdw - sw) / 2, sy0, sw, Math.max(1, sy1 - sy0), 0, Math.floor(v0 * mh), mw, Math.ceil((v1 - v0) * mh) + 1);
       }
-      this.puffs = this.puffs.filter((p) => p.age < p.life);
-      if (this.puffs.length > 140) this.puffs.splice(0, this.puffs.length - 140);
+      mc.globalCompositeOperation = 'destination-in';
+      let gr = mc.createLinearGradient(0, 0, mw, 0);
+      gr.addColorStop(0, 'rgba(0,0,0,0)');
+      gr.addColorStop(0.16, 'rgba(0,0,0,1)');
+      gr.addColorStop(0.84, 'rgba(0,0,0,1)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      mc.fillStyle = gr;
+      mc.fillRect(0, 0, mw, mh);
+      gr = mc.createLinearGradient(0, 0, 0, mh);
+      gr.addColorStop(0, 'rgba(0,0,0,0)');
+      gr.addColorStop(0.38, 'rgba(0,0,0,0.95)');
+      gr.addColorStop(0.9, 'rgba(0,0,0,1)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      mc.fillStyle = gr;
+      mc.fillRect(0, 0, mw, mh);
+      mc.globalCompositeOperation = 'source-over';
+      ctx.drawImage(this.mapCanvas, MAP.x, MAP.y, MAP.w, MAP.h);
     }
 
-    drawBackdrop(ctx, st, t, a) {
-      if (!this.wall.complete || !this.wall.naturalWidth) return;
-      const vf = clamp(st.speed / 100, 0, 1.3);
-      const zoom = 1 + (1 - a) * 0.06 + vf * 0.012;
-      const jx = (Math.sin(t * 17.3) + Math.sin(t * 7.1)) * 0.35 * vf;
-      const jy = (Math.sin(t * 13.7) + Math.sin(t * 23.9)) * 0.3 * vf;
-      const cx = 700, cy = 300;
+    drawArrow(ctx) {
+      const x = MAP.x + MAP.w / 2, y = MAP.y + MAP.h * 0.758;
       ctx.save();
-      ctx.globalAlpha *= a;
-      ctx.translate(cx + jx, cy + jy);
-      ctx.scale(zoom, zoom);
-      ctx.translate(-cx, -cy);
-      ctx.drawImage(this.wall, X0, Y0, CW, CH);
+      ctx.shadowColor = 'rgba(60,150,255,0.8)';
+      ctx.shadowBlur = this.glow(10);
+      ctx.beginPath();
+      ctx.moveTo(x, y - 17);
+      ctx.lineTo(x + 11, y + 9);
+      ctx.lineTo(x, y + 3);
+      ctx.lineTo(x - 11, y + 9);
+      ctx.closePath();
+      const g = ctx.createLinearGradient(x - 11, y, x + 11, y);
+      g.addColorStop(0, '#ffffff');
+      g.addColorStop(0.5, '#ffffff');
+      g.addColorStop(0.5, '#cfe4ff');
+      g.addColorStop(1, '#cfe4ff');
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#2a86f5';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
       ctx.restore();
+    }
 
-      // spray and snowfall
+    guidance(ctx, st) {
+      const j = Road.nextJunction(st.odoMeters);
+      const x = 446, y = 240, w = 150, h = 58;
       ctx.save();
-      ctx.globalAlpha *= a;
-      for (const p of this.puffs) {
-        const k = 1 - p.age / p.life;
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
-        g.addColorStop(0, `rgba(230,238,250,${0.32 * k})`);
-        g.addColorStop(1, 'rgba(230,238,250,0)');
-        ctx.fillStyle = g;
-        ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
-      }
-      for (const f of this.flakes) {
-        const r = 0.6 + f.z * 1.6 + vf * f.z * 1.2;
-        ctx.fillStyle = `rgba(225,235,255,${0.25 + f.z * 0.45})`;
-        if (vf > 0.15) {
-          const dx = (f.x - 780) * 0.02 * vf * f.z, dy = (f.y - 270) * 0.02 * vf * f.z;
-          ctx.strokeStyle = ctx.fillStyle;
-          ctx.lineWidth = r;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(f.x - dx * 3, f.y - dy * 3);
-          ctx.lineTo(f.x, f.y);
-          ctx.stroke();
-        } else {
-          ctx.beginPath();
-          ctx.arc(f.x, f.y, r, 0, Math.PI * 2);
-          ctx.fill();
-        }
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 8);
+      ctx.fillStyle = 'rgba(8,13,22,0.82)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(120,170,240,0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // manoeuvre arrow
+      ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = '#ffffff';
+      ctx.lineWidth = 3.2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const ax = x + 24, ay = y + 44;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      if (j.right) {
+        ctx.lineTo(ax, ay - 16);
+        ctx.quadraticCurveTo(ax, ay - 24, ax + 8, ay - 24);
+        ctx.lineTo(ax + 10, ay - 24);
+        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ax + 16, ay - 24); ctx.lineTo(ax + 8, ay - 30); ctx.lineTo(ax + 8, ay - 18); ctx.closePath(); ctx.fill();
+      } else {
+        ctx.lineTo(ax, ay - 24);
+        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ax, ay - 32); ctx.lineTo(ax - 6, ay - 23); ctx.lineTo(ax + 6, ay - 23); ctx.closePath(); ctx.fill();
       }
       ctx.restore();
+      const d = j.dist >= 1000 ? `${(j.dist / 1000).toFixed(1)}` : `${Math.max(0, Math.round(j.dist / 10) * 10)}`;
+      const unit = j.dist >= 1000 ? 'km' : 'm';
+      this.text(ctx, d, x + 50, y + 22, 21, '#ffffff', { weight: 500, align: 'left' });
+      ctx.font = `500 21px ${FONT}`;
+      this.text(ctx, unit, x + 54 + ctx.measureText(d).width, y + 25, 11.5, 'rgba(220,230,245,0.85)', { align: 'left' });
+      this.text(ctx, j.name, x + 50, y + 44, 11.5, 'rgba(215,226,242,0.9)', { kr: true, align: 'left' });
+
+      // current road name and the speed limit
+      const name = Road.NAME;
+      ctx.font = `500 10.5px ${KR}`;
+      const nw = ctx.measureText(name).width + 18;
+      ctx.beginPath();
+      ctx.roundRect(MAP.x + MAP.w / 2 - nw / 2, 352, nw, 17, 8.5);
+      ctx.fillStyle = 'rgba(8,13,22,0.8)';
+      ctx.fill();
+      this.text(ctx, name, MAP.x + MAP.w / 2, 361, 10.5, 'rgba(225,233,245,0.92)', { kr: true, weight: 500 });
+      ctx.beginPath();
+      ctx.arc(470, 338, 15, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.lineWidth = 3.4;
+      ctx.strokeStyle = '#e1251b';
+      ctx.stroke();
+      this.text(ctx, String(st.limit), 470, 339, 13, '#111111', { weight: 700 });
     }
 
     shade(ctx) {
@@ -385,16 +541,19 @@
       const s = this.scale;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      this.updateFx(st, dt, t);
       if (st.backlight <= 0.002) return;
 
       ctx.setTransform(s, 0, 0, s, -X0 * s, -Y0 * s);
       ctx.globalAlpha = st.backlight;
       const k = st.bootT;                      // seconds since the display woke up
-      const wallA = smooth(0.35, 1.2, k);
+      const mapA = smooth(0.35, 1.2, k);
       const uiA = smooth(0.9, 1.7, k);
 
-      this.drawBackdrop(ctx, st, t, wallA);
+      this.drawBackground(ctx);
+      ctx.globalAlpha = st.backlight * mapA;
+      this.drawMap(ctx, st, dt);
+      this.drawArrow(ctx);
+      ctx.globalAlpha = st.backlight;
       this.shade(ctx);
       this.welcome(ctx, k);
 
@@ -402,6 +561,7 @@
       const rpm = st.sweep >= 0 ? st.sweep * TACH.max : st.rpm;
       this.drawTach(ctx, rpm);
       this.drawModes(ctx, st);
+      this.guidance(ctx, st);
 
       // top centre: speed, unit, gear
       this.text(ctx, String(Math.round(st.speed)), 695, 180, 64, '#ffffff', { weight: 300, glow: 'rgba(180,215,255,0.35)' });

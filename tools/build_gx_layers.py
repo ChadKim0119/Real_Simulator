@@ -4,9 +4,10 @@
                            removed (black glass)
   assets/gx_wheel.webp     steering wheel incl. paddles (alpha matte)
   assets/gx_shroud.webp    steering-column camera shroud, sits in front of the screen
-  assets/gx_screen.webp    clean screen backdrop taken from the close-up photo
-                           (all readouts removed; they are drawn live)
+  assets/gx_top.webp       invented strip above the photo: dash top, windshield
+                           opening (transparent) and A-pillars
 
+Coordinates are interior-photo pixels; the strip above the photo spans y -170..0.
 Requires: pillow numpy scipy opencv-python-headless
 """
 import cv2
@@ -82,56 +83,53 @@ dash = (dash * (1 - g_a) + base * g_a).astype(np.uint8)
 cv2.imwrite('/tmp/_gx_dash.png', dash)
 Image.fromarray(cv2.cvtColor(dash, cv2.COLOR_BGR2RGB)).save('assets/gx_dash.webp', quality=88, method=6)
 
-save_rgba('assets/gx_wheel.webp', im, feather(wheel, 1.1))
+# the rim's top reaches slightly above the frame: extend it by mirroring its edge rows
+TOP = 170
+wim = np.zeros((H + TOP, W, 3), np.uint8)
+wim[TOP:] = im
+wal = np.zeros((H + TOP, W), np.float32)
+wal[TOP:] = feather(wheel, 1.1)
+for x in range(500, 861):
+    apex = 0.000647 * (x - 680) ** 2 - 9.3        # outer edge of the rim above y = 0
+    for y in range(int(np.floor(apex)), 0):
+        src = min(-y - 1, H - 1)
+        wim[TOP + y, x] = im[src, x]
+        wal[TOP + y, x] = np.clip(y - apex, 0, 1) * wal[TOP + src, x]
+save_rgba('assets/gx_wheel.webp', wim, wal)
+
+# strip above the photo: dash top continues upward, then the windshield opening
+band = 46
+# the photo's first rows carry a light edge; continue from slightly lower rows,
+# smoothed sideways so no mirrored highlights appear
+dash[0:4] = dash[4]
+src = cv2.GaussianBlur(dash[4:10].astype(np.float32).mean(axis=0, keepdims=True), (0, 0), sigmaX=8, sigmaY=0)[0]
+top = np.zeros((TOP, W, 3), np.float32)
+ta = np.zeros((TOP, W), np.float32)
+rng = np.random.default_rng(1)
+for k in range(1, band + 1):
+    shade = 1.0 - 0.7 * (k / band) ** 0.9
+    top[TOP - k] = src * shade + rng.normal(0, 1.2, (W, 1))
+    ta[TOP - k] = 1
+# windshield base: a dark lip and a faint glint along the glass edge
+lip = TOP - band
+top[lip:lip + 3] *= 0.35
+top[lip - 1] = (70, 74, 80)
+ta[lip - 1] = 0.55
+# headliner shadow at the very top
+for k in range(18):
+    top[k] = (14, 14, 16)
+    ta[k] = 1 - k / 18 * 0.75 if k < 18 else 0
+# A-pillars
+pil = np.zeros((TOP, W), np.uint8)
+cv2.fillPoly(pil, [np.array([(0, 0), (170, 0), (70, lip), (0, lip)], np.int32)], 255)
+cv2.fillPoly(pil, [np.array([(1250, 0), (1440, 0), (1440, lip), (1385, lip)], np.int32)], 255)
+pa = feather(pil > 0, 2.0)
+gy = np.linspace(0, 1, TOP)[:, None]
+pillar_col = np.dstack([18 + 12 * gy, 19 + 12 * gy, 22 + 12 * gy]) * np.ones((1, W, 1))
+top = top * (1 - pa[..., None]) + pillar_col * pa[..., None]
+ta = np.maximum(ta, pa)
+Image.fromarray(cv2.cvtColor(dash, cv2.COLOR_BGR2RGB)).save('assets/gx_dash.webp', quality=88, method=6)
+save_rgba('assets/gx_top.webp', np.clip(top, 0, 255).astype(np.uint8), ta)
 save_rgba('assets/gx_shroud.webp', im, feather(shroud, 0.9) * (yy < 330))
 
-# ------------------------------------------------------ screen backdrop ----
-cl = cv2.imread('assets/gx_cluster.jpg')
-X0, Y0, X1, Y1 = 245, 118, 1150, 455
-crop = cl[Y0:Y1, X0:X1].copy()
-ch, cw = crop.shape[:2]
-cg = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-
-
-def cpoly(pts):
-    return poly([(x - X0, y - Y0) for x, y in pts], (ch, cw))
-
-
-# readouts to remove (photo coords of the close-up)
-TEXT_BOXES = [
-    (500, 145, 585, 195), (640, 140, 750, 245), (805, 150, 885, 195),   # temp, speed/MPH/P, clock
-    (930, 205, 1100, 350),                                                # MTS list
-    (318, 392, 470, 445), (930, 390, 1090, 445),                          # temp & fuel bars
-    (245, 320, 285, 360),                                                 # mode icon
-]
-text = np.zeros((ch, cw), bool)
-for x0, y0, x1, y1 in TEXT_BOXES:
-    box = np.zeros((ch, cw), bool)
-    box[max(0, y0 - Y0):y1 - Y0, max(0, x0 - X0):x1 - X0] = True
-    bright = (cg > 120) | ((hsv[..., 1] > 90) & (hsv[..., 2] > 90))
-    text |= box & bright
-text = nd.binary_dilation(text, iterations=4)
-# the right-hand arc line
-arc = np.zeros((ch, cw), np.uint8)
-cv2.ellipse(arc, (900 - X0, 305 - Y0), (192, 192), 0, -40, 32, 255, 9)
-text |= (arc > 0) & (cg > 60)
-# thin bright leftovers (arc lines, stitching) in the dark parts of the display
-th = cv2.morphologyEx(cg, cv2.MORPH_TOPHAT, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
-cyy, cxx = np.mgrid[0:ch, 0:cw]
-dark_zone = (cyy < 135) | (cxx > 630) | (cxx < 115)
-text |= nd.binary_dilation(dark_zone & (th > 22), iterations=2)
-# camera shroud and wheel in the close-up: rebuild from surroundings
-occl = cpoly([(515, 455), (520, 392), (545, 378), (850, 378), (875, 392), (880, 455)])
-holes = (text | occl).astype(np.uint8) * 255
-clean = cv2.inpaint(crop, holes, 6, cv2.INPAINT_TELEA)
-soft = cv2.GaussianBlur(clean, (0, 0), 5)
-hm = feather(holes > 0, 3)[..., None]
-clean = (clean * (1 - hm) + soft * hm).astype(np.uint8)
-# display edges fall off to black (also hides stalk/paddle remnants in the corners)
-edge = np.ones((ch, cw), np.float32)
-edge *= np.clip(1 - (cyy - 280) / 57.0, 0.18, 1)
-edge *= np.clip(cxx / 60.0, 0.25, 1) * np.clip((cw - cxx) / 60.0, 0.25, 1)
-clean = (clean * edge[..., None]).astype(np.uint8)
-Image.fromarray(cv2.cvtColor(clean, cv2.COLOR_BGR2RGB)).save('assets/gx_screen.webp', quality=90, method=6)
-print('ok', clean.shape)
+print('ok')

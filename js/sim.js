@@ -3,8 +3,10 @@
   'use strict';
 
   const IMG_W = 1440, IMG_H = 810;
+  const EXT_TOP = -170;                 // invented windshield strip above the photo
+  const FULL_TOP = -125;                // the full view shows a little of the road outside
   const WHEEL_PIVOT = [676, 410];
-  const CLUSTER_VIEW = { cx: 663, cy: 194, w: 590, h: 380 };
+  const CLUSTER_VIEW = { cx: 663, cy: 168, w: 600, h: 470 };
   // 10-speed automatic: engine rpm per km/h in each gear
   const GEAR_FACTOR = [0, 142, 90, 64, 48, 38, 31, 26, 21, 17.5, 15];
   const IDLE = 650;
@@ -29,6 +31,7 @@
   };
   window.SimData = SimData;
 
+  const DEG = Math.PI / 180;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
   const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -39,11 +42,11 @@
     ign: 'off', ignT: 99, bootT: 99, backlight: 0, bulbCheck: false, sweep: -1,
     engine: false, rpm: 0, throttle: 0,
     speed: 0, accel: 0, gear: 'P', gearNum: 1, shiftT: 0,
-    mode: 'park', holdT: 0, cruise: false, setSpeed: 100, eco: false,
+    mode: 'park', holdT: 0, cruise: false, setSpeed: 80, limit: 80, eco: false,
     odoMeters: 0, odo: 4236.2, range: 455, fuel: 0.62, outside: 2, coolant: 40,
     redActive: new Set(), amberActive: new Set(), popup: null, clock: '7:17',
     modeTitle: 'MTS', modes: ['DEEP SNOW', 'MUD', 'SAND', 'DIRT', 'AUTO'], modeIndex: 0,
-    wheel: 0, pendingDrive: false,
+    wheel: 0, yawErr: 0, laneOffset: 0, pitch: 0, bump: 0, pendingDrive: false,
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -52,12 +55,16 @@
   const focusShade = $('#focusShade');
   const startGlow = $('#startGlow');
   const ambientCanvas = $('#ambient');
-  const cluster = new Cluster($('#cluster'), $('#screenArt'));
+  const extCanvas = $('#exterior');
+  const cluster = new Cluster($('#cluster'));
   const ambient = new Ambient(ambientCanvas);
+  const exterior = new Exterior(extCanvas);
   const audio = new SimAudio();
 
   const cr = Cluster.rect;
   Object.assign($('#cluster').style, { left: cr.x + 'px', top: cr.y + 'px', width: cr.w + 'px', height: cr.h + 'px' });
+  const eb = Exterior.box;
+  Object.assign(extCanvas.style, { left: '0px', top: eb.top + 'px', width: eb.width + 'px', height: eb.height + 'px' });
   wheelRig.style.transformOrigin = `${WHEEL_PIVOT[0]}px ${WHEEL_PIVOT[1]}px`;
 
   /* ---------------- camera ---------------- */
@@ -80,9 +87,9 @@
     const aw = area.x1 - area.x0, ah = area.y1 - area.y0;
     const contain = Math.min(vw / IMG_W, ah / IMG_H);
     const cover = Math.max(vw / IMG_W, vh / IMG_H);
-    const sFull = Math.min(cover, contain * 1.3);
+    const sFull = Math.min(cover, contain * 1.3) * 1.04;
     const halfH = (docked === 'bottom' ? ah : vh) / 2 / sFull;
-    const cyFull = halfH >= IMG_H / 2 ? IMG_H / 2 : halfH + 0.3 * (IMG_H - 2 * halfH);
+    const cyFull = Math.min(FULL_TOP + halfH, IMG_H - halfH, (FULL_TOP + IMG_H) / 2);
     const fit = Math.min(aw / CLUSTER_VIEW.w, ah / CLUSTER_VIEW.h);
     const sZoom = Math.max(fit, Math.min(sFull * 1.35, aw / 560));
     layout = {
@@ -114,7 +121,7 @@
     const vw = window.innerWidth, vh = window.innerHeight;
     let tx = vx - cx * s, ty = vy - cy * s;
     if (IMG_W * s >= vw) tx = clamp(tx, vw - IMG_W * s, 0);
-    if (IMG_H * s >= vh) ty = clamp(ty, vh - IMG_H * s, 0);
+    if ((IMG_H - EXT_TOP) * s >= vh) ty = clamp(ty, vh - IMG_H * s, -EXT_TOP * s);
     stage.style.transform = `translate3d(${(tx + shakeX).toFixed(2)}px, ${(ty + shakeY).toFixed(2)}px, 0) scale(${s.toFixed(5)})`;
 
     const wheelA = 1 - smooth(0.1, 0.72, z);
@@ -340,10 +347,19 @@
     st.range = Math.max(0, st.range - dm / 1000);
     st.fuel = Math.max(0, st.fuel - dm / 1000 * 0.0011);
 
-    // steering wheel: always a little alive, more corrections at speed
+    // steering: the angle the road's curve needs (wheelbase 2.85 m, ratio 16:1)
+    // plus the driver's small, constant corrections
     const vf = clamp(st.speed / 60, 0, 1);
-    st.wheel = 0.3 * Math.sin(t * 0.55) + 0.15 * Math.sin(t * 1.37 + 0.7) + 0.06 * Math.sin(t * 3.1 + 2)
-      + vf * (1.0 * Math.sin(t * 0.29 + 1.1) + 0.55 * Math.sin(t * 0.71) + 0.22 * Math.sin(t * 2.3 + 0.4));
+    const roadAngle = Math.atan(2.85 * Road.curvature(st.odoMeters)) * 16 / DEG;
+    const corr = 0.3 * Math.sin(t * 0.55) + 0.15 * Math.sin(t * 1.37 + 0.7) + 0.06 * Math.sin(t * 3.1 + 2)
+      + vf * (0.55 * Math.sin(t * 0.29 + 1.1) + 0.3 * Math.sin(t * 0.71) + 0.15 * Math.sin(t * 2.3 + 0.4));
+    st.wheelRoad = follow(st.wheelRoad || 0, roadAngle, 0.35, dt);
+    st.wheel = st.wheelRoad + corr;
+    // the corrections show up as a slight yaw and drift inside the lane
+    st.yawErr = follow(st.yawErr, corr * 0.0009 * vf, 0.5, dt);
+    st.laneOffset = vf * (0.22 * Math.sin(t * 0.23 + 0.5) + 0.1 * Math.sin(t * 0.61));
+    st.pitch = follow(st.pitch, st.accel * 0.3, 0.45, dt);
+    st.bump = clamp(st.speed / 80, 0, 1.2) * (Math.sin(t * 19.3) * 0.3 + Math.sin(t * 7.9 + 1) * 0.4 + (Math.random() - 0.5) * 0.3);
   }
 
   /* ---------------- UI ---------------- */
@@ -454,8 +470,10 @@
 
     applyCamera(t, dt);
     wheelRig.style.transform = `rotate(${st.wheel.toFixed(3)}deg)`;
+    exterior.update(st, dt);
+    exterior.render(st);
     ambient.render(st, t);
-    ambientCanvas.style.opacity = (0.3 + 0.5 * clamp(st.speed / 30, 0, 1)).toFixed(3);
+    ambientCanvas.style.opacity = (0.12 + 0.22 * clamp(st.speed / 30, 0, 1)).toFixed(3);
     startGlow.style.opacity = st.ign === 'off' ? '0' : st.ign === 'starting' ? String(0.5 + 0.5 * Math.sin(t * 12)) : '1';
     cluster.render(st, t, dt);
     audio.update(st, dt);
@@ -470,7 +488,7 @@
     requestAnimationFrame(frame);
   }
 
-  const imgs = [...document.querySelectorAll('#stage img, #screenArt')];
+  const imgs = [...document.querySelectorAll('#stage img')];
   const fonts = document.fonts
     ? Promise.race([
       Promise.all([

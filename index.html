@@ -13,6 +13,8 @@
 <body data-ign="off">
   <main id="viewport" aria-label="계기판 시뮬레이터 화면">
     <div id="stage">
+      <canvas id="exterior" aria-hidden="true"></canvas>
+      <img id="top" src="assets/gx_top.webp" alt="" draggable="false">
       <img id="dash" src="assets/gx_dash.webp" alt="" draggable="false">
       <canvas id="cluster" aria-label="인스트루먼트 클러스터"></canvas>
       <img id="shroud" src="assets/gx_shroud.webp" alt="" draggable="false">
@@ -25,7 +27,6 @@
       <div id="startGlow" aria-hidden="true"></div>
       <button id="hotStart" class="hot" data-action="ign" aria-label="START STOP ENGINE 버튼"></button>
     </div>
-    <img id="screenArt" src="assets/gx_screen.webp" alt="" hidden>
     <div id="vignette" aria-hidden="true"></div>
   </main>
 
@@ -90,7 +91,9 @@
   <div id="loading"><div class="spin"></div></div>
 
   <script src="js/icons.js"></script>
+  <script src="js/road.js"></script>
   <script src="js/cluster.js"></script>
+  <script src="js/exterior.js"></script>
   <script src="js/ambient.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/sim.js"></script>
