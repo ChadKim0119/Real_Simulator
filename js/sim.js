@@ -3,8 +3,8 @@
   'use strict';
 
   const IMG_W = 1440, IMG_H = 810;
-  const EXT_TOP = -170;                 // invented windshield strip above the photo
-  const FULL_TOP = -125;                // the full view shows a little of the road outside
+  const EXT_TOP = -330;                 // invented windshield view above the photo
+  const FULL_TOP = -135;                // the full view shows a little of the road outside
   const WHEEL_PIVOT = [676, 410];
   const CLUSTER_VIEW = { cx: 663, cy: 168, w: 600, h: 470 };
   // 10-speed automatic: engine rpm per km/h in each gear
@@ -124,9 +124,10 @@
     if ((IMG_H - EXT_TOP) * s >= vh) ty = clamp(ty, vh - IMG_H * s, -EXT_TOP * s);
     stage.style.transform = `translate3d(${(tx + shakeX).toFixed(2)}px, ${(ty + shakeY).toFixed(2)}px, 0) scale(${s.toFixed(5)})`;
 
-    const wheelA = 1 - smooth(0.1, 0.72, z);
+    // zoomed in, the wheel fades to a faint translucent ghost that keeps moving
+    const wheelA = 1 - 0.8 * smooth(0.1, 0.72, z);
     wheelRig.style.opacity = wheelA.toFixed(3);
-    wheelRig.style.visibility = z > 0.75 ? 'hidden' : 'visible';
+    wheelRig.classList.toggle('ghost', z > 0.5);
     focusShade.style.opacity = smooth(0.25, 1, z).toFixed(3);
 
     const dpr = window.devicePixelRatio || 1;
@@ -351,7 +352,7 @@
     // plus the driver's small, constant corrections
     const vf = clamp(st.speed / 60, 0, 1);
     const roadAngle = Math.atan(2.85 * Road.curvature(st.odoMeters)) * 16 / DEG;
-    const corr = 0.3 * Math.sin(t * 0.55) + 0.15 * Math.sin(t * 1.37 + 0.7) + 0.06 * Math.sin(t * 3.1 + 2)
+    const corr = 0.55 * Math.sin(t * 0.55) + 0.25 * Math.sin(t * 1.37 + 0.7) + 0.08 * Math.sin(t * 3.1 + 2)
       + vf * (0.55 * Math.sin(t * 0.29 + 1.1) + 0.3 * Math.sin(t * 0.71) + 0.15 * Math.sin(t * 2.3 + 0.4));
     st.wheelRoad = follow(st.wheelRoad || 0, roadAngle, 0.35, dt);
     st.wheel = st.wheelRoad + corr;
