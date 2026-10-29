@@ -5,7 +5,7 @@
   'use strict';
 
   const W = 1672, H = 941, Q = 1 / 8;
-  const SCREEN = { x: 574, y: 185, w: 464, h: 173 };
+  const SCREEN = { x: 585, y: 189, w: 455, h: 170 };
 
   const hash = (n, k) => {
     const s = Math.sin(n * 78.233 + k * 12.989) * 43758.5453;

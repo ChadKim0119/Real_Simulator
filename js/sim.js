@@ -5,7 +5,7 @@
   const IMG_W = 1672, IMG_H = 941;
   const EXT_TOP = 0;
   const FULL_TOP = 0;
-  const CLUSTER_VIEW = { cx: 807, cy: 250, w: 545, h: 430 };
+  const CLUSTER_VIEW = { cx: 812, cy: 270, w: 490, h: 330 };
   // 10-speed automatic: engine rpm per km/h in each gear
   const GEAR_FACTOR = [0, 142, 90, 64, 48, 38, 31, 26, 21, 17.5, 15];
   const IDLE = 650;
@@ -91,7 +91,7 @@
     const halfH = (docked === 'bottom' ? ah : vh) / 2 / sFull;
     const cyFull = Math.min(FULL_TOP + halfH, IMG_H - halfH, (FULL_TOP + IMG_H) / 2);
     const fit = Math.min(aw / CLUSTER_VIEW.w, ah / CLUSTER_VIEW.h);
-    const sZoom = Math.max(fit, Math.min(sFull * 1.35, aw / 560));
+    const sZoom = Math.max(fit, Math.min(sFull * 1.35, aw / 500));
     layout = {
       area,
       full: { s: sFull, cx: IMG_W / 2, cy: cyFull, vx: vw / 2, vy: docked === 'bottom' ? ah / 2 : vh / 2 },
@@ -370,9 +370,16 @@
     // enough for its spokes to hide the cluster
     const look = st.odoMeters + Math.max(2, st.speed / 3.6 * 0.35);
     const roadAngle = clamp(Math.atan(2.85 * Road.curvature(look)) * 16 / DEG, -28, 28);
-    const corr = 0.55 * Math.sin(t * 0.55) + 0.25 * Math.sin(t * 1.37 + 0.7) + 0.08 * Math.sin(t * 3.1 + 2)
-      + vf * (0.55 * Math.sin(t * 0.29 + 1.1) + 0.3 * Math.sin(t * 0.71) + 0.15 * Math.sin(t * 2.3 + 0.4));
-    st.wheelRoad = follow(st.wheelRoad || 0, roadAngle, 0.25, dt);
+    // once the car stands still the driver lets the wheel return to centre:
+    // corrections die away and the angle eases back to 0 (critically damped)
+    const moving = st.speed > 0.5 && st.mode !== 'hold' && st.mode !== 'park';
+    st.moveBlend = follow(st.moveBlend || 0, moving ? 1 : 0, moving ? 0.6 : 0.35, dt);
+    const corr = st.moveBlend * (0.55 * Math.sin(t * 0.55) + 0.25 * Math.sin(t * 1.37 + 0.7) + 0.08 * Math.sin(t * 3.1 + 2)
+      + vf * (0.55 * Math.sin(t * 0.29 + 1.1) + 0.3 * Math.sin(t * 0.71) + 0.15 * Math.sin(t * 2.3 + 0.4)));
+    const target = moving ? roadAngle : 0;
+    const w0 = 2 * Math.PI / (moving ? 1.6 : 2.2);           // response of the steering
+    st.wheelVel = (st.wheelVel || 0) + (w0 * w0 * (target - (st.wheelRoad || 0)) - 2 * w0 * (st.wheelVel || 0)) * dt;
+    st.wheelRoad = (st.wheelRoad || 0) + st.wheelVel * dt;
     st.wheel = st.wheelRoad + corr;
     // the corrections show up as a slight yaw and drift inside the lane
     st.yawErr = follow(st.yawErr, corr * 0.0009 * vf, 0.5, dt);
@@ -495,7 +502,7 @@
     exterior.render(st);
     ambient.render(st, t);
     ambientCanvas.style.opacity = (0.12 + 0.22 * clamp(st.speed / 30, 0, 1)).toFixed(3);
-    startGlow.style.opacity = st.ign === 'off' ? '0' : st.ign === 'starting' ? String(0.5 + 0.5 * Math.sin(t * 12)) : '1';
+    startGlow.style.opacity = st.ign === 'off' ? '0' : st.ign === 'starting' ? (0.6 + 0.4 * Math.sin(t * 7)).toFixed(3) : '1';
     cluster.render(st, t, dt);
     audio.update(st, dt);
     updateStatus(dt);

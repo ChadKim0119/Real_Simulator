@@ -1,5 +1,6 @@
-/* Synthesised sound: twin-turbo V6, starter, cabin road/tyre/wind noise and
- * cluster chimes (Web Audio). Everything is generated, no samples. */
+/* Synthesised sound for a luxury SUV (Web Audio, no samples): a smooth V8
+ * heard through a well-insulated cabin, a short refined starter, soft road,
+ * tyre and wind noise, and the cluster's chimes. */
 (function () {
   'use strict';
 
@@ -9,8 +10,6 @@
     constructor() {
       this.ctx = null;
       this.enabled = true;
-      this.boost = 0;
-      this.lastThr = 0;
       this.repeat = null;
     }
 
@@ -35,8 +34,8 @@
       // everything mechanical is heard through the cabin: dull it down
       this.cabin = ctx.createBiquadFilter();
       this.cabin.type = 'lowpass';
-      this.cabin.frequency.value = 2600;
-      this.cabin.Q.value = 0.5;
+      this.cabin.frequency.value = 1500;      // laminated glass, thick insulation
+      this.cabin.Q.value = 0.4;
       this.cabin.connect(this.master);
 
       this.noiseBuf = this.makeNoise(3);
@@ -77,75 +76,62 @@
 
     buildEngine() {
       const ctx = this.ctx;
-      // exhaust pulse spectrum: strong low orders, falling off, with a dip
-      // around the 4th order that gives a V6 its slightly hollow note
-      const N = 32;
-      const re = new Float32Array(N), im = new Float32Array(N);
-      for (let n = 1; n < N; n++) {
-        let a = 1 / Math.pow(n, 0.85);
-        if (n === 4) a *= 0.45;
-        if (n === 3 || n === 6) a *= 1.35;
-        im[n] = a * (n % 2 ? 1 : -0.8);
-      }
-      const pulse = ctx.createPeriodicWave(re, im);
-
+      // A V8 with a cross-plane crank fires 4 times per revolution. Its cabin
+      // sound is dominated by a few low engine orders; uneven bank firing adds
+      // the half and 1.5 orders that give the soft burble. Pure partials (no
+      // saw/square) keep it smooth, a gentle saturator ties them together.
       this.engBus = this.gain(0);
       const shaper = ctx.createWaveShaper();
       const curve = new Float32Array(2048);
       for (let i = 0; i < 2048; i++) {
         const x = i / 1024 - 1;
-        curve[i] = Math.tanh(x * 1.8) / Math.tanh(1.8);
+        curve[i] = Math.tanh(x * 1.3) / Math.tanh(1.3);
       }
       shaper.curve = curve;
       shaper.oversample = '2x';
-      this.engLP = this.filter('lowpass', 600, 1.1);
-      const body = this.filter('peaking', 110, 0.9);
-      body.gain.value = 5;
-      const sum = this.gain(0.32);
+      this.engLP = this.filter('lowpass', 420, 0.7);
+      const body = this.filter('peaking', 85, 1.0);
+      body.gain.value = 6;                         // chassis resonance: felt more than heard
+      const sum = this.gain(0.42);
       sum.connect(shaper).connect(body).connect(this.engLP).connect(this.engBus).connect(this.cabin);
 
-      // firing order (1.0), half order (crank, uneven V6 bank firing) and 1.5 order
-      this.orders = [[1, 0.9], [0.5, 0.42], [1.5, 0.28], [3, 0.08]].map(([mul, amp]) => {
+      this.orders = [[0.5, 0.32, 'sine'], [1, 1.0, 'sine'], [1.5, 0.22, 'sine'], [2, 0.36, 'triangle'], [3, 0.08, 'sine'], [4, 0.04, 'sine']].map(([mul, amp, type]) => {
         const o = ctx.createOscillator();
-        o.setPeriodicWave(pulse);
-        o.frequency.value = 30 * mul;
+        o.type = type;
+        o.frequency.value = 26 * mul;
+        o.detune.value = (Math.random() - 0.5) * 6;
         const g = this.gain(amp);
         o.connect(g).connect(sum);
         o.start();
         return { o, mul };
       });
 
-      // combustion roughness: slow random amplitude modulation
-      const rough = this.noise(0.25);
-      const roughLP = this.filter('lowpass', 30);
+      // the faintest combustion texture, so it never sounds like a tone generator
+      const rough = this.noise(0.2);
+      const roughLP = this.filter('lowpass', 18);
       this.roughAmt = this.gain(0.0);
       rough.connect(roughLP).connect(this.roughAmt).connect(this.engBus.gain);
 
-      // intake roar + turbo whistle
+      // induction: a soft, low breath that rises with load
       const intake = this.noise(1);
-      this.intakeBP = this.filter('bandpass', 900, 0.9);
+      this.intakeBP = this.filter('bandpass', 520, 0.7);
       this.intakeGain = this.gain(0);
       intake.connect(this.intakeBP).connect(this.intakeGain).connect(this.cabin);
-      this.whistle = ctx.createOscillator();
-      this.whistle.type = 'sine';
-      this.whistle.frequency.value = 3000;
-      this.whistleGain = this.gain(0);
-      this.whistle.connect(this.whistleGain).connect(this.master);
-      this.whistle.start();
     }
 
     buildRoad() {
+      // fine-grained tyre roar, a low structural rumble, and air over the mirrors
       const tyre = this.noise(1);
-      const tyreBP = this.filter('bandpass', 320, 0.6);
+      const tyreBP = this.filter('bandpass', 260, 0.55);
       this.tyreGain = this.gain(0);
       tyre.connect(tyreBP).connect(this.tyreGain).connect(this.cabin);
       const rumble = this.noise(0.5);
-      const rumbleLP = this.filter('lowpass', 140, 0.8);
+      const rumbleLP = this.filter('lowpass', 110, 0.7);
       this.rumbleGain = this.gain(0);
       rumble.connect(rumbleLP).connect(this.rumbleGain).connect(this.master);
       const wind = this.noise(1);
-      const windHP = this.filter('highpass', 700, 0.5);
-      this.windBP = this.filter('lowpass', 2200, 0.4);
+      const windHP = this.filter('highpass', 500, 0.5);
+      this.windBP = this.filter('lowpass', 1400, 0.4);
       this.windGain = this.gain(0);
       wind.connect(windHP).connect(this.windBP).connect(this.windGain).connect(this.master);
     }
@@ -156,101 +142,72 @@
       if (!on) this.stopRepeat();
     }
 
-    /* Starter motor: whine plus the rhythmic load of each compression stroke. */
+    /* Starter: a short, muted whir with a soft compression rhythm, then the
+     * engine catches with a low thump. Well damped, as in a luxury car. */
     crank(seconds) {
       if (!this.ctx) return;
       const ctx = this.ctx, t = ctx.currentTime;
       const env = this.gain(0);
       env.connect(this.cabin);
       env.gain.setValueAtTime(0, t);
-      env.gain.linearRampToValueAtTime(0.5, t + 0.05);
-      env.gain.setValueAtTime(0.5, t + seconds - 0.12);
-      env.gain.linearRampToValueAtTime(0, t + seconds);
+      env.gain.linearRampToValueAtTime(0.22, t + 0.08);
+      env.gain.setValueAtTime(0.22, t + seconds - 0.15);
+      env.gain.linearRampToValueAtTime(0, t + seconds + 0.05);
 
       const motor = ctx.createOscillator();
-      motor.type = 'sawtooth';
-      motor.frequency.setValueAtTime(70, t);
-      motor.frequency.linearRampToValueAtTime(118, t + 0.25);
-      const motorBP = this.filter('bandpass', 520, 1.6);
-      const chop = this.gain(0.55);
+      motor.type = 'triangle';
+      motor.frequency.setValueAtTime(90, t);
+      motor.frequency.linearRampToValueAtTime(150, t + 0.3);
+      const motorLP = this.filter('lowpass', 520, 0.8);
+      const chop = this.gain(0.6);
       const lfo = ctx.createOscillator();
-      lfo.type = 'triangle';
-      lfo.frequency.setValueAtTime(7, t);
-      lfo.frequency.linearRampToValueAtTime(10.5, t + seconds);
-      const lfoAmt = this.gain(0.45);
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(9, t);
+      lfo.frequency.linearRampToValueAtTime(13, t + seconds);
+      const lfoAmt = this.gain(0.35);
       lfo.connect(lfoAmt).connect(chop.gain);
-      const lfoPitch = this.gain(14);
-      lfo.connect(lfoPitch).connect(motor.frequency);
-      motor.connect(motorBP).connect(chop).connect(env);
-
-      const clatter = this.noise(1);
-      const clBP = this.filter('bandpass', 1400, 2);
-      const clG = this.gain(0.35);
-      clatter.connect(clBP).connect(clG).connect(chop);
-
+      motor.connect(motorLP).connect(chop).connect(env);
       motor.start(t);
       lfo.start(t);
-      motor.stop(t + seconds + 0.05);
-      lfo.stop(t + seconds + 0.05);
-      clatter.stop(t + seconds + 0.05);
+      motor.stop(t + seconds + 0.1);
+      lfo.stop(t + seconds + 0.1);
 
-      // the engine catching: a low thump
+      // the engine catches: a deep, short thump under the first revs
       const thump = ctx.createOscillator();
       thump.type = 'sine';
-      thump.frequency.setValueAtTime(70, t + seconds - 0.05);
-      thump.frequency.exponentialRampToValueAtTime(38, t + seconds + 0.4);
+      thump.frequency.setValueAtTime(62, t + seconds - 0.05);
+      thump.frequency.exponentialRampToValueAtTime(34, t + seconds + 0.45);
       const tg = this.gain(0);
       tg.gain.setValueAtTime(0, t + seconds - 0.05);
-      tg.gain.linearRampToValueAtTime(0.55, t + seconds);
-      tg.gain.exponentialRampToValueAtTime(0.001, t + seconds + 0.5);
+      tg.gain.linearRampToValueAtTime(0.32, t + seconds + 0.02);
+      tg.gain.exponentialRampToValueAtTime(0.001, t + seconds + 0.6);
       thump.connect(tg).connect(this.master);
       thump.start(t + seconds - 0.05);
-      thump.stop(t + seconds + 0.55);
+      thump.stop(t + seconds + 0.65);
     }
 
     update(st, dt) {
       if (!this.ctx) return;
       const t = this.ctx.currentTime;
       const rpm = Math.max(st.rpm, 1);
-      const fire = rpm / 60 * 3;                 // V6, four-stroke: 3 pulses per rev
-      for (const { o, mul } of this.orders) o.frequency.setTargetAtTime(fire * mul, t, 0.025);
+      const fire = rpm / 60 * 4;                 // V8, four-stroke: 4 pulses per rev
+      for (const { o, mul } of this.orders) o.frequency.setTargetAtTime(fire * mul, t, 0.03);
       const running = st.rpm > 150;
       const load = clamp(st.throttle, 0, 1);
-      const targetBoost = running ? clamp(load * 1.4 - 0.25, 0, 1) * clamp((rpm - 1200) / 1800, 0, 1) : 0;
-      this.boost += (targetBoost - this.boost) * (1 - Math.exp(-dt / (targetBoost > this.boost ? 0.6 : 0.15)));
 
-      this.engLP.frequency.setTargetAtTime(220 + rpm * 0.16 + load * 1100, t, 0.05);
-      const lvl = running ? 0.13 + load * 0.2 + (rpm / 6000) * 0.12 : 0;
-      this.engBus.gain.setTargetAtTime(lvl, t, running ? 0.05 : 0.3);
-      this.roughAmt.gain.setTargetAtTime(running ? lvl * 0.35 : 0, t, 0.1);
-      this.intakeBP.frequency.setTargetAtTime(500 + rpm * 0.35, t, 0.1);
-      this.intakeGain.gain.setTargetAtTime(running ? 0.02 + load * 0.05 + this.boost * 0.05 : 0, t, 0.08);
-      this.whistle.frequency.setTargetAtTime(2600 + this.boost * 5200, t, 0.08);
-      this.whistleGain.gain.setTargetAtTime(this.boost * 0.012, t, 0.1);
-
-      // quick throttle lift with boost up: soft bypass-valve whoosh
-      if (this.lastThr - load > 0.2 && this.boost > 0.35) this.whoosh(this.boost);
-      this.lastThr = load;
+      // quiet at idle and cruise, a refined swell under load
+      this.engLP.frequency.setTargetAtTime(260 + rpm * 0.1 + load * 700, t, 0.08);
+      const lvl = running ? 0.07 + load * 0.15 + (rpm / 6000) * 0.08 : 0;
+      this.engBus.gain.setTargetAtTime(lvl, t, running ? 0.08 : 0.35);
+      this.roughAmt.gain.setTargetAtTime(running ? lvl * 0.12 : 0, t, 0.1);
+      this.intakeBP.frequency.setTargetAtTime(380 + rpm * 0.18, t, 0.12);
+      this.intakeGain.gain.setTargetAtTime(running ? 0.006 + load * 0.03 : 0, t, 0.12);
 
       const v = st.speed;
-      this.tyreGain.gain.setTargetAtTime(Math.min(0.32, Math.pow(v / 110, 1.2) * 0.22), t, 0.25);
-      this.rumbleGain.gain.setTargetAtTime(Math.min(0.5, Math.pow(v / 110, 1.1) * 0.32), t, 0.25);
-      this.windGain.gain.setTargetAtTime(Math.min(0.3, Math.pow(v / 140, 2.2) * 0.26), t, 0.3);
-      this.windBP.frequency.setTargetAtTime(1200 + v * 12, t, 0.3);
-    }
-
-    whoosh(amount) {
-      const ctx = this.ctx, t = ctx.currentTime;
-      const n = this.noise(1);
-      const bp = this.filter('bandpass', 2400, 1.1);
-      bp.frequency.setValueAtTime(3200, t);
-      bp.frequency.exponentialRampToValueAtTime(900, t + 0.4);
-      const g = this.gain(0);
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.06 * amount, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-      n.connect(bp).connect(g).connect(this.cabin);
-      n.stop(t + 0.5);
+      this.tyreGain.gain.setTargetAtTime(Math.min(0.2, Math.pow(v / 110, 1.2) * 0.13), t, 0.3);
+      this.rumbleGain.gain.setTargetAtTime(Math.min(0.32, Math.pow(v / 110, 1.1) * 0.2), t, 0.3);
+      this.windGain.gain.setTargetAtTime(Math.min(0.16, Math.pow(v / 140, 2.4) * 0.14), t, 0.4);
+      this.windBP.frequency.setTargetAtTime(900 + v * 7, t, 0.4);
     }
 
     /* A soft mallet tone: fundamental + inharmonic partials, exponential decay. */

@@ -9,7 +9,7 @@
   'use strict';
 
   const X0 = 245, Y0 = 118, CW = 905, CH = 337;
-  const PLACE = { x: 573.7, y: 184.8, k: 0.5122 };   // display position in the interior photo
+  const PLACE = { x: 585.5, y: 189.5, k: 0.5022 };   // the display's glass, measured on the photo
   const DEG = Math.PI / 180;
   const FONT = '"Barlow", "Helvetica Neue", Arial, sans-serif';
   const KR = '"Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';

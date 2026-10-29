@@ -52,6 +52,21 @@ body.ready #stage { opacity: 1; }
 #stage > * { position: absolute; display: block; }
 #plate, #ambient, #focusShade { left: 0; top: 0; width: 1672px; height: 941px; pointer-events: none; }
 #exterior { filter: blur(1.4px) saturate(0.95); }
+
+/* the switched-off display: black glass with a faint reflection of the cabin.
+   Slightly larger than the hole in the plate so nothing behind it shows. */
+#glass {
+  left: 584.5px;
+  top: 188.5px;
+  width: 456.5px;
+  height: 170.5px;
+  border-radius: 8px;
+  pointer-events: none;
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 38%, rgba(255, 255, 255, 0) 60%),
+    radial-gradient(ellipse 70% 120% at 50% 110%, rgba(40, 46, 56, 0.35), transparent 70%),
+    #050608;
+}
 #wheel { pointer-events: none; will-change: opacity; }
 #ambient { mix-blend-mode: soft-light; filter: blur(10px); }
 
@@ -70,20 +85,25 @@ body.ready #stage { opacity: 1; }
   opacity: 0;
   background:
     linear-gradient(to bottom, transparent 380px, rgba(0, 0, 0, 0.45) 520px, rgba(0, 0, 0, 0.7) 941px),
-    radial-gradient(ellipse 320px 190px at 807px 262px, transparent 72%, rgba(0, 0, 0, 0.42) 100%);
+    radial-gradient(ellipse 300px 160px at 812px 274px, transparent 72%, rgba(0, 0, 0, 0.42) 100%);
 }
 
+/* START button: a thin LED ring that follows the chrome bezel (centre 1139.5, 173) */
 #startGlow {
-  left: 1108px;
-  top: 128px;
-  width: 72px;
-  height: 72px;
+  left: 1113px;
+  top: 146.5px;
+  width: 53px;
+  height: 53px;
   border-radius: 50%;
   opacity: 0;
   pointer-events: none;
   mix-blend-mode: screen;
-  box-shadow: 0 0 0 2px rgba(150, 205, 255, 0.55), 0 0 14px 3px rgba(110, 180, 255, 0.45), inset 0 0 10px rgba(130, 195, 255, 0.4);
-  transition: opacity 0.4s ease;
+  box-shadow:
+    0 0 0 1.4px rgb(64, 150, 255),
+    0 0 4px 1.5px rgba(40, 130, 255, 0.75),
+    0 0 10px 2px rgba(30, 110, 255, 0.35),
+    inset 0 0 4px 1px rgba(40, 130, 255, 0.55);
+  transition: opacity 0.35s ease;
 }
 
 .hot {
@@ -96,7 +116,7 @@ body.ready #stage { opacity: 1; }
   pointer-events: auto;
 }
 .hot:focus-visible { outline: 2px solid #6aa8ff; }
-#hotStart { left: 1110px; top: 130px; width: 68px; height: 68px; }
+#hotStart { left: 1106px; top: 139.5px; width: 67px; height: 67px; }
 #hotMode { left: 966px; top: 498px; width: 46px; height: 32px; border-radius: 10px; }
 .hot:active { background: rgba(255, 255, 255, 0.08); }
 body.zoomed #hotMode { pointer-events: none; }
