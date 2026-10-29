@@ -7,7 +7,7 @@
   assets/gx_top.webp       invented strip above the photo: dash top, windshield
                            opening (transparent) and A-pillars
 
-Coordinates are interior-photo pixels; the strip above the photo spans y -170..0.
+Coordinates are interior-photo pixels; the strip above the photo spans y -330..0.
 Requires: pillow numpy scipy opencv-python-headless
 """
 import cv2
@@ -97,39 +97,76 @@ for x in range(500, 861):
         wal[TOP + y, x] = np.clip(y - apex, 0, 1) * wal[TOP + src, x]
 save_rgba('assets/gx_wheel.webp', wim, wal)
 
-# strip above the photo: dash top continues upward, then the windshield opening
-band = 46
-# the photo's first rows carry a light edge; continue from slightly lower rows,
-# smoothed sideways so no mirrored highlights appear
+# strip above the photo (y -330..0): headliner, windshield opening (transparent),
+# A-pillars, rear-view mirror and the dash top with the cluster hood
+XT = 330
 dash[0:4] = dash[4]
-src = cv2.GaussianBlur(dash[4:10].astype(np.float32).mean(axis=0, keepdims=True), (0, 0), sigmaX=8, sigmaY=0)[0]
-top = np.zeros((TOP, W, 3), np.float32)
-ta = np.zeros((TOP, W), np.float32)
-rng = np.random.default_rng(1)
-for k in range(1, band + 1):
-    shade = 1.0 - 0.7 * (k / band) ** 0.9
-    top[TOP - k] = src * shade + rng.normal(0, 1.2, (W, 1))
-    ta[TOP - k] = 1
-# windshield base: a dark lip and a faint glint along the glass edge
-lip = TOP - band
-top[lip:lip + 3] *= 0.35
-top[lip - 1] = (70, 74, 80)
-ta[lip - 1] = 0.55
-# headliner shadow at the very top
-for k in range(18):
-    top[k] = (14, 14, 16)
-    ta[k] = 1 - k / 18 * 0.75 if k < 18 else 0
-# A-pillars
-pil = np.zeros((TOP, W), np.uint8)
-cv2.fillPoly(pil, [np.array([(0, 0), (170, 0), (70, lip), (0, lip)], np.int32)], 255)
-cv2.fillPoly(pil, [np.array([(1250, 0), (1440, 0), (1440, lip), (1385, lip)], np.int32)], 255)
-pa = feather(pil > 0, 2.0)
-gy = np.linspace(0, 1, TOP)[:, None]
-pillar_col = np.dstack([18 + 12 * gy, 19 + 12 * gy, 22 + 12 * gy]) * np.ones((1, W, 1))
-top = top * (1 - pa[..., None]) + pillar_col * pa[..., None]
-ta = np.maximum(ta, pa)
-Image.fromarray(cv2.cvtColor(dash, cv2.COLOR_BGR2RGB)).save('assets/gx_dash.webp', quality=88, method=6)
-save_rgba('assets/gx_top.webp', np.clip(top, 0, 255).astype(np.uint8), ta)
-save_rgba('assets/gx_shroud.webp', im, feather(shroud, 0.9) * (yy < 330))
+src = cv2.GaussianBlur(dash[4:10].astype(np.float32).mean(axis=0, keepdims=True), (0, 0), sigmaX=10, sigmaY=0)[0]
+top = np.zeros((XT, W, 3), np.float32)
+ta = np.zeros((XT, W), np.float32)
+ys = np.arange(XT)[:, None] - XT                     # stage y of each row (-330..-1)
+xs = np.arange(W)[None, :]
+
+
+def sstep(e0, e1, v):
+    t = np.clip((v - e0) / (e1 - e0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def paint(mask_a, color):
+    global top, ta
+    m = np.clip(mask_a, 0, 1)[..., None]
+    top = top * (1 - m) + np.asarray(color, np.float32) * m
+    ta = np.maximum(ta, m[..., 0])
+
+
+# dash top silhouette: low at the sides, rising over the cluster hood
+hood = sstep(330, 470, xs) * (1 - sstep(900, 1040, xs))
+edge = -40 - 20 * hood - 6 * np.exp(-((xs - 1250) / 160.0) ** 2)
+below = sstep(edge - 1.2, edge + 1.2, ys)            # 1 under the edge (dash), 0 above (glass)
+depth = np.clip((ys - edge) / np.maximum(-edge, 1), 0, 1)    # 0 at the edge .. 1 at y = 0
+leather = np.array([30, 31, 35], np.float32)[None, None] * (0.75 + 0.35 * depth[..., None])
+blend = sstep(0.55, 1.0, depth)[..., None]
+dash_col = leather * (1 - blend) + src[None] * blend
+top = dash_col * below[..., None]
+ta = below.copy()
+# sky light catching the rounded edge of the dash pad
+rim = np.exp(-((ys - edge - 1.5) / 1.3) ** 2)
+paint(rim * 0.55, (118, 124, 132))
+# the dash reflected faintly in the glass just above it
+refl = np.exp(-((ys - edge + 18) / 14.0) ** 2) * (1 - below)
+paint(refl * 0.10, (150, 160, 172))
+
+# headliner and the tinted band at the top of the glass
+paint(1 - sstep(-312, -300, ys), (17, 17, 19))
+paint((1 - sstep(-300, -235, ys)) * 0.5, (10, 13, 18))
+
+# A-pillars (driver side wide and close, passenger side far and slanted)
+for poly, col in (([(0, 0), (230, 0), (70, XT - 30), (0, XT - 30)], (24, 25, 28)),
+                  ([(1215, 0), (1330, 0), (1440, 200), (1440, XT - 30), (1418, XT - 30)], (26, 27, 30))):
+    m = np.zeros((XT, W), np.uint8)
+    cv2.fillPoly(m, [np.array(poly, np.int32)], 255)
+    paint(feather(m > 0, 2.2), col)
+    edge_line = cv2.Canny(m, 50, 150) > 0
+    paint(feather(edge_line, 1.0) * 0.35, (70, 72, 78))
+
+# rear-view mirror hanging from the headliner
+m = np.zeros((XT, W), np.uint8)
+cv2.rectangle(m, (1000, 18), (1016, 44), 255, -1)                    # stem
+cv2.ellipse(m, (1005, 66), (120, 26), 0, 0, 360, 255, -1)
+paint(feather(m > 0, 1.6), (21, 22, 25))
+m2 = np.zeros((XT, W), np.uint8)
+cv2.ellipse(m2, (1005, 62), (112, 16), 0, 180, 360, 255, 2)
+paint(feather(m2 > 0, 1.2) * 0.4, (90, 94, 100))
+
+top[:-3] = cv2.GaussianBlur(top, (0, 0), 0.8)[:-3]
+save_rgba('assets/gx_top.webp', np.clip(top, 0, 255).astype(np.uint8), np.clip(ta, 0, 1))
+# the photo's display glows blue around the cover's edges: neutralise that tint
+sh = im.copy()
+b_, g_, r_ = [sh[..., i].astype(np.int16) for i in range(3)]
+tint = shroud & (b_ - r_ > 18)
+grey = cv2.cvtColor(cv2.cvtColor(sh, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
+sh[tint] = (grey[tint] * 0.55).astype(np.uint8)
+save_rgba('assets/gx_shroud.webp', sh, feather(nd.binary_erosion(shroud, iterations=2), 0.9) * (yy < 330))
 
 print('ok')

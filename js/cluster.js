@@ -223,8 +223,8 @@
       gr = mc.createLinearGradient(0, 0, 0, mh);
       gr.addColorStop(0, 'rgba(0,0,0,0)');
       gr.addColorStop(0.38, 'rgba(0,0,0,0.95)');
-      gr.addColorStop(0.9, 'rgba(0,0,0,1)');
-      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      gr.addColorStop(0.74, 'rgba(0,0,0,1)');
+      gr.addColorStop(0.9, 'rgba(0,0,0,0)');
       mc.fillStyle = gr;
       mc.fillRect(0, 0, mw, mh);
       mc.globalCompositeOperation = 'source-over';
@@ -544,6 +544,10 @@
       if (st.backlight <= 0.002) return;
 
       ctx.setTransform(s, 0, 0, s, -X0 * s, -Y0 * s);
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(X0 + 1, Y0 + 1, CW - 2, CH - 2, 14);
+      ctx.clip();
       ctx.globalAlpha = st.backlight;
       const k = st.bootT;                      // seconds since the display woke up
       const mapA = smooth(0.35, 1.2, k);
@@ -593,12 +597,31 @@
       ctx.globalAlpha = st.backlight;
       this.popup(ctx, st, t);
 
+      // panel edge: the backlight falls off toward the bezel
+      ctx.globalAlpha = 1;
+      const edgeG = (x0, y0, x1, y1) => {
+        const g = ctx.createLinearGradient(x0, y0, x1, y1);
+        g.addColorStop(0, 'rgba(0,0,0,0.75)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        return g;
+      };
+      ctx.fillStyle = edgeG(0, Y0 + CH, 0, Y0 + CH - 26);
+      ctx.fillRect(X0, Y0 + CH - 26, CW, 26);
+      ctx.fillStyle = edgeG(0, Y0, 0, Y0 + 12);
+      ctx.fillRect(X0, Y0, CW, 12);
+      ctx.fillStyle = edgeG(X0, 0, X0 + 14, 0);
+      ctx.fillRect(X0, Y0, 14, CH);
+      ctx.fillStyle = edgeG(X0 + CW, 0, X0 + CW - 14, 0);
+      ctx.fillRect(X0 + CW - 14, Y0, 14, CH);
+      ctx.globalAlpha = st.backlight;
+
       // glass sheen
       const sheen = ctx.createLinearGradient(X0, Y0, X0 + 420, Y0 + 260);
       sheen.addColorStop(0, 'rgba(255,255,255,0.05)');
       sheen.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = sheen;
       ctx.fillRect(X0, Y0, CW, CH);
+      ctx.restore();
     }
   }
 

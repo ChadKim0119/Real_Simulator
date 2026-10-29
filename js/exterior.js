@@ -4,11 +4,11 @@
 (function () {
   'use strict';
 
-  const TOP = -170, HEIGHT = 185, WIDTH = 1440;
-  const Q = 0.42;
-  const F = 420;            // focal length, stage px
+  const TOP = -330, HEIGHT = 300, WIDTH = 1440;   // ends under the dash top, never behind the seam
+  const Q = 0.36;
+  const F = 600;            // focal length, stage px
   const CAM_H = 1.3;        // eye height, m
-  const HORIZON = -101;
+  const HORIZON = -112;
   const VP_X = 690;
   const ROAD_HALF = 3.9;
 
@@ -29,7 +29,7 @@
       this.cars = [];
       this.nextCar = 3;
       this.flakes = [];
-      for (let i = 0; i < 160; i++) this.flakes.push(this.flake(true));
+      for (let i = 0; i < 220; i++) this.flakes.push(this.flake(true));
     }
 
     static get box() { return { top: TOP, height: HEIGHT, width: WIDTH }; }
@@ -110,7 +110,7 @@
         ctx.closePath();
       };
       const strips = [];
-      for (let z = 7; z < 700; z += Math.max(1.2, z * 0.07)) strips.push(z);
+      for (let z = 9; z < 700; z += Math.max(1.2, z * 0.07)) strips.push(z);
       for (let i = strips.length - 2; i >= 0; i--) {
         const za = strips[i], zb = strips[i + 1];
         const ca = cz(za), cb = cz(zb);
@@ -152,7 +152,7 @@
       for (let n = Math.floor(s / 6); n < Math.floor((s + 420) / 6); n++) {
         const S = n * 6 + hash(n, 1) * 4;
         const z = S - s;
-        if (z < 8) continue;
+        if (z < 9) continue;
         if (hash(n, 2) < 0.75) objs.push({ k: 'tree', z, u: (hash(n, 3) < 0.5 ? -1 : 1) * (7 + hash(n, 4) * 32), n });
       }
       for (let n = Math.floor(s / 25); n < Math.floor((s + 300) / 25); n++) {

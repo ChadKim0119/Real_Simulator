@@ -51,10 +51,12 @@ body.ready #stage { opacity: 1; }
 
 #stage > * { position: absolute; display: block; }
 #dash, #wheelRig, #wheel, #shroud, #ambient, #focusShade { left: 0; top: 0; width: 1440px; height: 810px; }
+#focusShade { top: -330px; height: 1140px; }
 #wheelRig > * { position: absolute; }
 #wheel { top: -170px; height: 980px; pointer-events: none; }
-#top { left: 0; top: -170px; width: 1440px; height: 170px; pointer-events: none; }
-#exterior { filter: blur(1.6px) saturate(0.9); }
+#top { left: 0; top: -330px; width: 1440px; height: 330px; pointer-events: none; }
+#exterior { filter: blur(2px) saturate(0.9); }
+#wheelRig.ghost .hot { pointer-events: none; }
 #wheelRig { will-change: transform, opacity; pointer-events: none; }
 #shroud { pointer-events: none; }
 #ambient { mix-blend-mode: soft-light; filter: blur(10px); pointer-events: none; }
@@ -63,7 +65,9 @@ body.ready #stage { opacity: 1; }
 #focusShade {
   opacity: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse 360px 200px at 663px 175px, transparent 72%, rgba(0, 0, 0, 0.55) 100%);
+  background:
+    linear-gradient(to bottom, transparent 660px, rgba(0, 0, 0, 0.45) 800px, rgba(0, 0, 0, 0.7) 1140px),
+    radial-gradient(ellipse 380px 230px at 663px 505px, transparent 72%, rgba(0, 0, 0, 0.42) 100%);
 }
 
 #startGlow {
