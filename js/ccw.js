@@ -691,6 +691,16 @@
     if (st && c && c.call) st.textContent = c.call.state === 'connected' ? `● 통화 중 ${E.mmss(Date.now() - c.call.connectedAt)}` : c.call.state === 'dialing' ? '발신 중…' : c.call.state === 'failed' ? '연결 실패 · 고객 미응답' : `통화 종료 · ${E.mmss(c.call.endedAt - c.call.connectedAt)}`;
   }, 250);
 
+  // a tablet showing the transcript should not dim or lock during the demo
+  let wake = null;
+  async function keepAwake() {
+    if (VIEW !== 'transcript' || !navigator.wakeLock || document.visibilityState !== 'visible' || (wake && !wake.released)) return;
+    try { wake = await navigator.wakeLock.request('screen'); } catch (e) { /* needs a tap first on some browsers */ }
+  }
+  document.addEventListener('pointerdown', keepAwake);
+  document.addEventListener('visibilitychange', keepAwake);
+  keepAwake();
+
   /* ---------------- controls ---------------- */
   $('#viewBtn').addEventListener('click', () => camTo(cam.to > 0.5 ? 0 : 1, 2200));
   $('#fsBtn').addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}));

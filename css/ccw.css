@@ -34,7 +34,7 @@ body.view-app #hud { right: auto; left: 14px; flex-direction: column; align-item
 body.view-app #office, body.view-app #deskGlow, body.view-app #glassFx, body.view-app #viewBtn { display: none; }
 body.view-app #stage { transform: none !important; width: 100vw; height: 100vh; }
 body.view-app #screen { position: fixed; inset: 0; width: 100vw; height: 100vh; background: #000; }
-body.view-transcript #viewport, body.view-transcript #viewBtn, body.view-transcript #noiseBtn { display: none; }
+body.view-transcript #viewport, body.view-transcript #viewBtn, body.view-transcript #noiseBtn, body.view-transcript #sound { display: none; }
 
 /* ---------- CCW app (Global South Call Center Web GUI, drawn at 1920x960) ---------- */
 #app {
