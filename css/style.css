@@ -40,8 +40,8 @@ html, body {
   position: absolute;
   left: 0;
   top: 0;
-  width: 1712px;
-  height: 1152px;
+  width: 1440px;
+  height: 810px;
   transform-origin: 0 0;
   will-change: transform;
   overflow: hidden;
@@ -51,26 +51,45 @@ html, body {
 body.ready #stage { opacity: 1; }
 
 #stage > * { position: absolute; display: block; }
-#dash, #wheelRig, #wheel { left: 0; top: 0; width: 1712px; height: 1152px; }
+#dash, #wheelRig, #wheel, #shroud, #ambient, #focusShade { left: 0; top: 0; width: 1440px; height: 810px; }
 #wheel { position: static; pointer-events: none; }
-#wheelRig { will-change: transform, opacity; }
-#exterior { image-rendering: auto; filter: blur(2.4px) saturate(0.88) contrast(0.96); }
-#cluster { mix-blend-mode: screen; }
+#wheelRig { will-change: transform, opacity; pointer-events: none; }
+#shroud { pointer-events: none; }
+#ambient { mix-blend-mode: soft-light; filter: blur(10px); pointer-events: none; }
 
-/* faint light the display throws onto the hood */
-#spill {
-  left: 240px;
-  top: 90px;
-  width: 1240px;
-  height: 600px;
+/* when the camera closes in on the display, the rest of the cabin falls into shadow */
+#focusShade {
   opacity: 0;
-  mix-blend-mode: screen;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 34% 40% at 21% 52%, rgba(120, 140, 170, 0.10), transparent 70%),
-    radial-gradient(ellipse 34% 40% at 77% 52%, rgba(120, 140, 170, 0.10), transparent 70%),
-    radial-gradient(ellipse 22% 30% at 50% 42%, rgba(110, 150, 200, 0.07), transparent 70%);
+  background: radial-gradient(ellipse 330px 170px at 663px 192px, transparent 72%, rgba(0, 0, 0, 0.55) 100%);
 }
+
+#startGlow {
+  left: 996px;
+  top: 32px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  box-shadow: 0 0 0 2px rgba(150, 205, 255, 0.55), 0 0 14px 3px rgba(110, 180, 255, 0.45), inset 0 0 10px rgba(130, 195, 255, 0.4);
+  transition: opacity 0.4s ease;
+}
+
+.hot {
+  position: absolute;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.hot:focus-visible { outline: 2px solid #6aa8ff; }
+#hotStart { left: 998px; top: 34px; width: 76px; height: 76px; }
+#hotMode { left: 842px; top: 452px; width: 50px; height: 34px; border-radius: 10px; }
+.hot:active { background: rgba(255, 255, 255, 0.08); }
 
 #vignette {
   position: absolute;

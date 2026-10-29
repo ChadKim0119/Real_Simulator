@@ -1,28 +1,28 @@
-/* Digital instrument cluster renderer.
+/* Lexus GX-style 12.3" digital cluster renderer.
  *
- * Draws only the emissive part of the display (graphics, needles, lamps, map).
- * The canvas is composited with `mix-blend-mode: screen` over the photographed
- * black glass, so an empty canvas looks like a switched-off panel.
- * All coordinates below are in source-photo pixels (1712 x 1152).
+ * Design coordinates are the pixel coordinates of the close-up reference photo
+ * (assets/gx_cluster.jpg); the display occupies x 245..1150, y 118..455 there.
+ * The canvas is placed over the black glass of the wide interior photo.
  */
 (function () {
   'use strict';
 
-  const OX = 330, OY = 170, CW = 1070, CH = 430;
+  const X0 = 245, Y0 = 118, CW = 905, CH = 337;
+  const PLACE = { x: 405, y: 95, k: 0.567 };   // display position in the interior photo
   const DEG = Math.PI / 180;
-  const NUM = '"Barlow", "Helvetica Neue", Arial, sans-serif';
+  const FONT = '"Barlow", "Helvetica Neue", Arial, sans-serif';
   const KR = '"Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
 
-  const SPEEDO = { cx: 540, cy: 380, R: 172, max: 260, a0: 140 * DEG, sweep: 260 * DEG };
-  const TACHO = { cx: 1197, cy: 380, R: 172, max: 8000, a0: 140 * DEG, sweep: 260 * DEG };
+  const TACH = { cx: 490, cy: 305, r: 192, a0: 148, a1: 218, max: 8000, red: 6000 };
+  const MODE_ARC = { cx: 900, cy: 305, r: 192, a0: -40, a1: 32 };
+  const MODE_Y = [253, 274, 295, 316, 337];
 
-  const MAP = { x: 690, y: 222, w: 356, h: 198 };
-  const MAP_TD = { w: 480, h: 330, k: 1.15, carV: 0.88 };
-
-  const RED_SLOTS = [785, 820, 855, 890, 925, 960];
-  const AMBER_SLOTS = [772, 808, 844, 880, 916, 952];
-  const RED = '#ff2b25', RED_GLOW = 'rgba(255,45,30,0.95)';
-  const AMBER = '#ffad18', AMBER_GLOW = 'rgba(255,160,20,0.9)';
+  const RED_X = [352, 386, 420, 454, 488, 522];
+  const AMBER_X = [868, 902, 936, 970, 1004, 1038];
+  const LAMP_Y = 141;
+  const RED = '#ff3527', RED_GLOW = 'rgba(255,50,30,0.9)';
+  const AMBER = '#ffb21e', AMBER_GLOW = 'rgba(255,165,20,0.85)';
+  const GREEN = '#3ee07a', GREEN_GLOW = 'rgba(60,230,120,0.7)';
 
   if (!CanvasRenderingContext2D.prototype.roundRect) {
     CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
@@ -37,450 +37,292 @@
   }
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const ang = (g, v) => g.a0 + g.sweep * clamp(v / g.max, 0, 1);
-  const hash = (i, j, k) => {
-    const s = Math.sin(i * 127.1 + j * 311.7 + k * 74.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
+  const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+  const ease = (t) => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
 
   class Cluster {
-    constructor(canvas) {
+    constructor(canvas, wallpaper) {
       this.canvas = canvas;
       this.ctx = canvas.getContext('2d');
-      this.face = document.createElement('canvas');
-      this.td = document.createElement('canvas');
-      this.mapCanvas = document.createElement('canvas');
+      this.wall = wallpaper;
       this.scale = 0;
+      this.flakes = [];
+      for (let i = 0; i < 70; i++) this.flakes.push(this.newFlake(true));
+      this.puffs = [];
+      this.emit = 0;
       this.setScale(1);
     }
 
-    static get rect() { return { x: OX, y: OY, w: CW, h: CH }; }
+    static get rect() { return { x: PLACE.x, y: PLACE.y, w: CW * PLACE.k, h: CH * PLACE.k }; }
+    static get designWidth() { return CW; }
 
     setScale(s) {
       if (Math.abs(s - this.scale) < 0.01) return;
       this.scale = s;
       this.canvas.width = Math.round(CW * s);
       this.canvas.height = Math.round(CH * s);
-      this.face.width = this.canvas.width;
-      this.face.height = this.canvas.height;
-      const ms = Math.min(s, 2.2);
-      this.mapScale = ms;
-      this.td.width = Math.round(MAP_TD.w * ms);
-      this.td.height = Math.round(MAP_TD.h * ms);
-      this.mapCanvas.width = Math.round(MAP.w * ms);
-      this.mapCanvas.height = Math.round(MAP.h * ms);
-      this.buildFace();
     }
 
-    /* ---------- static artwork (rebuilt only when resolution changes) ---------- */
-    buildFace() {
-      const s = this.scale;
-      const c = this.face.getContext('2d');
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      c.clearRect(0, 0, this.face.width, this.face.height);
-      c.setTransform(s, 0, 0, s, -OX * s, -OY * s);
+    glow(px) { return px * this.scale; }
 
-      // Assistant panel (occludes the map behind it)
-      c.save();
-      c.beginPath();
-      c.moveTo(722, 545);
-      c.lineTo(722, 432);
-      c.arcTo(722, 418, 736, 418, 14);
-      c.lineTo(998, 418);
-      c.arcTo(1012, 418, 1012, 432, 14);
-      c.lineTo(1012, 545);
-      c.closePath();
-      c.fillStyle = '#060708';
-      c.fill();
-      const edge = c.createLinearGradient(722, 0, 1012, 0);
-      edge.addColorStop(0, 'rgba(200,206,216,0.05)');
-      edge.addColorStop(0.5, 'rgba(215,220,230,0.6)');
-      edge.addColorStop(1, 'rgba(200,206,216,0.05)');
-      c.beginPath();
-      c.moveTo(722, 470);
-      c.lineTo(722, 432);
-      c.arcTo(722, 418, 736, 418, 14);
-      c.lineTo(998, 418);
-      c.arcTo(1012, 418, 1012, 432, 14);
-      c.lineTo(1012, 470);
-      c.strokeStyle = edge;
-      c.lineWidth = 1.4;
-      c.stroke();
-      c.restore();
-
-      for (const cx of [792, 944]) {
-        c.beginPath();
-        c.arc(cx, 491, 33, 0, Math.PI * 2);
-        c.strokeStyle = 'rgba(255,255,255,0.13)';
-        c.lineWidth = 3;
-        c.stroke();
-        for (let i = 0; i < 24; i++) {
-          const a = i / 24 * Math.PI * 2;
-          c.beginPath();
-          c.moveTo(cx + Math.cos(a) * 37, 491 + Math.sin(a) * 37);
-          c.lineTo(cx + Math.cos(a) * 39.5, 491 + Math.sin(a) * 39.5);
-          c.strokeStyle = 'rgba(255,255,255,0.18)';
-          c.lineWidth = 1;
-          c.stroke();
-        }
-      }
-
-      this.drawDial(c, SPEEDO, true);
-      this.drawDial(c, TACHO, false);
-
-      c.font = `600 14px ${NUM}`;
-      c.fillStyle = '#c4c8ce';
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      if ('letterSpacing' in c) c.letterSpacing = '1px';
-      c.fillText('POWER', 393, 556);
-      if ('letterSpacing' in c) c.letterSpacing = '0px';
-
-      // fuel scale under the tachometer
-      c.strokeStyle = 'rgba(255,255,255,0.32)';
-      c.lineWidth = 3;
-      c.lineCap = 'round';
-      c.beginPath();
-      c.moveTo(1140, 517);
-      c.lineTo(1254, 517);
-      c.stroke();
-      c.lineWidth = 1.4;
-      for (const x of [1140, 1197, 1254]) {
-        c.beginPath();
-        c.moveTo(x, 510);
-        c.lineTo(x, 524);
-        c.strokeStyle = 'rgba(255,255,255,0.55)';
-        c.stroke();
-      }
-      c.font = `italic 400 13px ${NUM}`;
-      c.fillStyle = '#d4d8dd';
-      c.fillText('0', 1140, 536);
-      c.fillText('1/2', 1197, 536);
-      c.fillText('1', 1254, 536);
-      SimIcons.drawIcon(c, 'fuel', 1118, 516, 17, '#d4d8dd');
+    newFlake(anywhere) {
+      return {
+        x: X0 + Math.random() * CW,
+        y: anywhere ? Y0 + Math.random() * CH : Y0 - 10,
+        z: 0.3 + Math.random() * 0.7,
+        ph: Math.random() * 10,
+      };
     }
 
-    drawDial(c, g, isSpeed) {
-      const { cx, cy, R } = g;
-      // inner disc: occludes the map and gives the glass a little depth
-      const disc = c.createRadialGradient(cx, cy - 30, 10, cx, cy, R);
-      disc.addColorStop(0, '#0d0f12');
-      disc.addColorStop(0.75, '#07080a');
-      disc.addColorStop(1, '#040506');
-      c.beginPath();
-      c.arc(cx, cy, R, 0, Math.PI * 2);
-      c.fillStyle = disc;
-      c.fill();
-
-      // chrome-like outer ring with soft bloom
-      c.save();
-      c.shadowColor = 'rgba(190,215,255,0.55)';
-      c.shadowBlur = 9;
-      const rg = c.createLinearGradient(cx, cy - R, cx, cy + R);
-      rg.addColorStop(0, '#f4f7fb');
-      rg.addColorStop(0.5, '#c9ced6');
-      rg.addColorStop(1, '#eef2f6');
-      c.beginPath();
-      c.arc(cx, cy, R, 0, Math.PI * 2);
-      c.strokeStyle = rg;
-      c.lineWidth = 2.6;
-      c.stroke();
-      c.restore();
-      c.beginPath();
-      c.arc(cx, cy, R - 5, 0, Math.PI * 2);
-      c.strokeStyle = 'rgba(255,255,255,0.07)';
-      c.lineWidth = 1;
-      c.stroke();
-
-      const max = g.max;
-      const step = isSpeed ? 5 : 250;
-      const majorEvery = isSpeed ? 20 : 1000;
-      const midEvery = isSpeed ? 10 : 500;
-      const redFrom = isSpeed ? Infinity : 6500;
-
-      if (!isSpeed) {
-        c.save();
-        c.shadowColor = 'rgba(255,40,40,0.8)';
-        c.shadowBlur = 6;
-        c.beginPath();
-        c.arc(cx, cy, R - 7, ang(g, redFrom), ang(g, max));
-        c.strokeStyle = 'rgba(228,32,42,0.95)';
-        c.lineWidth = 4;
-        c.stroke();
-        c.restore();
-      }
-
-      c.lineCap = 'butt';
-      for (let v = 0; v <= max + 0.001; v += step) {
-        const a = ang(g, v);
-        let len, lw, col;
-        if (v % majorEvery === 0) { len = 16; lw = 3.2; col = '#f5f7fa'; }
-        else if (v % midEvery === 0) { len = 10; lw = 2.0; col = '#d9dde3'; }
-        else { len = 6; lw = 1.2; col = 'rgba(215,220,228,0.65)'; }
-        if (v >= redFrom) col = v % majorEvery === 0 ? '#ff3b3b' : '#e0262f';
-        const r0 = R - 11, r1 = r0 - len;
-        c.save();
-        c.shadowColor = v >= redFrom ? 'rgba(255,40,40,0.7)' : 'rgba(220,235,255,0.45)';
-        c.shadowBlur = 4;
-        c.beginPath();
-        c.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
-        c.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
-        c.strokeStyle = col;
-        c.lineWidth = lw;
-        c.stroke();
-        c.restore();
-      }
-
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      c.save();
-      c.shadowColor = 'rgba(220,235,255,0.35)';
-      c.shadowBlur = 5;
-      if (isSpeed) {
-        c.font = `italic 400 22px ${NUM}`;
-        for (let v = 0; v <= max; v += 20) {
-          const a = ang(g, v), r = R - 46;
-          c.fillStyle = '#eef1f5';
-          c.fillText(String(v), cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-        }
-      } else {
-        c.font = `italic 400 30px ${NUM}`;
-        for (let v = 0; v <= 8; v++) {
-          const a = ang(g, v * 1000), r = R - 46;
-          c.fillStyle = v >= 7 ? '#ff4a44' : '#eef1f5';
-          c.fillText(String(v), cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-        }
-      }
-      c.restore();
-
-      c.font = `italic 400 15px ${NUM}`;
-      c.fillStyle = '#c9cdd3';
-      c.fillText(isSpeed ? 'km/h' : '1/min x 1000', cx, cy - 54);
-    }
-
-    /* ---------- navigation map ---------- */
-    drawMap(ctx, st) {
-      const ms = this.mapScale;
-      const td = this.td.getContext('2d');
-      const { w: tw, h: th, k } = MAP_TD;
-      td.setTransform(ms, 0, 0, ms, 0, 0);
-      td.fillStyle = '#54585e';
-      td.fillRect(0, 0, tw, th);
-
-      const dist = st.odoMeters;
-      td.save();
-      td.translate(tw / 2, th * MAP_TD.carV);
-      td.scale(k, k);
-      td.translate(0, dist);
-
-      const G = 55;
-      const halfW = tw / 2 / k + G;
-      const i0 = Math.floor(-halfW / G), i1 = Math.ceil(halfW / G);
-      const yTop = -dist - th * MAP_TD.carV / k - G, yBot = -dist + th * (1 - MAP_TD.carV) / k + G;
-      const j0 = Math.floor(yTop / G), j1 = Math.ceil(yBot / G);
-      const node = (i, j) => [
-        i === 0 ? 0 : i * G + (hash(i, j, 1) - 0.5) * G * 0.55,
-        j * G + (hash(i, j, 2) - 0.5) * G * 0.5,
-      ];
-
-      // land use: parks, water, built-up blocks
-      for (let i = i0; i < i1; i++) {
-        for (let j = j0; j < j1; j++) {
-          const h = hash(i, j, 5);
-          let col = null;
-          if (h < 0.07 && i !== 0 && i !== -1) col = '#4a5d6e';
-          else if (h < 0.17) col = '#58665b';
-          else if (h < 0.55) col = '#5e6268';
-          if (!col) continue;
-          const a = node(i, j), b = node(i + 1, j), c2 = node(i + 1, j + 1), d = node(i, j + 1);
-          td.beginPath();
-          const inset = 0.16;
-          const cxm = (a[0] + b[0] + c2[0] + d[0]) / 4, cym = (a[1] + b[1] + c2[1] + d[1]) / 4;
-          for (const p of [a, b, c2, d]) {
-            td.lineTo(p[0] + (cxm - p[0]) * inset, p[1] + (cym - p[1]) * inset);
-          }
-          td.closePath();
-          td.fillStyle = col;
-          td.fill();
-        }
-      }
-
-      const segs = [];
-      for (let i = i0; i <= i1; i++) {
-        for (let j = j0; j <= j1; j++) {
-          const p = node(i, j);
-          if (hash(i, j, 3) < 0.74 || j % 4 === 0) {
-            segs.push([p, node(i + 1, j), (j % 4 === 0) ? 1 : 0, hash(i, j, 7)]);
-          }
-          if (i === 0) segs.push([p, node(i, j + 1), 2, 0.5]);
-          else if (hash(i, j, 4) < 0.74 || i % 4 === 0) {
-            segs.push([p, node(i, j + 1), (i % 4 === 0) ? 1 : 0, hash(i, j, 8)]);
+    /* ---------- animated layers on top of the photographic backdrop ---------- */
+    updateFx(st, dt, t) {
+      const vf = clamp(st.speed / 100, 0, 1.3);
+      const vpx = 780, vpy = 270;
+      for (const f of this.flakes) {
+        f.y += (8 + 14 * f.z) * dt;
+        f.x += Math.sin(t * 0.6 + f.ph) * 4 * dt;
+        // when moving the snow streams outward from the vanishing point
+        f.x += (f.x - vpx) * vf * 1.6 * f.z * dt;
+        f.y += (f.y - vpy) * vf * 1.2 * f.z * dt;
+        if (f.y > Y0 + CH + 10 || f.x < X0 - 10 || f.x > X0 + CW + 10 || f.y < Y0 - 20) {
+          Object.assign(f, this.newFlake(vf < 0.05));
+          if (vf >= 0.05) {
+            f.x = vpx + (Math.random() - 0.5) * 200;
+            f.y = vpy + (Math.random() - 0.5) * 90;
           }
         }
       }
-      const widths = [[5.4, 3.0], [7.2, 4.6], [9.0, 6.2]];
-      const fills = ['#c2c6cb', '#dfe2e6', '#f3f5f7'];
-      for (let pass = 0; pass < 2; pass++) {
-        for (const [a, b, type, bend] of segs) {
-          td.beginPath();
-          td.moveTo(a[0], a[1]);
-          if (type === 2) td.lineTo(b[0], b[1]);
-          else {
-            const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
-            const dx = b[0] - a[0], dy = b[1] - a[1];
-            const off = (bend - 0.5) * 0.35;
-            td.quadraticCurveTo(mx - dy * off, my + dx * off, b[0], b[1]);
-          }
-          td.lineWidth = widths[type][pass === 0 ? 0 : 1] / k;
-          td.strokeStyle = pass === 0 ? '#3a3d42' : fills[type];
-          td.lineCap = 'round';
-          td.stroke();
+      // snow spray kicked up by the tyres
+      this.emit += dt * st.speed * 0.28;
+      while (this.emit > 1) {
+        this.emit -= 1;
+        for (const [wx, wy] of [[878, 362], [628, 380]]) {
+          this.puffs.push({ x: wx + Math.random() * 14, y: wy + Math.random() * 8, vx: -(40 + Math.random() * 70) * (0.5 + vf), vy: -(8 + Math.random() * 22), r: 6 + Math.random() * 8, age: 0, life: 0.9 + Math.random() * 0.8 });
         }
       }
-      td.restore();
-
-      // perspective "3D" projection by horizontal slices
-      const mc = this.mapCanvas.getContext('2d');
-      const mw = this.mapCanvas.width, mh = this.mapCanvas.height;
-      mc.setTransform(1, 0, 0, 1, 0, 0);
-      mc.globalCompositeOperation = 'source-over';
-      mc.clearRect(0, 0, mw, mh);
-      const N = 96;
-      const gF = (v) => v * (1.5 - 0.5 * v);
-      const tdw = this.td.width, tdh = this.td.height;
-      for (let n = 0; n < N; n++) {
-        const v0 = n / N, v1 = (n + 1) / N;
-        const sw = tdw * (1 - 0.42 * (v0 + v1) / 2);
-        const sy0 = tdh * gF(v0), sy1 = tdh * gF(v1);
-        mc.drawImage(this.td, (tdw - sw) / 2, sy0, sw, Math.max(1, sy1 - sy0),
-          0, Math.floor(v0 * mh), mw, Math.ceil((v1 - v0) * mh) + 1);
+      for (const p of this.puffs) {
+        p.age += dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 6 * dt;
+        p.r += 26 * dt;
       }
-      mc.globalCompositeOperation = 'destination-in';
-      let gr = mc.createLinearGradient(0, 0, mw, 0);
-      gr.addColorStop(0, 'rgba(0,0,0,0)');
-      gr.addColorStop(0.2, 'rgba(0,0,0,1)');
-      gr.addColorStop(0.8, 'rgba(0,0,0,1)');
-      gr.addColorStop(1, 'rgba(0,0,0,0)');
-      mc.fillStyle = gr;
-      mc.fillRect(0, 0, mw, mh);
-      gr = mc.createLinearGradient(0, 0, 0, mh);
-      gr.addColorStop(0, 'rgba(0,0,0,0)');
-      gr.addColorStop(0.3, 'rgba(0,0,0,0.92)');
-      gr.addColorStop(1, 'rgba(0,0,0,1)');
-      mc.fillStyle = gr;
-      mc.fillRect(0, 0, mw, mh);
-      mc.globalCompositeOperation = 'source-over';
-
-      ctx.drawImage(this.mapCanvas, MAP.x, MAP.y, MAP.w, MAP.h);
+      this.puffs = this.puffs.filter((p) => p.age < p.life);
+      if (this.puffs.length > 140) this.puffs.splice(0, this.puffs.length - 140);
     }
 
-    drawArrow(ctx) {
-      const x = 867.5, y = 382;
+    drawBackdrop(ctx, st, t, a) {
+      if (!this.wall.complete || !this.wall.naturalWidth) return;
+      const vf = clamp(st.speed / 100, 0, 1.3);
+      const zoom = 1 + (1 - a) * 0.06 + vf * 0.012;
+      const jx = (Math.sin(t * 17.3) + Math.sin(t * 7.1)) * 0.35 * vf;
+      const jy = (Math.sin(t * 13.7) + Math.sin(t * 23.9)) * 0.3 * vf;
+      const cx = 700, cy = 300;
       ctx.save();
-      ctx.shadowColor = 'rgba(40,140,255,0.7)';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.moveTo(x, y - 27);
-      ctx.lineTo(x + 16, y + 11);
-      ctx.lineTo(x, y + 2);
-      ctx.closePath();
-      ctx.fillStyle = '#1767d4';
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.beginPath();
-      ctx.moveTo(x, y - 27);
-      ctx.lineTo(x - 16, y + 11);
-      ctx.lineTo(x, y + 2);
-      ctx.closePath();
-      const g = ctx.createLinearGradient(x - 16, y, x, y);
-      g.addColorStop(0, '#2f8cf6');
-      g.addColorStop(1, '#62b4ff');
+      ctx.globalAlpha *= a;
+      ctx.translate(cx + jx, cy + jy);
+      ctx.scale(zoom, zoom);
+      ctx.translate(-cx, -cy);
+      ctx.drawImage(this.wall, X0, Y0, CW, CH);
+      ctx.restore();
+
+      // spray and snowfall
+      ctx.save();
+      ctx.globalAlpha *= a;
+      for (const p of this.puffs) {
+        const k = 1 - p.age / p.life;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+        g.addColorStop(0, `rgba(230,238,250,${0.32 * k})`);
+        g.addColorStop(1, 'rgba(230,238,250,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+      }
+      for (const f of this.flakes) {
+        const r = 0.6 + f.z * 1.6 + vf * f.z * 1.2;
+        ctx.fillStyle = `rgba(225,235,255,${0.25 + f.z * 0.45})`;
+        if (vf > 0.15) {
+          const dx = (f.x - 780) * 0.02 * vf * f.z, dy = (f.y - 270) * 0.02 * vf * f.z;
+          ctx.strokeStyle = ctx.fillStyle;
+          ctx.lineWidth = r;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(f.x - dx * 3, f.y - dy * 3);
+          ctx.lineTo(f.x, f.y);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    shade(ctx) {
+      let g = ctx.createLinearGradient(X0, 0, X0 + 210, 0);
+      g.addColorStop(0, 'rgba(2,5,12,0.86)');
+      g.addColorStop(1, 'rgba(2,5,12,0)');
       ctx.fillStyle = g;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(x, y - 27);
-      ctx.lineTo(x + 16, y + 11);
-      ctx.lineTo(x, y + 2);
-      ctx.lineTo(x - 16, y + 11);
-      ctx.closePath();
-      ctx.strokeStyle = 'rgba(205,230,255,0.85)';
-      ctx.lineWidth = 1.1;
-      ctx.stroke();
-      ctx.restore();
+      ctx.fillRect(X0, Y0, 210, CH);
+      g = ctx.createLinearGradient(885, 0, 960, 0);
+      g.addColorStop(0, 'rgba(2,5,12,0)');
+      g.addColorStop(1, 'rgba(2,5,12,0.9)');
+      ctx.fillStyle = g;
+      ctx.fillRect(885, Y0, X0 + CW - 885, CH);
+      g = ctx.createLinearGradient(0, Y0, 0, Y0 + 110);
+      g.addColorStop(0, 'rgba(1,3,9,0.7)');
+      g.addColorStop(1, 'rgba(1,3,9,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(X0, Y0, CW, 110);
+      g = ctx.createLinearGradient(0, 372, 0, Y0 + CH);
+      g.addColorStop(0, 'rgba(1,3,9,0)');
+      g.addColorStop(1, 'rgba(1,3,9,0.8)');
+      ctx.fillStyle = g;
+      ctx.fillRect(X0, 372, CW, Y0 + CH - 372);
     }
 
-    /* ---------- dynamic elements ---------- */
-    needle(ctx, g, v) {
-      const a = ang(g, v);
-      const r1 = 50, r2 = g.R - 15;
-      const ca = Math.cos(a), sa = Math.sin(a);
-      const px = -sa, py = ca;
-      const w0 = 2.7, w1 = 0.9;
-      const bx = g.cx + ca * r1, by = g.cy + sa * r1;
-      const tx = g.cx + ca * r2, ty = g.cy + sa * r2;
-      ctx.save();
-      ctx.shadowColor = 'rgba(255,40,30,0.85)';
-      ctx.shadowBlur = 12;
-      const gr = ctx.createLinearGradient(bx, by, tx, ty);
-      gr.addColorStop(0, '#b3121d');
-      gr.addColorStop(0.55, '#f0302c');
-      gr.addColorStop(1, '#ff5b46');
-      ctx.beginPath();
-      ctx.moveTo(bx + px * w0, by + py * w0);
-      ctx.lineTo(tx + px * w1, ty + py * w1);
-      ctx.lineTo(tx - px * w1, ty - py * w1);
-      ctx.lineTo(bx - px * w0, by - py * w0);
-      ctx.closePath();
-      ctx.fillStyle = gr;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.beginPath();
-      ctx.moveTo(g.cx + ca * (r1 + 14), g.cy + sa * (r1 + 14));
-      ctx.lineTo(g.cx + ca * (r2 - 6), g.cy + sa * (r2 - 6));
-      ctx.strokeStyle = 'rgba(255,190,175,0.75)';
-      ctx.lineWidth = 0.7;
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    text(ctx, str, x, y, font, color, align) {
-      ctx.font = font;
+    text(ctx, s, x, y, size, color, opt) {
+      opt = opt || {};
+      ctx.font = `${opt.weight || 400} ${size}px ${opt.kr ? KR : FONT}`;
       ctx.fillStyle = color;
-      ctx.textAlign = align || 'center';
-      ctx.fillText(str, x, y);
+      ctx.textAlign = opt.align || 'center';
+      ctx.textBaseline = 'middle';
+      if (opt.glow) {
+        ctx.save();
+        ctx.shadowColor = opt.glow;
+        ctx.shadowBlur = this.glow(6);
+        ctx.fillText(s, x, y);
+        ctx.restore();
+      } else ctx.fillText(s, x, y);
     }
 
-    miniGauge(ctx, cx, value, frac, color) {
-      if (frac > 0.001) {
-        ctx.save();
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 6;
+    arcPt(g, deg, r) {
+      return [g.cx + Math.cos(deg * DEG) * (r || g.r), g.cy + Math.sin(deg * DEG) * (r || g.r)];
+    }
+
+    drawTach(ctx, rpm) {
+      const g = TACH;
+      const ang = (v) => g.a0 + (g.a1 - g.a0) * clamp(v / g.max, 0, 1);
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(g.cx, g.cy, g.r, g.a0 * DEG, g.a1 * DEG);
+      ctx.strokeStyle = 'rgba(210,222,240,0.35)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(g.cx, g.cy, g.r + 3, ang(g.red) * DEG, g.a1 * DEG);
+      ctx.strokeStyle = 'rgba(235,45,45,0.9)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      for (let v = 0; v <= g.max; v += 500) {
+        const major = v % 1000 === 0;
+        const [x0, y0] = this.arcPt(g, ang(v), g.r - 3);
+        const [x1, y1] = this.arcPt(g, ang(v), g.r - (major ? 11 : 7));
         ctx.beginPath();
-        ctx.arc(cx, 491, 33, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(frac, 0, 1));
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.strokeStyle = v >= g.red ? '#ff4b45' : major ? 'rgba(235,242,255,0.85)' : 'rgba(235,242,255,0.45)';
+        ctx.lineWidth = major ? 1.8 : 1.1;
         ctx.stroke();
-        ctx.restore();
+        if (major) {
+          const [lx, ly] = this.arcPt(g, ang(v), g.r - 22);
+          this.text(ctx, String(v / 1000), lx, ly, 12.5, v >= g.red ? '#ff6159' : 'rgba(225,233,245,0.85)');
+        }
       }
-      this.text(ctx, value, cx, 487, `italic 400 27px ${NUM}`, '#f2f4f7');
-      this.text(ctx, 'km/h', cx, 512, `400 13px ${NUM}`, '#b9bec5');
+      // live bar
+      const a = ang(rpm);
+      if (rpm > 20) {
+        const grd = ctx.createLinearGradient(...this.arcPt(g, g.a0), ...this.arcPt(g, g.a1));
+        grd.addColorStop(0, 'rgba(70,150,255,0.95)');
+        grd.addColorStop(1, 'rgba(210,235,255,1)');
+        ctx.shadowColor = 'rgba(80,160,255,0.9)';
+        ctx.shadowBlur = this.glow(8);
+        ctx.beginPath();
+        ctx.arc(g.cx, g.cy, g.r, g.a0 * DEG, a * DEG);
+        ctx.strokeStyle = grd;
+        ctx.lineWidth = 4.2;
+        ctx.stroke();
+        const [px, py] = this.arcPt(g, a);
+        ctx.beginPath();
+        ctx.arc(px, py, 3.2, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+      }
+      ctx.restore();
+      const [tx, ty] = this.arcPt(g, g.a1, g.r - 2);
+      this.text(ctx, 'x1000 r/min', tx + 30, ty - 6, 10, 'rgba(200,210,225,0.7)', { align: 'left' });
+    }
+
+    drawModes(ctx, st) {
+      const g = MODE_ARC;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(g.cx, g.cy, g.r, g.a0 * DEG, g.a1 * DEG);
+      ctx.strokeStyle = 'rgba(210,222,240,0.55)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      const sel = st.modeIndex;
+      const y = MODE_Y[sel];
+      const deg = Math.asin(clamp((y - g.cy) / g.r, -1, 1)) / DEG;
+      ctx.shadowColor = 'rgba(90,170,255,0.95)';
+      ctx.shadowBlur = this.glow(8);
+      ctx.beginPath();
+      ctx.arc(g.cx, g.cy, g.r, (deg - 4.5) * DEG, (deg + 4.5) * DEG);
+      ctx.strokeStyle = '#8fd0ff';
+      ctx.lineWidth = 3.2;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      const [ax] = this.arcPt(g, deg);
+      const bar = ctx.createLinearGradient(943, 0, ax, 0);
+      bar.addColorStop(0, 'rgba(70,140,255,0.5)');
+      bar.addColorStop(1, 'rgba(70,140,255,0.08)');
+      ctx.fillStyle = bar;
+      ctx.fillRect(943, y - 10, ax - 943, 20);
+      ctx.fillStyle = 'rgba(160,205,255,0.85)';
+      ctx.fillRect(943, y + 10, ax - 943, 1.2);
+      ctx.restore();
+      this.text(ctx, st.modeTitle, 1012, 222, 15, '#e9eef6', { weight: 500 });
+      st.modes.forEach((m, i) => {
+        this.text(ctx, m, 948, MODE_Y[i], 13.5, i === sel ? '#ffffff' : 'rgba(215,224,238,0.72)', { align: 'left', weight: i === sel ? 600 : 400 });
+      });
+    }
+
+    bar(ctx, x0, x1, y, frac, warn) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(200,212,230,0.35)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x1, y);
+      ctx.stroke();
+      ctx.strokeStyle = warn ? AMBER : '#f2f6fb';
+      ctx.shadowColor = warn ? AMBER_GLOW : 'rgba(200,225,255,0.6)';
+      ctx.shadowBlur = this.glow(4);
+      ctx.beginPath();
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x0 + (x1 - x0) * clamp(frac, 0.02, 1), y);
+      ctx.stroke();
+      ctx.restore();
+      const mid = (x0 + x1) / 2;
+      ctx.fillStyle = 'rgba(220,228,240,0.6)';
+      ctx.fillRect(mid - 0.5, y - 5, 1, 4);
     }
 
     lamps(ctx, st, t) {
       const all = st.bulbCheck;
-      const blink = (Math.sin(t * Math.PI * 2 * 1.4) > -0.2);
+      const blink = Math.sin(t * Math.PI * 2 * 1.5) > -0.3;
       SimData.RED.forEach((w, i) => {
-        if (all || st.redActive.has(w.id)) {
-          const on = all || blink || !w.blink;
-          if (on) SimIcons.drawIcon(ctx, w.id, RED_SLOTS[i], 207, 25, RED, RED_GLOW);
+        if (all || (st.redActive.has(w.id) && (!w.blink || blink))) {
+          SimIcons.drawIcon(ctx, w.id, RED_X[i], LAMP_Y, 24, RED, RED_GLOW);
         }
       });
       SimData.AMBER.forEach((w, i) => {
-        if (all || st.amberActive.has(w.id)) {
-          SimIcons.drawIcon(ctx, w.id, AMBER_SLOTS[i], 558, 25, AMBER, AMBER_GLOW);
-        }
+        if (all || st.amberActive.has(w.id)) SimIcons.drawIcon(ctx, w.id, AMBER_X[i], LAMP_Y, 24, AMBER, AMBER_GLOW);
       });
+      if (all || st.cruise) SimIcons.drawIcon(ctx, 'acc', 266, 262, 24, GREEN, GREEN_GLOW);
+      if (all || st.cruise) SimIcons.drawIcon(ctx, 'cruise', 266, 296, 22, GREEN, GREEN_GLOW);
     }
 
     popup(ctx, st, t) {
@@ -491,92 +333,112 @@
       if (a <= 0) return;
       const red = p.level === 'red';
       const col = red ? RED : AMBER;
+      const x = 505, y = 248, w = 380, h = 104;
       ctx.save();
       ctx.globalAlpha *= a;
+      ctx.translate(0, (1 - ease(age / 0.3)) * 8);
       ctx.beginPath();
-      ctx.roundRect(712, 240, 312, 170, 12);
-      ctx.fillStyle = 'rgba(9,10,12,0.96)';
+      ctx.roundRect(x, y, w, h, 10);
+      ctx.fillStyle = 'rgba(6,9,16,0.9)';
       ctx.fill();
-      ctx.lineWidth = 1.6;
-      ctx.strokeStyle = red ? 'rgba(255,60,50,0.85)' : 'rgba(255,175,30,0.85)';
+      ctx.strokeStyle = red ? 'rgba(255,70,55,0.75)' : 'rgba(255,180,40,0.75)';
+      ctx.lineWidth = 1.2;
       ctx.stroke();
-      const pulse = 0.75 + 0.25 * Math.sin(age * Math.PI * 2 * 1.3);
-      ctx.globalAlpha *= red ? pulse : 1;
-      SimIcons.drawIcon(ctx, p.item.id, 868, 288, 52, col, red ? RED_GLOW : AMBER_GLOW);
-      ctx.globalAlpha = a * (st.backlight || 1);
-      ctx.textBaseline = 'middle';
-      this.text(ctx, p.item.title, 868, 342, `600 19px ${KR}`, '#ffffff');
-      this.text(ctx, p.item.desc, 868, 368, `400 14px ${KR}`, '#c6cad0');
-      this.text(ctx, red ? 'WARNING' : 'CAUTION', 868, 393, `600 11px ${NUM}`, col);
+      ctx.fillStyle = col;
+      ctx.fillRect(x + 1, y + 12, 2.4, h - 24);
+      const pulse = red ? 0.7 + 0.3 * Math.sin(age * Math.PI * 2 * 1.5) : 1;
+      ctx.globalAlpha *= pulse;
+      SimIcons.drawIcon(ctx, p.item.id, x + 52, y + h / 2, 46, col, red ? RED_GLOW : AMBER_GLOW);
+      ctx.globalAlpha /= pulse;
+      this.text(ctx, p.item.title, x + 98, y + 36, 18, '#ffffff', { kr: true, weight: 600, align: 'left' });
+      this.text(ctx, p.item.desc, x + 98, y + 62, 12.5, 'rgba(210,218,230,0.9)', { kr: true, align: 'left' });
+      this.text(ctx, red ? '경고' : '주의', x + 98, y + 84, 11, col, { kr: true, weight: 600, align: 'left' });
       ctx.restore();
     }
 
-    render(st, t) {
+    welcome(ctx, k) {
+      if (k > 1.4) return;
+      const a = 1 - smooth(0.7, 1.4, k);
+      const w = CW * ease(k / 0.55);
+      const cx = X0 + CW / 2, cy = 300;
+      ctx.save();
+      ctx.globalAlpha *= a;
+      const g = ctx.createLinearGradient(cx - w / 2, 0, cx + w / 2, 0);
+      g.addColorStop(0, 'rgba(120,180,255,0)');
+      g.addColorStop(0.5, 'rgba(235,245,255,1)');
+      g.addColorStop(1, 'rgba(120,180,255,0)');
+      ctx.fillStyle = g;
+      ctx.shadowColor = 'rgba(120,190,255,1)';
+      ctx.shadowBlur = this.glow(18);
+      ctx.fillRect(cx - w / 2, cy - 0.8, w, 1.6);
+      const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, 260);
+      halo.addColorStop(0, 'rgba(90,150,255,0.25)');
+      halo.addColorStop(1, 'rgba(90,150,255,0)');
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = halo;
+      ctx.fillRect(X0, Y0, CW, CH);
+      ctx.restore();
+    }
+
+    render(st, t, dt) {
       const ctx = this.ctx;
       const s = this.scale;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.updateFx(st, dt, t);
       if (st.backlight <= 0.002) return;
 
-      ctx.setTransform(s, 0, 0, s, -OX * s, -OY * s);
+      ctx.setTransform(s, 0, 0, s, -X0 * s, -Y0 * s);
       ctx.globalAlpha = st.backlight;
-      ctx.textBaseline = 'middle';
+      const k = st.bootT;                      // seconds since the display woke up
+      const wallA = smooth(0.35, 1.2, k);
+      const uiA = smooth(0.9, 1.7, k);
 
-      this.drawMap(ctx, st);
-      ctx.drawImage(this.face, OX, OY, CW, CH);
-      this.drawArrow(ctx);
+      this.drawBackdrop(ctx, st, t, wallA);
+      this.shade(ctx);
+      this.welcome(ctx, k);
 
-      const speedShown = st.sweep >= 0 ? st.sweep * SPEEDO.max : st.speedNeedle;
-      const rpmShown = st.sweep >= 0 ? st.sweep * TACHO.max : st.rpm;
+      ctx.globalAlpha = st.backlight * uiA;
+      const rpm = st.sweep >= 0 ? st.sweep * TACH.max : st.rpm;
+      this.drawTach(ctx, rpm);
+      this.drawModes(ctx, st);
 
-      // speedometer centre
-      this.text(ctx, String(Math.round(st.speed)), 540, 384, `italic 300 52px ${NUM}`, '#ffffff');
-      this.text(ctx, 'km/h', 541, 417, `italic 400 14px ${NUM}`, '#b8bdc4');
-      this.text(ctx, st.trip.toFixed(1), 536, 502, `italic 300 30px ${NUM}`, '#f2f4f7');
-      this.text(ctx, 'km', 574, 507, `italic 400 12px ${NUM}`, '#aeb3ba', 'left');
-      this.text(ctx, Math.floor(st.odo).toLocaleString('en-US') + ' km', 540, 530, `400 11px ${NUM}`, '#9aa0a8');
+      // top centre: speed, unit, gear
+      this.text(ctx, String(Math.round(st.speed)), 695, 180, 64, '#ffffff', { weight: 300, glow: 'rgba(180,215,255,0.35)' });
+      this.text(ctx, 'km/h', 695, 207, 11.5, 'rgba(225,232,242,0.9)', { weight: 500 });
+      ctx.fillStyle = 'rgba(225,232,242,0.75)';
+      ctx.fillRect(652, 206.5, 26, 1.1);
+      ctx.fillRect(712, 206.5, 26, 1.1);
+      this.text(ctx, st.gear, 695, 229, 23, '#ffffff', { weight: 500 });
+      this.text(ctx, `${st.outside}°C`, 540, 174, 25, '#f1f4f8', { weight: 400 });
+      this.text(ctx, st.clock, 845, 174, 25, '#f1f4f8', { weight: 400 });
+      SimIcons.drawIcon(ctx, 'lane', 800, 212, 17, st.cruise ? GREEN : 'rgba(225,232,242,0.75)', st.cruise ? GREEN_GLOW : null);
 
-      // tachometer centre: gear + engine speed
-      const gearBig = st.gear === 'D' ? 'D' : st.gear;
-      this.text(ctx, gearBig, st.gear === 'D' ? 1190 : 1197, 384, `italic 300 52px ${NUM}`, '#ffffff');
-      if (st.gear === 'D') this.text(ctx, String(st.gearNum), 1214, 398, `italic 400 20px ${NUM}`, '#cfd3d9', 'left');
-      this.text(ctx, `${Math.round(rpmShown / 10) * 10} rpm`, 1197, 417, `italic 400 14px ${NUM}`, '#b8bdc4');
+      // bottom: eco, coolant, odometer | fuel, range
+      if (st.eco) this.text(ctx, 'ECO', 287, 416, 12.5, GREEN, { weight: 700, glow: GREEN_GLOW });
+      this.text(ctx, 'C', 332, 417, 12, 'rgba(225,232,242,0.85)');
+      this.text(ctx, 'H', 458, 417, 12, 'rgba(225,232,242,0.85)');
+      this.bar(ctx, 342, 448, 417, (st.coolant - 40) / 90, st.coolant > 118);
+      SimIcons.drawIcon(ctx, 'therm', 395, 402, 13, 'rgba(225,232,242,0.85)');
+      this.text(ctx, `${Math.floor(st.odo).toLocaleString('en-US')} km`, 395, 434, 12.5, 'rgba(232,238,246,0.92)');
+      this.text(ctx, 'E', 944, 417, 12, 'rgba(225,232,242,0.85)');
+      this.text(ctx, 'F', 1077, 417, 12, 'rgba(225,232,242,0.85)');
+      this.bar(ctx, 956, 1066, 417, st.fuel, st.fuel < 0.12);
+      SimIcons.drawIcon(ctx, 'fuel', 962, 402, 13, 'rgba(225,232,242,0.9)');
+      this.text(ctx, `${Math.round(st.range)}`, 1022, 403, 16, '#ffffff', { weight: 500, align: 'right' });
+      this.text(ctx, 'km', 1026, 405, 10.5, 'rgba(225,232,242,0.85)', { align: 'left' });
 
-      // fuel level
-      ctx.save();
-      ctx.lineCap = 'round';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = st.fuel < 0.12 ? AMBER : '#f2f4f7';
-      ctx.shadowColor = 'rgba(230,240,255,0.5)';
-      ctx.shadowBlur = 4;
-      ctx.beginPath();
-      ctx.moveTo(1140, 517);
-      ctx.lineTo(1140 + 114 * st.fuel, 517);
-      ctx.stroke();
-      ctx.restore();
-
-      // top bar
-      this.text(ctx, st.clock, 727, 207, `italic 400 23px ${NUM}`, '#eef1f5');
-      this.text(ctx, '20 °C', 1010, 207, `italic 400 23px ${NUM}`, '#eef1f5');
-      this.text(ctx, st.gear, 1082, 207, `italic 400 23px ${NUM}`, '#eef1f5');
-
-      // bottom bar
-      this.text(ctx, `Range ${Math.round(st.range)} km`, 673, 557, `400 19px ${NUM}`, '#e4e7eb');
-      this.text(ctx, `${st.outside}°C`, 1075, 557, `400 19px ${NUM}`, '#e4e7eb');
-
-      // driver assistance panel
-      const active = st.cruise;
-      this.text(ctx, 'Assistant', 790, 437, `500 17px ${NUM}`, '#eef1f5');
-      this.text(ctx, active ? 'Active' : 'Ready', 962, 437, `500 17px ${NUM}`, active ? '#5fe08f' : '#eef1f5');
-      this.miniGauge(ctx, 792, String(st.setSpeed), st.speed / st.setSpeed, '#e9eef5');
-      this.miniGauge(ctx, 944, String(st.limit), active ? 1 : 0, '#3fd27f');
-      SimIcons.drawIcon(ctx, 'steer', 870, 523, 17, active ? '#4fd788' : '#6c7178', active ? 'rgba(60,220,130,0.6)' : null);
-      SimIcons.drawIcon(ctx, 'hold', 1007, 521, 17, st.gear === 'D' && st.speed < 0.5 ? '#4fd788' : '#6c7178');
-
-      this.needle(ctx, SPEEDO, speedShown);
-      this.needle(ctx, TACHO, rpmShown);
+      ctx.globalAlpha = st.backlight * Math.max(uiA, st.bulbCheck ? 1 : 0);
       this.lamps(ctx, st, t);
+      ctx.globalAlpha = st.backlight;
       this.popup(ctx, st, t);
+
+      // glass sheen
+      const sheen = ctx.createLinearGradient(X0, Y0, X0 + 420, Y0 + 260);
+      sheen.addColorStop(0, 'rgba(255,255,255,0.05)');
+      sheen.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sheen;
+      ctx.fillRect(X0, Y0, CW, CH);
     }
   }
 

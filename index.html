@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#050506">
-  <title>Cluster Drive Simulator</title>
+  <title>GX Cluster Simulator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,300;1,400&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,12 +13,19 @@
 <body data-ign="off">
   <main id="viewport" aria-label="계기판 시뮬레이터 화면">
     <div id="stage">
-      <canvas id="exterior" aria-hidden="true"></canvas>
-      <img id="dash" src="assets/dash.webp" alt="" draggable="false">
-      <div id="spill" aria-hidden="true"></div>
+      <img id="dash" src="assets/gx_dash.webp" alt="" draggable="false">
       <canvas id="cluster" aria-label="인스트루먼트 클러스터"></canvas>
-      <div id="wheelRig"><img id="wheel" src="assets/wheel.webp" alt="" draggable="false"></div>
+      <img id="shroud" src="assets/gx_shroud.webp" alt="" draggable="false">
+      <div id="wheelRig">
+        <img id="wheel" src="assets/gx_wheel.webp" alt="" draggable="false">
+        <button id="hotMode" class="hot" data-action="mode" aria-label="MODE 버튼 (MTS 모드 변경)"></button>
+      </div>
+      <canvas id="ambient" aria-hidden="true"></canvas>
+      <div id="focusShade" aria-hidden="true"></div>
+      <div id="startGlow" aria-hidden="true"></div>
+      <button id="hotStart" class="hot" data-action="ign" aria-label="START STOP ENGINE 버튼"></button>
     </div>
+    <img id="screenArt" src="assets/gx_screen.webp" alt="" hidden>
     <div id="vignette" aria-hidden="true"></div>
   </main>
 
@@ -73,7 +80,7 @@
         <span>숨기기</span>
       </button>
     </div>
-    <p class="keys">키보드: <kbd>I</kbd> 시동 · <kbd>D</kbd>/<kbd>↑</kbd> 출발 · <kbd>S</kbd>/<kbd>Space</kbd> 정지 · <kbd>W</kbd> 경고 · <kbd>C</kbd> 주의 · <kbd>X</kbd> 해제 · <kbd>V</kbd> 시점 · <kbd>H</kbd> UI</p>
+    <p class="keys">사진 속 <b>START STOP</b> 버튼과 핸들의 <b>MODE</b> 버튼도 누를 수 있습니다.<br>키보드: <kbd>I</kbd> 시동 · <kbd>D</kbd>/<kbd>↑</kbd> 출발 · <kbd>S</kbd>/<kbd>Space</kbd> 정지 · <kbd>W</kbd> 경고 · <kbd>C</kbd> 주의 · <kbd>X</kbd> 해제 · <kbd>N</kbd> MTS 모드 · <kbd>V</kbd> 시점 · <kbd>H</kbd> UI</p>
   </aside>
 
   <button id="showUi" data-action="ui" aria-label="컨트롤 보이기">
@@ -84,7 +91,7 @@
 
   <script src="js/icons.js"></script>
   <script src="js/cluster.js"></script>
-  <script src="js/exterior.js"></script>
+  <script src="js/ambient.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/sim.js"></script>
 </body>
