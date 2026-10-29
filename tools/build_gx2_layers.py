@@ -162,9 +162,14 @@ good_e = xs_ok & (e > 40) & (e < 110)
 e = np.interp(np.arange(W), np.where(good_e)[0], e[good_e])
 e = cv2.GaussianBlur(e.reshape(1, -1), (0, 0), sigmaX=4, sigmaY=0).ravel()
 glass |= (yy < e[None, :] - 1) & (xx >= 248)
-# A-pillar edge: the pillar's inner face runs from x 245 at the top to 236 at the lip
-pillar = smooth_poly([(0, 0), (247, 0), (240, 75), (0, 75)]) > 0.5
-glass &= ~pillar | (xx > 247)
+# A-pillar: the windshield starts at the outer edge of the black seal, traced on
+# the photo; the lit grey pillar trim left of it stays part of the plate
+# measured: right edge of the dark seal along rows, its top along columns
+seal = [(378, 0), (381, 18), (385, 36), (389, 42), (394, 48), (400, 54), (406, 60), (412, 66),
+        (420, 72), (430, 79), (440, 84), (450, 87), (470, 88), (500, 87), (520, 86)]
+pillar = smooth_poly([(0, 0)] + seal + [(520, 200), (0, 200)]) > 0.5
+corner = (xx < 520) & (yy < 120)
+glass = np.where(corner, ~pillar, glass)            # the traced seal decides in this corner
 # side glass left of the pillar: bright landscape pixels
 side = (xx < 245) & (yy < 215) & (lum > 92)
 side = nd.binary_opening(side, iterations=2)

@@ -322,6 +322,34 @@ kbd {
 
 button:focus-visible { outline: 2px solid #6aa8ff; outline-offset: 2px; }
 
+/* ---------- start-up notice ---------- */
+#notice {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100vw - 32px);
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(235, 240, 246, 0.92);
+  font: 400 12.5px/1.4 "Noto Sans KR", sans-serif;
+  letter-spacing: 0.01em;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 15;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+#notice.show { animation: notice 3.6s ease forwards; }
+@keyframes notice {
+  0% { opacity: 0; transform: translate(-50%, -40%); }
+  12% { opacity: 1; transform: translate(-50%, -50%); }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* ---------- toast & loading ---------- */
 #toast {
   position: fixed;

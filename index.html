@@ -26,6 +26,7 @@
       <button id="hotMode" class="hot" data-action="mode" aria-label="MODE 버튼 (MTS 모드 변경)"></button>
     </div>
     <img id="wheelArt" src="assets/gx2_wheel.webp" alt="" hidden>
+    <img id="heroArt" src="assets/gx_hero.webp" alt="" hidden>
     <div id="vignette" aria-hidden="true"></div>
   </main>
 
@@ -80,13 +81,14 @@
         <span>숨기기</span>
       </button>
     </div>
-    <p class="keys">사진 속 <b>START STOP</b> 버튼과 핸들의 <b>MODE</b> 버튼도 누를 수 있습니다.<br>키보드: <kbd>I</kbd> 시동 · <kbd>D</kbd>/<kbd>↑</kbd> 출발 · <kbd>S</kbd>/<kbd>Space</kbd> 정지 · <kbd>W</kbd> 경고 · <kbd>C</kbd> 주의 · <kbd>X</kbd> 해제 · <kbd>N</kbd> MTS 모드 · <kbd>V</kbd> 시점 · <kbd>H</kbd> UI</p>
+    <p class="keys">사진 속 <b>START STOP</b> 버튼과 핸들의 <b>MODE</b> 버튼도 누를 수 있습니다.<br>키보드: <kbd>I</kbd> 시동 · <kbd>Space</kbd> 출발/정지 · <kbd>D</kbd>/<kbd>↑</kbd> 출발 · <kbd>S</kbd> 정지 · <kbd>W</kbd> 경고 · <kbd>C</kbd> 주의 · <kbd>X</kbd> 해제 · <kbd>N</kbd> MTS 모드 · <kbd>V</kbd> 시점 · <kbd>H</kbd> UI</p>
   </aside>
 
   <button id="showUi" data-action="ui" aria-label="컨트롤 보이기">
     <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
   </button>
   <div id="toast" role="status"></div>
+  <div id="notice" aria-live="polite">시뮬레이터 화면으로 실제 차량의 화면과는 다를 수 있습니다.</div>
   <div id="loading"><div class="spin"></div></div>
 
   <script src="js/icons.js"></script>

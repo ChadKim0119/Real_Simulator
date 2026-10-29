@@ -16,7 +16,6 @@
 
   const TACH = { cx: 490, cy: 305, r: 192, a0: 148, a1: 218, max: 8000, red: 6000 };
   const MODE_ARC = { cx: 900, cy: 305, r: 192, a0: -40, a1: 32 };
-  const MODE_Y = [253, 274, 295, 316, 337];
   const MAP = { x: 430, y: 130, w: 520, h: 262 };
   const MAP_TD = { w: 620, h: 420, carV: 0.85 };
 
@@ -48,8 +47,9 @@
   };
 
   class Cluster {
-    constructor(canvas) {
+    constructor(canvas, hero) {
       this.canvas = canvas;
+      this.hero = hero;
       this.ctx = canvas.getContext('2d');
       this.td = document.createElement('canvas');        // top-down map
       this.mapCanvas = document.createElement('canvas'); // after perspective tilt
@@ -441,38 +441,261 @@
       this.text(ctx, 'x1000 r/min', tx + 30, ty - 6, 10, 'rgba(200,210,225,0.7)', { align: 'left' });
     }
 
-    drawModes(ctx, st) {
+    /* ---------- right panel: GX top view with live front-wheel steering ---------- */
+    drawTopView(ctx, st, t) {
       const g = MODE_ARC;
+      // framing arc on the right, as on the real cluster
       ctx.save();
       ctx.beginPath();
       ctx.arc(g.cx, g.cy, g.r, g.a0 * DEG, g.a1 * DEG);
-      ctx.strokeStyle = 'rgba(210,222,240,0.55)';
+      ctx.strokeStyle = 'rgba(210,222,240,0.45)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      const sel = st.modeIndex;
-      const y = MODE_Y[sel];
-      const deg = Math.asin(clamp((y - g.cy) / g.r, -1, 1)) / DEG;
-      ctx.shadowColor = 'rgba(90,170,255,0.95)';
-      ctx.shadowBlur = this.glow(8);
-      ctx.beginPath();
-      ctx.arc(g.cx, g.cy, g.r, (deg - 4.5) * DEG, (deg + 4.5) * DEG);
-      ctx.strokeStyle = '#8fd0ff';
-      ctx.lineWidth = 3.2;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      const [ax] = this.arcPt(g, deg);
-      const bar = ctx.createLinearGradient(943, 0, ax, 0);
-      bar.addColorStop(0, 'rgba(70,140,255,0.5)');
-      bar.addColorStop(1, 'rgba(70,140,255,0.08)');
-      ctx.fillStyle = bar;
-      ctx.fillRect(943, y - 10, ax - 943, 20);
-      ctx.fillStyle = 'rgba(160,205,255,0.85)';
-      ctx.fillRect(943, y + 10, ax - 943, 1.2);
       ctx.restore();
-      this.text(ctx, st.modeTitle, 1012, 222, 15, '#e9eef6', { weight: 500 });
-      st.modes.forEach((m, i) => {
-        this.text(ctx, m, 948, MODE_Y[i], 13.5, i === sel ? '#ffffff' : 'rgba(215,224,238,0.72)', { align: 'left', weight: i === sel ? 600 : 400 });
+
+      const cx = 1020, cy = 287;           // car centre
+      const L = 118, Wd = 52;              // body length and width (design px)
+      const pxm = L / 4.95;                // GX length 4.95 m
+      const fy = cy - 0.30 * L, ry = cy + 0.31 * L, track = 0.43 * Wd;
+      const steer = st.wheel || 0;                         // steering-wheel angle, degrees
+      const roadWheel = steer / 16;                        // actual front-wheel angle
+      const shown = clamp(roadWheel * 6, -16, 16);         // drawn 6x so it can be seen
+
+      ctx.save();
+      // predicted path from the front wheels, following the current curvature
+      const kappa = Math.tan(roadWheel * DEG) / 2.85;      // 1/m
+      if (st.gear === 'D') {
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          for (let i = 0; i <= 14; i++) {
+            const d = i * 0.75;                            // metres ahead
+            const lat = 0.5 * kappa * d * d * 6;           // same visual gain as the wheels
+            const x = cx + side * track + lat * pxm, y = fy - d * pxm * 0.42;
+            i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+          }
+          const gr = ctx.createLinearGradient(0, fy, 0, fy - 14 * 0.75 * pxm * 0.42);
+          gr.addColorStop(0, 'rgba(90,190,255,0.75)');
+          gr.addColorStop(1, 'rgba(90,190,255,0)');
+          ctx.strokeStyle = gr;
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+        }
+      }
+
+      // ground shadow
+      const sh = ctx.createRadialGradient(cx, cy, 10, cx, cy, L * 0.62);
+      sh.addColorStop(0, 'rgba(60,140,255,0.22)');
+      sh.addColorStop(1, 'rgba(60,140,255,0)');
+      ctx.fillStyle = sh;
+      ctx.fillRect(cx - L, cy - L, 2 * L, 2 * L);
+
+      // wheels (under the body)
+      const wheel = (x, y, ang, front) => {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(ang * DEG);
+        ctx.beginPath();
+        ctx.roundRect(-5, -11, 10, 22, 3);
+        ctx.fillStyle = '#0b0e13';
+        ctx.fill();
+        ctx.strokeStyle = front ? 'rgba(120,205,255,0.95)' : 'rgba(150,175,205,0.55)';
+        ctx.lineWidth = 1.1;
+        if (front) { ctx.shadowColor = 'rgba(80,180,255,0.9)'; ctx.shadowBlur = this.glow(6); }
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(160,190,225,0.35)';
+        ctx.lineWidth = 0.7;
+        const roll = ((st.odoMeters || 0) * pxm * 0.5) % 4;
+        for (let ty = -10 + roll; ty < 11; ty += 4) {
+          ctx.beginPath(); ctx.moveTo(-4, ty); ctx.lineTo(4, ty); ctx.stroke();
+        }
+        ctx.restore();
+      };
+      wheel(cx - track, fy, shown, true);
+      wheel(cx + track, fy, shown, true);
+      wheel(cx - track, ry, 0, false);
+      wheel(cx + track, ry, 0, false);
+
+      // body silhouette (boxy GX: flat sides, squared nose and tail, flared arches)
+      const hw = Wd / 2, top = cy - L / 2, bot = cy + L / 2;
+      const body = new Path2D();
+      body.moveTo(cx - hw + 7, top + 2);
+      body.quadraticCurveTo(cx, top - 2, cx + hw - 7, top + 2);
+      body.quadraticCurveTo(cx + hw, top + 4, cx + hw, top + 14);
+      body.lineTo(cx + hw + 1.5, fy - 12); body.lineTo(cx + hw + 1.5, fy + 12);   // front arch flare
+      body.lineTo(cx + hw, fy + 16); body.lineTo(cx + hw, ry - 16);
+      body.lineTo(cx + hw + 1.5, ry - 12); body.lineTo(cx + hw + 1.5, ry + 12);   // rear arch flare
+      body.lineTo(cx + hw, ry + 16);
+      body.lineTo(cx + hw, bot - 6);
+      body.quadraticCurveTo(cx + hw, bot, cx + hw - 6, bot);
+      body.lineTo(cx - hw + 6, bot);
+      body.quadraticCurveTo(cx - hw, bot, cx - hw, bot - 6);
+      body.lineTo(cx - hw, ry + 16); body.lineTo(cx - hw - 1.5, ry + 12); body.lineTo(cx - hw - 1.5, ry - 12);
+      body.lineTo(cx - hw, ry - 16); body.lineTo(cx - hw, fy + 16);
+      body.lineTo(cx - hw - 1.5, fy + 12); body.lineTo(cx - hw - 1.5, fy - 12);
+      body.lineTo(cx - hw, top + 14);
+      body.quadraticCurveTo(cx - hw, top + 4, cx - hw + 7, top + 2);
+      body.closePath();
+      const fill = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0);
+      fill.addColorStop(0, 'rgba(30,52,86,0.95)');
+      fill.addColorStop(0.5, 'rgba(48,82,128,0.95)');
+      fill.addColorStop(1, 'rgba(30,52,86,0.95)');
+      ctx.fillStyle = fill;
+      ctx.fill(body);
+
+      // mesh: longitudinal and transverse lines clipped to the body
+      ctx.save();
+      ctx.clip(body);
+      ctx.lineWidth = 0.6;
+      ctx.strokeStyle = 'rgba(140,200,255,0.32)';
+      for (let i = 1; i < 8; i++) {
+        const x = cx - hw + Wd * i / 8;
+        const bulge = Math.sin(Math.PI * i / 8) * 2.5;
+        ctx.beginPath(); ctx.moveTo(x, top); ctx.quadraticCurveTo(x + (i < 4 ? -bulge : i > 4 ? bulge : 0), cy, x, bot); ctx.stroke();
+      }
+      for (let y = top + 6; y < bot; y += 8.5) {
+        ctx.beginPath(); ctx.moveTo(cx - hw, y); ctx.quadraticCurveTo(cx, y - 2.5, cx + hw, y); ctx.stroke();
+      }
+      // a scan line sweeping along the body
+      const scan = top + ((t * 38) % (L + 40)) - 20;
+      const sg = ctx.createLinearGradient(0, scan - 10, 0, scan + 10);
+      sg.addColorStop(0, 'rgba(120,210,255,0)');
+      sg.addColorStop(0.5, 'rgba(120,210,255,0.22)');
+      sg.addColorStop(1, 'rgba(120,210,255,0)');
+      ctx.fillStyle = sg;
+      ctx.fillRect(cx - hw, scan - 10, Wd, 20);
+      ctx.restore();
+
+      // glass and roof
+      ctx.fillStyle = 'rgba(8,16,30,0.9)';
+      ctx.beginPath();                                           // windscreen
+      ctx.moveTo(cx - hw + 6, top + 33); ctx.lineTo(cx + hw - 6, top + 33);
+      ctx.lineTo(cx + hw - 9, top + 45); ctx.lineTo(cx - hw + 9, top + 45); ctx.closePath(); ctx.fill();
+      ctx.beginPath();                                           // rear glass
+      ctx.moveTo(cx - hw + 8, bot - 12); ctx.lineTo(cx + hw - 8, bot - 12);
+      ctx.lineTo(cx + hw - 6, bot - 8); ctx.lineTo(cx - hw + 6, bot - 8); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(170,215,255,0.55)';
+      ctx.lineWidth = 0.9;
+      for (const s of [-1, 1]) {                                 // roof rails
+        ctx.beginPath(); ctx.moveTo(cx + s * (hw - 8), top + 49); ctx.lineTo(cx + s * (hw - 8), bot - 16); ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(cx - hw + 4, top + 30); ctx.quadraticCurveTo(cx, top + 26, cx + hw - 4, top + 30); ctx.stroke();  // hood line
+      // mirrors
+      ctx.fillStyle = 'rgba(48,82,128,0.95)';
+      ctx.fillRect(cx - hw - 6, top + 35, 6, 4);
+      ctx.fillRect(cx + hw, top + 35, 6, 4);
+      // outline glow
+      ctx.shadowColor = 'rgba(90,180,255,0.9)';
+      ctx.shadowBlur = this.glow(7);
+      ctx.strokeStyle = 'rgba(150,215,255,0.95)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke(body);
+      ctx.shadowBlur = 0;
+      // headlights and tail lights
+      ctx.fillStyle = st.ign === 'off' ? 'rgba(200,220,255,0.3)' : 'rgba(225,240,255,0.95)';
+      ctx.fillRect(cx - hw + 3, top + 1, 12, 2);
+      ctx.fillRect(cx + hw - 15, top + 1, 12, 2);
+      ctx.fillStyle = st.accel < -0.6 ? 'rgba(255,60,50,1)' : 'rgba(220,40,40,0.75)';   // brake lights
+      ctx.fillRect(cx - hw + 2, bot - 2.5, Wd - 4, 2);
+      ctx.restore();
+
+      // tyre pressures beside each wheel (psi), warming slowly while driving
+      const warm = clamp((st.odo - 4236.2) * 0.4, 0, 2);
+      const tp = [35 + warm, 35 + warm, 34 + warm, 34 + warm];
+      const tl = [[cx - track - 24, fy], [cx + track + 24, fy], [cx - track - 24, ry], [cx + track + 24, ry]];
+      tl.forEach(([x, y], i) => {
+        this.text(ctx, tp[i].toFixed(0), x, y - 3, 13, '#eef4fb', { weight: 500 });
+        this.text(ctx, 'psi', x, y + 9, 8.5, 'rgba(190,205,225,0.75)');
       });
+
+      // headings: drive mode, steering angle
+      this.text(ctx, `MTS  ${st.modes[st.modeIndex]}`, cx, 207, 11, 'rgba(215,226,242,0.9)', { weight: 500 });
+      const dir = Math.abs(steer) < 0.5 ? '' : steer > 0 ? ' R' : ' L';
+      this.text(ctx, `핸들 ${Math.abs(steer).toFixed(0)}°${dir}`, cx - 4, 362, 11, '#ffffff', { weight: 500, kr: true });
+      this.text(ctx, `바퀴 ${Math.abs(roadWheel).toFixed(1)}°`, cx - 4, 375, 9, 'rgba(190,205,225,0.8)', { kr: true });
+    }
+
+    /* small G-meter: lateral from speed and curvature, longitudinal from acceleration */
+    drawG(ctx, st) {
+      const x = 1116, y = 298, r = 12;
+      const v = st.speed / 3.6;
+      const gx = clamp(v * v * Road.curvature(st.odoMeters) / 9.81, -0.6, 0.6);
+      const gy = clamp(-(st.accel || 0) / 9.81, -0.6, 0.6);
+      st.gLat = (st.gLat || 0) + (gx - (st.gLat || 0)) * 0.15;
+      st.gLon = (st.gLon || 0) + (gy - (st.gLon || 0)) * 0.15;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(190,210,235,0.45)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, r / 2, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x + r, y); ctx.moveTo(x, y - r); ctx.lineTo(x, y + r); ctx.stroke();
+      ctx.fillStyle = '#7fd2ff';
+      ctx.shadowColor = 'rgba(90,190,255,0.9)';
+      ctx.shadowBlur = this.glow(5);
+      ctx.beginPath(); ctx.arc(x + st.gLat / 0.6 * r, y + st.gLon / 0.6 * r, 2.6, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      const gt = Math.hypot(st.gLat, st.gLon);
+      this.text(ctx, `${gt.toFixed(2)} G`, x, y + r + 9, 9.5, 'rgba(200,215,235,0.85)');
+    }
+
+    /* ---------- start-up ceremony with the GX render ---------- */
+    ceremony(ctx, k) {
+      if (k > 3.3 || !this.hero || !this.hero.complete || !this.hero.naturalWidth) return;
+      const fade = smooth(0.15, 0.6, k) * (1 - smooth(2.5, 3.2, k));
+      if (fade <= 0) return;
+      const iw = 384, ih = 133;                         // hero size in design px
+      const zoom = 1.05 + 0.08 * smooth(0.2, 3.2, k);
+      const hx = 700 - iw * zoom / 2, hy = 286 - ih * zoom / 2;
+      ctx.save();
+      ctx.globalAlpha *= fade;
+      // deep blue haze behind the car
+      const halo = ctx.createRadialGradient(700, 290, 20, 700, 290, 360);
+      halo.addColorStop(0, 'rgba(50,110,210,0.45)');
+      halo.addColorStop(1, 'rgba(10,25,60,0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(X0, Y0, CW, CH);
+      // the car is revealed by a light sweeping from left to right
+      const reveal = smooth(0.3, 1.5, k);
+      const edge = hx - 60 + (iw * zoom + 120) * reveal;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(X0, Y0, edge - X0, CH);
+      ctx.clip();
+      ctx.drawImage(this.hero, hx, hy, iw * zoom, ih * zoom);
+      ctx.restore();
+      if (reveal > 0 && reveal < 1) {
+        const lg = ctx.createLinearGradient(edge - 40, 0, edge + 6, 0);
+        lg.addColorStop(0, 'rgba(140,200,255,0)');
+        lg.addColorStop(0.85, 'rgba(210,235,255,0.75)');
+        lg.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = lg;
+        ctx.fillRect(edge - 40, hy - 8, 46, ih * zoom + 16);
+        ctx.fillStyle = 'rgba(235,245,255,0.95)';
+        ctx.shadowColor = 'rgba(140,200,255,1)';
+        ctx.shadowBlur = this.glow(16);
+        ctx.fillRect(edge, hy - 20, 1.6, ih * zoom + 40);
+        ctx.shadowBlur = 0;
+      }
+      // model name, spaced wide, drawn in after the car
+      const ta = smooth(1.2, 1.9, k);
+      if (ta > 0) {
+        ctx.globalAlpha = fade * ta;
+        ctx.font = `300 34px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if ('letterSpacing' in ctx) ctx.letterSpacing = `${18 - 8 * ta}px`;
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = 'rgba(140,200,255,0.8)';
+        ctx.shadowBlur = this.glow(10);
+        ctx.fillText('GX', 700, 168);
+        ctx.font = `400 10px ${FONT}`;
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '6px';
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(205,222,245,0.9)';
+        ctx.fillText('550  OVERTRAIL+', 700, 196);
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+      }
+      ctx.restore();
     }
 
     bar(ctx, x0, x1, y, frac, warn) {
@@ -581,8 +804,9 @@
       ctx.clip();
       ctx.globalAlpha = st.backlight;
       const k = st.bootT;                      // seconds since the display woke up
-      const mapA = smooth(0.35, 1.2, k);
-      const uiA = smooth(0.9, 1.7, k);
+      const boot = st.ceremony ? 2.6 : 0;        // the start-up ceremony plays first
+      const mapA = smooth(0.35 + boot, 1.2 + boot, k);
+      const uiA = smooth(0.9 + boot * 0.85, 1.7 + boot * 0.85, k);
 
       this.drawBackground(ctx);
       ctx.globalAlpha = st.backlight * mapA;
@@ -590,13 +814,18 @@
       this.drawArrow(ctx);
       ctx.globalAlpha = st.backlight;
       this.shade(ctx);
-      this.welcome(ctx, k);
+      if (st.ceremony) this.ceremony(ctx, k);
+      else this.welcome(ctx, k);
 
       ctx.globalAlpha = st.backlight * uiA;
       const rpm = st.sweep >= 0 ? st.sweep * TACH.max : st.rpm;
       this.drawTach(ctx, rpm);
-      this.drawModes(ctx, st);
+      this.drawTopView(ctx, st, t);
+      this.drawG(ctx, st);
       this.guidance(ctx, st);
+      // live engine speed under the tachometer scale
+      this.text(ctx, Math.round(rpm / 10 * 10).toLocaleString('en-US'), 392, 366, 19, '#ffffff', { weight: 500 });
+      this.text(ctx, 'rpm', 392, 382, 9.5, 'rgba(200,212,230,0.8)');
 
       // top centre: speed, unit, gear
       this.text(ctx, String(Math.round(st.speed)), 695, 180, 64, '#ffffff', { weight: 300, glow: 'rgba(180,215,255,0.35)' });
@@ -604,9 +833,26 @@
       ctx.fillStyle = 'rgba(225,232,242,0.75)';
       ctx.fillRect(652, 206.5, 26, 1.1);
       ctx.fillRect(712, 206.5, 26, 1.1);
-      this.text(ctx, st.gear, 695, 229, 23, '#ffffff', { weight: 500 });
+      // gear: D plus the gear actually engaged; flashes briefly on each shift
+      if (st.gear === 'D') {
+        if (st.gearNum !== this.lastGear) { this.shiftAt = t; this.shiftUp = st.gearNum > (this.lastGear || 0); this.lastGear = st.gearNum; }
+        const flash = 1 - smooth(0, 0.6, t - (this.shiftAt || -9));
+        this.text(ctx, 'D', 689, 229, 23, '#ffffff', { weight: 500 });
+        this.text(ctx, String(st.gearNum), 703, 233, 14, flash > 0.02 ? `rgba(120,205,255,${0.6 + 0.4 * flash})` : 'rgba(220,230,244,0.95)', { weight: 600, align: 'left', glow: flash > 0.02 ? 'rgba(90,180,255,0.9)' : null });
+        if (flash > 0.02) this.text(ctx, this.shiftUp ? '▲' : '▼', 722, 229, 8, `rgba(120,205,255,${flash})`);
+      } else {
+        this.lastGear = 0;
+        this.text(ctx, st.gear, 695, 229, 23, '#ffffff', { weight: 500 });
+      }
       this.text(ctx, `${st.outside}°C`, 540, 174, 25, '#f1f4f8', { weight: 400 });
       this.text(ctx, st.clock, 845, 174, 25, '#f1f4f8', { weight: 400 });
+      ctx.font = `400 25px ${FONT}`;
+      this.text(ctx, st.ampm, 849 + ctx.measureText(st.clock).width / 2, 179, 10, 'rgba(210,220,236,0.85)', { align: 'left', weight: 500 });
+      // compass heading of the road ahead
+      const hd = ((Road.heading(st.odoMeters) / DEG) % 360 + 360) % 360;
+      const pts = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+      this.text(ctx, pts[Math.round(hd / 45) % 8], 600, 214, 12, 'rgba(225,232,242,0.95)', { weight: 600 });
+      this.text(ctx, `${Math.round(hd)}°`, 600, 228, 9.5, 'rgba(200,212,230,0.75)');
       SimIcons.drawIcon(ctx, 'lane', 800, 212, 17, st.cruise ? GREEN : 'rgba(225,232,242,0.75)', st.cruise ? GREEN_GLOW : null);
 
       // bottom: eco, coolant, odometer | fuel, range

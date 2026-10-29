@@ -5,6 +5,7 @@
   const IMG_W = 1672, IMG_H = 941;
   const EXT_TOP = 0;
   const FULL_TOP = 0;
+  const WHEEL_SHIFT = 812.75 - 825.8;   // display centre minus wheel hub centre (photo px)
   const CLUSTER_VIEW = { cx: 812, cy: 270, w: 490, h: 330 };
   // 10-speed automatic: engine rpm per km/h in each gear
   const GEAR_FACTOR = [0, 142, 90, 64, 48, 38, 31, 26, 21, 17.5, 15];
@@ -43,7 +44,7 @@
     speed: 0, accel: 0, gear: 'P', gearNum: 1, shiftT: 0,
     mode: 'park', holdT: 0, cruise: false, setSpeed: 80, limit: 80, eco: false,
     odoMeters: 0, odo: 4236.2, range: 455, fuel: 0.62, outside: 18, coolant: 40,
-    redActive: new Set(), amberActive: new Set(), popup: null, clock: '7:17',
+    redActive: new Set(), amberActive: new Set(), popup: null, clock: '7:17', ampm: 'AM',
     modeTitle: 'MTS', modes: ['DEEP SNOW', 'MUD', 'SAND', 'DIRT', 'AUTO'], modeIndex: 0,
     wheel: 0, yawErr: 0, laneOffset: 0, pitch: 0, bump: 0, pendingDrive: false,
   };
@@ -55,7 +56,7 @@
   const startGlow = $('#startGlow');
   const ambientCanvas = $('#ambient');
   const extCanvas = $('#exterior');
-  const cluster = new Cluster($('#cluster'));
+  const cluster = new Cluster($('#cluster'), $('#heroArt'));
   const ambient = new Ambient(ambientCanvas);
   const exterior = new Exterior(extCanvas);
   const wheel = new Wheel(wheelCanvas, $('#wheelArt'));
@@ -132,6 +133,10 @@
     // zoomed in, the wheel fades to a faint translucent ghost that keeps moving
     const wheelA = 1 - 0.8 * smooth(0.1, 0.72, z);
     wheelCanvas.style.opacity = wheelA.toFixed(3);
+    // the hub sits right of the display's centre in the photo; as the wheel turns
+    // see-through, slide it under the display's centre so it reads as centred
+    const zk = smooth(0.1, 0.72, z);
+    wheelCanvas.style.transform = zk > 0.001 ? `translateX(${(WHEEL_SHIFT * zk).toFixed(2)}px)` : '';
     document.body.classList.toggle('zoomed', z > 0.5);
     focusShade.style.opacity = smooth(0.25, 1, z).toFixed(3);
 
@@ -151,6 +156,13 @@
   }
 
   /* ---------------- vehicle ---------------- */
+  function showNotice() {
+    const el = $('#notice');
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+  }
+
   function toast(msg, ms) {
     const el = $('#toast');
     el.textContent = msg;
@@ -165,9 +177,11 @@
       st.ign = 'starting';
       st.ignT = 0;
       st.bootT = 0;
-      st.bulbCheck = true;
+      st.ceremony = true;
+      st.bulbCheck = false;
       audio.click();
       audio.welcome();
+      showNotice();
       setTimeout(() => { if (st.ign === 'starting') audio.crank(0.95); }, 800);
     } else if (st.ign === 'starting') {
       return;
@@ -270,11 +284,13 @@
     if (st.ign === 'starting') {
       const k = st.ignT;
       st.backlight = 1;
-      st.bulbCheck = k > 0.15 && k < 2.5;
-      st.sweep = k < 0.5 ? 0 : k < 1.3 ? ease((k - 0.5) / 0.8) : k < 2.1 ? 1 - ease((k - 1.3) / 0.8) : -1;
+      // GX ceremony (0-3.2 s, the engine starts under it), then the bulb check
+      // and the needle sweep as the gauges come up
+      st.bulbCheck = k > 2.7 && k < 3.9;
+      st.sweep = k < 2.75 ? 0 : k < 3.45 ? ease((k - 2.75) / 0.7) : k < 4.15 ? 1 - ease((k - 3.45) / 0.7) : -1;
       if (k > 0.8 && k < 1.75) st.rpm = 190 + Math.sin(k * 62) * 40;
       if (k >= 1.75 && !st.engine) { st.engine = true; st.rpm = 480; }
-      if (k >= 2.6) {
+      if (k >= 4.2) {
         st.ign = 'on';
         st.bulbCheck = false;
         st.sweep = -1;
@@ -291,16 +307,19 @@
     let vm = st.speed / 3.6, a = 0, thr = 0;
     if (st.shiftT > 0) st.shiftT -= dt;
     // the assistant slows for corners ahead and picks the speed up again after them
-    st.target = Math.min(st.setSpeed, Road.safeSpeed(st.odoMeters));
+    // traffic and gradients: the assistant's speed drifts between about 60 and 84
+    const s0 = st.odoMeters;
+    st.flow = clamp(72 + 8 * Math.sin(s0 / 520 + 1) + 4 * Math.sin(s0 / 190) + 2 * Math.sin(s0 / 61), 58, st.setSpeed + 4);
+    st.target = Math.min(st.flow, Road.safeSpeed(st.odoMeters));
     if (st.mode === 'accel') {
       const r = st.speed / st.setSpeed;
       a = Math.max(0.35, 3.9 * (1 - Math.pow(r, 3)));
       if (st.shiftT > 0) a *= 0.55;
       thr = 0.3 + 0.55 * (1 - r * r);
       if (st.speed > st.target + 1) { a = -clamp((st.speed - st.target) / 3.6 * 0.9, 0.3, 2.2); thr = 0; }
-      if (st.speed >= st.setSpeed - 0.6) { st.mode = 'cruise'; st.cruise = true; syncUI(); }
+      if (st.speed >= st.target - 0.6) { st.mode = 'cruise'; st.cruise = true; syncUI(); }
     } else if (st.mode === 'cruise') {
-      const target = st.target + (st.target >= st.setSpeed ? 0.9 * Math.sin(t * 0.31) + 0.45 * Math.sin(t * 0.97 + 1) : 0);
+      const target = st.target + 0.6 * Math.sin(t * 0.31) + 0.3 * Math.sin(t * 0.97 + 1);
       const err = (target - st.speed) / 3.6;
       a = err > 0 ? clamp(err * 0.8, 0, 1.8) : clamp(err * 0.9, -2.2, 0);
       thr = a > 0 ? clamp(0.2 + a * 0.3, 0.05, 0.7) : 0.02;
@@ -419,13 +438,15 @@
       `<span><b>km/h</b>${Math.round(st.speed)}</span><span><b>rpm</b>${Math.round(st.rpm / 10) * 10}</span>` +
       `<span class="mode">${st.ign === 'off' ? '시동 꺼짐' : mode}${st.cruise && st.target < st.setSpeed - 2 ? ' · 커브 감속' : ''}</span>`;
     const d = new Date();
-    st.clock = `${d.getHours() % 12 || 12}:${pad(d.getMinutes())}`;
+    st.clock = `${d.getHours() % 12 || 12}:${pad(d.getMinutes())}`;   // the viewer's local time
+    st.ampm = d.getHours() < 12 ? 'AM' : 'PM';
   }
 
   const actions = {
     ign: ignition,
     drive,
     stop,
+    toggle: () => (st.mode === 'accel' || st.mode === 'cruise' || st.pendingDrive ? stop() : drive()),
     red: () => warn('red'),
     amber: () => warn('amber'),
     clear: clearWarnings,
@@ -454,7 +475,7 @@
   const KEYS = {
     KeyI: 'ign', Enter: 'ign',
     KeyD: 'drive', ArrowUp: 'drive',
-    KeyS: 'stop', ArrowDown: 'stop', Space: 'stop',
+    KeyS: 'stop', ArrowDown: 'stop', Space: 'toggle',
     KeyW: 'red', KeyC: 'amber', KeyX: 'clear', KeyN: 'mode',
     KeyV: 'view', KeyM: 'sound', KeyF: 'full', KeyH: 'ui',
   };
@@ -516,7 +537,7 @@
     requestAnimationFrame(frame);
   }
 
-  const imgs = [...document.querySelectorAll('#stage img, #wheelArt')];
+  const imgs = [...document.querySelectorAll('#stage img, #wheelArt, #heroArt')];
   const fonts = document.fonts
     ? Promise.race([
       Promise.all([
