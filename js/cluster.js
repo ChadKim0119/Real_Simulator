@@ -107,12 +107,14 @@
       td.translate(tw / 2, th * carV);
       td.rotate(-Road.heading(s) - st.yawErr);
       td.scale(k, k);
-      td.translate(-Road.x(s), s);
+      const [cx0, cy0] = Road.pos(s);
+      td.translate(-cx0, cy0);
       const s0 = s - (th * (1 - carV)) / k - 150, s1 = s + (th * carV) / k + 250;
-      const P = (S) => [Road.x(S), -S];
+      // world (X east, Y north) -> map canvas (y down)
+      const P = (S) => { const p = Road.pos(S); return [p[0], -p[1]]; };
       const frame = (S) => {
-        const m = Road.slope(S), n = Math.hypot(m, 1);
-        return { t: [m / n, -1 / n], r: [1 / n, m / n] };
+        const th = Road.heading(S);
+        return { t: [Math.sin(th), -Math.cos(th)], r: [Math.cos(th), Math.sin(th)] };
       };
       const line = (pts, w, col) => {
         td.beginPath();
@@ -258,15 +260,40 @@
 
     guidance(ctx, st) {
       const j = Road.nextJunction(st.odoMeters);
-      const x = 446, y = 240, w = 150, h = 58;
+      const x = 446, y = 240, w = 172, h = 58;
+      const bend = Road.nextCorner(st.odoMeters, 350);
       ctx.save();
       ctx.beginPath();
       ctx.roundRect(x, y, w, h, 8);
       ctx.fillStyle = 'rgba(8,13,22,0.82)';
       ctx.fill();
-      ctx.strokeStyle = 'rgba(120,170,240,0.35)';
+      ctx.strokeStyle = bend ? 'rgba(255,178,40,0.6)' : 'rgba(120,170,240,0.35)';
       ctx.lineWidth = 1;
       ctx.stroke();
+      if (bend) {
+        // curve warning: bent arrow, distance and the advised speed
+        ctx.strokeStyle = AMBER;
+        ctx.fillStyle = AMBER;
+        ctx.lineWidth = 3.2;
+        ctx.lineCap = 'round';
+        const ax = x + 24, ay = y + 46, d = bend.dir;
+        ctx.beginPath();
+        ctx.moveTo(ax - d * 4, ay);
+        ctx.bezierCurveTo(ax - d * 4, ay - 16, ax + d * 8, ay - 18, ax + d * 9, ay - 26);
+        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ax + d * 11, ay - 34); ctx.lineTo(ax + d * 15, ay - 23); ctx.lineTo(ax + d * 3, ay - 25); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        const dist = bend.dist < 10 ? '커브 진입' : `${Math.round(bend.dist / 10) * 10}`;
+        this.text(ctx, dist, x + 50, y + 22, bend.dist < 10 ? 16 : 21, '#ffffff', { weight: 500, align: 'left', kr: bend.dist < 10 });
+        if (bend.dist >= 10) {
+          ctx.font = `500 21px ${FONT}`;
+          this.text(ctx, 'm', x + 54 + ctx.measureText(dist).width, y + 25, 11.5, 'rgba(220,230,245,0.85)', { align: 'left' });
+        }
+        const adv = Math.max(30, Math.floor(Math.sqrt(2.3 * bend.R) * 3.6 / 10) * 10);
+        this.text(ctx, `${bend.R < 200 ? '급커브' : '커브'} · 권장 ${adv} km/h`, x + 50, y + 44, 11, 'rgba(255,214,140,0.95)', { kr: true, align: 'left' });
+        this.roadInfo(ctx, st);
+        return;
+      }
       // manoeuvre arrow
       ctx.strokeStyle = '#ffffff';
       ctx.fillStyle = '#ffffff';
@@ -295,6 +322,10 @@
       this.text(ctx, unit, x + 54 + ctx.measureText(d).width, y + 25, 11.5, 'rgba(220,230,245,0.85)', { align: 'left' });
       this.text(ctx, j.name, x + 50, y + 44, 11.5, 'rgba(215,226,242,0.9)', { kr: true, align: 'left' });
 
+      this.roadInfo(ctx, st);
+    }
+
+    roadInfo(ctx, st) {
       // current road name and the speed limit
       const name = Road.NAME;
       ctx.font = `500 10.5px ${KR}`;

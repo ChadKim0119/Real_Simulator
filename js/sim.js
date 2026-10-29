@@ -120,8 +120,11 @@
     // never reveal the edge of the photo when it is large enough to fill the view
     const vw = window.innerWidth, vh = window.innerHeight;
     let tx = vx - cx * s, ty = vy - cy * s;
-    if (IMG_W * s >= vw) tx = clamp(tx, vw - IMG_W * s, 0);
-    if ((IMG_H - EXT_TOP) * s >= vh) ty = clamp(ty, vh - IMG_H * s, -EXT_TOP * s);
+    // keep the picture's edges out of view; when it is smaller than the view the
+    // same bounds simply swap, so the limit changes continuously while zooming
+    const bx0 = vw - IMG_W * s, by0 = vh - IMG_H * s, by1 = -EXT_TOP * s;
+    tx = clamp(tx, Math.min(bx0, 0), Math.max(bx0, 0));
+    ty = clamp(ty, Math.min(by0, by1), Math.max(by0, by1));
     stage.style.transform = `translate3d(${(tx + shakeX).toFixed(2)}px, ${(ty + shakeY).toFixed(2)}px, 0) scale(${s.toFixed(5)})`;
 
     // zoomed in, the wheel fades to a faint translucent ghost that keeps moving
@@ -130,10 +133,15 @@
     wheelRig.classList.toggle('ghost', z > 0.5);
     focusShade.style.opacity = smooth(0.25, 1, z).toFixed(3);
 
+    // Pick the cluster's pixel density for where the camera is heading, once,
+    // when a move starts: re-allocating big canvases mid-zoom stutters on phones.
     const dpr = window.devicePixelRatio || 1;
-    const want = clamp(Math.ceil(s * Cluster.rect.w / Cluster.designWidth * dpr * 4) / 4, 0.5, 3.2);
+    const density = (sc) => clamp(Math.ceil(sc * Cluster.rect.w / Cluster.designWidth * dpr * 4) / 4, 0.5, 3.2);
+    const goal = cam.zoomAt ? 1 : cam.to;                 // a zoom-in is already scheduled
+    const sEnd = Math.exp(Math.log(L.full.s) + (Math.log(L.zoom.s) - Math.log(L.full.s)) * goal);
+    const want = cam.dur > 0 || cam.zoomAt ? Math.max(cluster.scale, density(Math.max(s, sEnd))) : density(s);
     resT += dt;
-    if (want !== cluster.scale && (resT > 0.25 || want > cluster.scale + 0.5)) {
+    if (want !== cluster.scale && (want > cluster.scale || resT > 0.5)) {
       cluster.setScale(want);
       resT = 0;
     }
@@ -279,16 +287,20 @@
     // longitudinal dynamics
     let vm = st.speed / 3.6, a = 0, thr = 0;
     if (st.shiftT > 0) st.shiftT -= dt;
+    // the assistant slows for corners ahead and picks the speed up again after them
+    st.target = Math.min(st.setSpeed, Road.safeSpeed(st.odoMeters));
     if (st.mode === 'accel') {
       const r = st.speed / st.setSpeed;
       a = Math.max(0.35, 3.9 * (1 - Math.pow(r, 3)));
       if (st.shiftT > 0) a *= 0.55;
       thr = 0.3 + 0.55 * (1 - r * r);
+      if (st.speed > st.target + 1) { a = -clamp((st.speed - st.target) / 3.6 * 0.9, 0.3, 2.2); thr = 0; }
       if (st.speed >= st.setSpeed - 0.6) { st.mode = 'cruise'; st.cruise = true; syncUI(); }
     } else if (st.mode === 'cruise') {
-      const target = st.setSpeed + 0.9 * Math.sin(t * 0.31) + 0.45 * Math.sin(t * 0.97 + 1);
-      a = clamp((target - st.speed) / 3.6 * 0.8, -1, 1);
-      thr = clamp(0.18 + a * 0.25, 0.04, 0.6);
+      const target = st.target + (st.target >= st.setSpeed ? 0.9 * Math.sin(t * 0.31) + 0.45 * Math.sin(t * 0.97 + 1) : 0);
+      const err = (target - st.speed) / 3.6;
+      a = err > 0 ? clamp(err * 0.8, 0, 1.8) : clamp(err * 0.9, -2.2, 0);
+      thr = a > 0 ? clamp(0.2 + a * 0.3, 0.05, 0.7) : 0.02;
     } else if (st.mode === 'brake') {
       a = -(3.9 * clamp(st.speed / 16, 0.3, 1));
       if (vm + a * dt <= 0) {
@@ -351,10 +363,13 @@
     // steering: the angle the road's curve needs (wheelbase 2.85 m, ratio 16:1)
     // plus the driver's small, constant corrections
     const vf = clamp(st.speed / 60, 0, 1);
-    const roadAngle = Math.atan(2.85 * Road.curvature(st.odoMeters)) * 16 / DEG;
+    // the driver turns in slightly ahead of the curve; the wheel never turns far
+    // enough for its spokes to hide the cluster
+    const look = st.odoMeters + Math.max(2, st.speed / 3.6 * 0.35);
+    const roadAngle = clamp(Math.atan(2.85 * Road.curvature(look)) * 16 / DEG, -28, 28);
     const corr = 0.55 * Math.sin(t * 0.55) + 0.25 * Math.sin(t * 1.37 + 0.7) + 0.08 * Math.sin(t * 3.1 + 2)
       + vf * (0.55 * Math.sin(t * 0.29 + 1.1) + 0.3 * Math.sin(t * 0.71) + 0.15 * Math.sin(t * 2.3 + 0.4));
-    st.wheelRoad = follow(st.wheelRoad || 0, roadAngle, 0.35, dt);
+    st.wheelRoad = follow(st.wheelRoad || 0, roadAngle, 0.25, dt);
     st.wheel = st.wheelRoad + corr;
     // the corrections show up as a slight yaw and drift inside the lane
     st.yawErr = follow(st.yawErr, corr * 0.0009 * vf, 0.5, dt);
@@ -392,7 +407,7 @@
     $('#status').innerHTML =
       `<span><b>IGN</b>${ign}</span><span><b>GEAR</b>${gear}</span>` +
       `<span><b>km/h</b>${Math.round(st.speed)}</span><span><b>rpm</b>${Math.round(st.rpm / 10) * 10}</span>` +
-      `<span class="mode">${st.ign === 'off' ? '시동 꺼짐' : mode}</span>`;
+      `<span class="mode">${st.ign === 'off' ? '시동 꺼짐' : mode}${st.cruise && st.target < st.setSpeed - 2 ? ' · 커브 감속' : ''}</span>`;
     const d = new Date();
     st.clock = `${d.getHours() % 12 || 12}:${pad(d.getMinutes())}`;
   }
