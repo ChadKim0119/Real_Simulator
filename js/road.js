@@ -42,7 +42,7 @@
   }
 
   function addSection() {
-    push(0, Math.round(pick(140, 420)));
+    push(0, Math.round(pick(70, 220)));
     const r = rnd();
     const dir = rnd() < 0.5 ? -1 : 1;
     if (r < 0.35) corner(dir, pick(300, 650), pick(20, 45));             // sweeping bend
@@ -54,7 +54,16 @@
     }
   }
 
-  push(0, 450);                    // a straight start
+  // corners from the very start: a short straight while pulling away, then a
+  // right-hander, a left-hander and an S-bend before the random sections begin
+  push(0, 70);
+  corner(1, 150, 55);
+  push(0, 60);
+  corner(-1, 135, 65);
+  push(0, 90);
+  corner(1, 170, 40);
+  push(0, 35);
+  corner(-1, 170, 40);
   function ensure(s) { while (K.length - 2 < s) addSection(); }
 
   function sample(arr, s) {
