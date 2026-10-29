@@ -45,8 +45,8 @@ OUTER = [
 UPPER = [
     (305, 342), (318, 260), (345, 200), (395, 145), (470, 100), (560, 70), (680, 57),
     (800, 62), (880, 90), (940, 130), (985, 190), (1010, 250), (1027, 342),
-    (910, 342), (885, 320), (850, 300), (760, 292), (680, 290), (600, 292), (510, 300),
-    (470, 320), (440, 342),
+    (910, 342), (885, 318), (850, 298), (800, 291), (760, 288), (680, 286), (600, 288), (560, 291),
+    (510, 298), (470, 318), (440, 342),
 ]
 LOWER_L = [(322, 485), (448, 485), (468, 555), (500, 640), (530, 720), (548, 770),
            (470, 770), (420, 740), (375, 690), (345, 620), (328, 550)]
@@ -61,8 +61,30 @@ wheel |= poly(PADDLE_L) | poly(PADDLE_R)
 # visible display area (photo coords); the shroud and paddles sit in front of it
 SCREEN = [(408, 98), (915, 98), (920, 288), (405, 288)]
 screen = poly(SCREEN)
-SHROUD = [(572, 288), (575, 252), (590, 240), (775, 240), (790, 252), (793, 288), (785, 296), (580, 296)]
-shroud = poly(SHROUD)
+# camera cover on the steering column, traced on the photo and smoothed
+SHROUD = [(565, 290), (566, 282), (571, 268), (580, 256), (593, 247), (612, 242.5), (680, 241.5),
+          (748, 242.5), (766, 247), (779, 256), (788, 268), (793, 282), (794, 290)]
+
+
+def chaikin(pts, n=4):
+    pts = np.asarray(pts, np.float32)
+    for _ in range(n):
+        q = 0.75 * pts[:-1] + 0.25 * pts[1:]
+        r = 0.25 * pts[:-1] + 0.75 * pts[1:]
+        pts = np.vstack([pts[:1], np.column_stack([q, r]).reshape(-1, 2), pts[-1:]])
+    return pts
+
+
+def smooth_poly(pts, scale=4):
+    """Anti-aliased fill of a smoothed outline (rendered at 4x, then reduced)."""
+    big = np.zeros((H * scale, W * scale), np.uint8)
+    c = (chaikin(pts) * scale).astype(np.int32)
+    cv2.fillPoly(big, [c], 255, lineType=cv2.LINE_AA)
+    return cv2.resize(big, (W, H), interpolation=cv2.INTER_AREA).astype(np.float32) / 255
+
+
+shroud_a = smooth_poly(SHROUD)
+shroud = shroud_a > 0.5
 
 # ---------------------------------------------------------------- dash -----
 fill = nd.binary_dilation(wheel, iterations=5)
@@ -83,18 +105,30 @@ dash = (dash * (1 - g_a) + base * g_a).astype(np.uint8)
 cv2.imwrite('/tmp/_gx_dash.png', dash)
 Image.fromarray(cv2.cvtColor(dash, cv2.COLOR_BGR2RGB)).save('assets/gx_dash.webp', quality=88, method=6)
 
+# light from the bright windshield catches the top of the rim: lift it so it reads
+wf = feather(wheel, 1.1)
+dist_out = cv2.distanceTransform((wheel * 255).astype(np.uint8), cv2.DIST_L2, 5)
+upper = np.clip((360 - yy) / 120.0, 0, 1)
+glint = np.exp(-dist_out / 5.0) * upper
+lift = 1 + 0.22 * upper
+im_w = im.astype(np.float32) * lift[..., None] + (glint * 48)[..., None] * np.array([1.0, 1.02, 1.06])
+im_w = np.clip(im_w, 0, 255).astype(np.uint8)
 # the rim's top reaches slightly above the frame: extend it by mirroring its edge rows
 TOP = 170
 wim = np.zeros((H + TOP, W, 3), np.uint8)
-wim[TOP:] = im
+wim[TOP:] = im_w
 wal = np.zeros((H + TOP, W), np.float32)
 wal[TOP:] = feather(wheel, 1.1)
 for x in range(500, 861):
     apex = 0.000647 * (x - 680) ** 2 - 9.3        # outer edge of the rim above y = 0
     for y in range(int(np.floor(apex)), 0):
         src = min(-y - 1, H - 1)
-        wim[TOP + y, x] = im[src, x]
+        wim[TOP + y, x] = im_w[src, x]
         wal[TOP + y, x] = np.clip(y - apex, 0, 1) * wal[TOP + src, x]
+# the photo cuts the rim off at the bottom; fade that edge so a turned wheel
+# shows no hard cut (the footwell is shaded dark there anyway)
+fade = np.clip((H - 4 - np.arange(H)) / 60.0, 0, 1)
+wal[TOP:] *= fade[:, None]
 save_rgba('assets/gx_wheel.webp', wim, wal)
 
 # strip above the photo (y -330..0): headliner, windshield opening (transparent),
@@ -164,9 +198,10 @@ save_rgba('assets/gx_top.webp', np.clip(top, 0, 255).astype(np.uint8), np.clip(t
 # the photo's display glows blue around the cover's edges: neutralise that tint
 sh = im.copy()
 b_, g_, r_ = [sh[..., i].astype(np.int16) for i in range(3)]
-tint = shroud & (b_ - r_ > 18)
+tint = (shroud_a > 0) & (b_ - r_ > 14)
 grey = cv2.cvtColor(cv2.cvtColor(sh, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
-sh[tint] = (grey[tint] * 0.55).astype(np.uint8)
-save_rgba('assets/gx_shroud.webp', sh, feather(nd.binary_erosion(shroud, iterations=2), 0.9) * (yy < 330))
+sh[tint] = (grey[tint] * 0.6).astype(np.uint8)
+sh = np.where((shroud_a > 0)[..., None], cv2.bilateralFilter(sh, 7, 40, 5), sh)
+save_rgba('assets/gx_shroud.webp', sh, shroud_a)
 
 print('ok')
