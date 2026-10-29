@@ -17,7 +17,6 @@
   const TACH = { cx: 490, cy: 305, r: 192, a0: 148, a1: 218, max: 8000, red: 6000 };
   const MODE_ARC = { cx: 900, cy: 305, r: 192, a0: -40, a1: 32 };
   const MAP = { x: 430, y: 130, w: 520, h: 262 };
-  const MAP_TD = { w: 620, h: 420, carV: 0.85 };
 
   const RED_X = [352, 386, 420, 454, 488, 522];
   const AMBER_X = [868, 902, 936, 970, 1004, 1038];
@@ -51,8 +50,7 @@
       this.canvas = canvas;
       this.hero = hero;
       this.ctx = canvas.getContext('2d');
-      this.td = document.createElement('canvas');        // top-down map
-      this.mapCanvas = document.createElement('canvas'); // after perspective tilt
+      this.mapCanvas = document.createElement('canvas'); // 3D city map
       this.mapZoom = 1;
       this.scale = 0;
       this.setScale(1);
@@ -66,10 +64,8 @@
       this.scale = s;
       this.canvas.width = Math.round(CW * s);
       this.canvas.height = Math.round(CH * s);
-      const ms = Math.min(s, 2.4);
+      const ms = Math.min(s, 1.7);
       this.mapScale = ms;
-      this.td.width = Math.round(MAP_TD.w * ms);
-      this.td.height = Math.round(MAP_TD.h * ms);
       this.mapCanvas.width = Math.round(MAP.w * ms);
       this.mapCanvas.height = Math.round(MAP.h * ms);
     }
@@ -89,144 +85,304 @@
       ctx.fillRect(X0, Y0, CW, CH);
     }
 
-    /* ---------- navigation mini map (heading-up, tilted) ---------- */
+    /* ---------- navigation map: a 3D night city, heading-up ----------
+     * The route and the town come from the shared road model. Everything is
+     * projected with a real perspective camera behind and above the car, so
+     * buildings rise, lean away and are hidden by the ones in front. */
     drawMap(ctx, st, dt) {
-      const ms = this.mapScale;
-      const td = this.td.getContext('2d');
-      const { w: tw, h: th, carV } = MAP_TD;
-      // zoom out as speed rises, like a real navigation display
-      const targetZoom = 1.05 - 0.55 * clamp(st.speed / 100, 0, 1);
-      this.mapZoom += (targetZoom - this.mapZoom) * (1 - Math.exp(-dt / 1.5));
-      const k = this.mapZoom;
-      const s = st.odoMeters;
-      td.setTransform(ms, 0, 0, ms, 0, 0);
-      td.fillStyle = '#0a1019';
-      td.fillRect(0, 0, tw, th);
-
-      td.save();
-      td.translate(tw / 2, th * carV);
-      td.rotate(-Road.heading(s) - st.yawErr);
-      td.scale(k, k);
-      const [cx0, cy0] = Road.pos(s);
-      td.translate(-cx0, cy0);
-      const s0 = s - (th * (1 - carV)) / k - 150, s1 = s + (th * carV) / k + 250;
-      // world (X east, Y north) -> map canvas (y down)
-      const P = (S) => { const p = Road.pos(S); return [p[0], -p[1]]; };
-      const frame = (S) => {
-        const th = Road.heading(S);
-        return { t: [Math.sin(th), -Math.cos(th)], r: [Math.cos(th), Math.sin(th)] };
-      };
-      const line = (pts, w, col) => {
-        td.beginPath();
-        td.moveTo(pts[0][0], pts[0][1]);
-        for (let i = 1; i < pts.length; i++) td.lineTo(pts[i][0], pts[i][1]);
-        td.lineWidth = w / k;
-        td.strokeStyle = col;
-        td.lineCap = 'round';
-        td.lineJoin = 'round';
-        td.stroke();
-      };
-
-      // forests and lakes
-      for (let n = Math.floor(s0 / 140); n <= Math.floor(s1 / 140); n++) {
-        const S = n * 140 + hash(n, 1, 9) * 100;
-        if (hash(n, 2, 9) > 0.55) continue;
-        const side = hash(n, 3, 9) < 0.5 ? -1 : 1;
-        const { r } = frame(S);
-        const d = 70 + hash(n, 4, 9) * 220;
-        const [x, y] = P(S);
-        td.beginPath();
-        td.ellipse(x + r[0] * d * side, y + r[1] * d * side, 50 + hash(n, 5, 9) * 110, 40 + hash(n, 6, 9) * 80, hash(n, 7, 9) * 3, 0, Math.PI * 2);
-        td.fillStyle = hash(n, 8, 9) < 0.15 ? '#0d2238' : '#0e1f19';
-        td.fill();
-      }
-      // a river now and then (the road crosses it on a bridge)
-      for (let n = Math.floor(s0 / 2600); n <= Math.floor(s1 / 2600); n++) {
-        const S = n * 2600 + 900;
-        const [cx, cy] = P(S);
-        const pts = [];
-        for (let x = -700; x <= 700; x += 25) pts.push([cx + x, cy + Math.sin(x / 140 + n) * 45 + x * 0.15]);
-        line(pts, 26 * k, '#0f2740');
-      }
-
-      // side roads, crossroads and small villages
-      const roads = [];
-      for (let n = Math.floor(s0 / 230); n <= Math.floor(s1 / 230); n++) {
-        const S = n * 230 + hash(n, 1, 3) * 140;
-        const { t, r } = frame(S);
-        const [x, y] = P(S);
-        const sides = hash(n, 2, 3) < 0.3 ? [-1, 1] : [hash(n, 3, 3) < 0.5 ? -1 : 1];
-        for (const side of sides) {
-          const a = (70 + hash(n, 4, 3) * 40) * DEG;
-          const dx = r[0] * side * Math.sin(a) + t[0] * Math.cos(a);
-          const dy = r[1] * side * Math.sin(a) + t[1] * Math.cos(a);
-          const len = 140 + hash(n + side, 5, 3) * 480;
-          const bend = (hash(n + side, 6, 3) - 0.5) * 0.9;
-          const pts = [];
-          for (let i = 0; i <= 12; i++) {
-            const q = i / 12, ang = bend * q;
-            const cx = dx * Math.cos(ang) - dy * Math.sin(ang), cy = dx * Math.sin(ang) + dy * Math.cos(ang);
-            pts.push([x + cx * len * q, y + cy * len * q]);
-          }
-          roads.push({ pts, major: false });
-        }
-      }
-      for (let n = Math.floor(s0 / Road.JUNCTION_EVERY); n <= Math.floor(s1 / Road.JUNCTION_EVERY) + 1; n++) {
-        const S = n * Road.JUNCTION_EVERY;
-        const { t, r } = frame(S);
-        const [x, y] = P(S);
-        const side = n % 3 !== 0 ? 1 : -1;
-        roads.push({ pts: [[x, y], [x + r[0] * side * 260 + t[0] * 120, y + r[1] * side * 260 + t[1] * 120], [x + r[0] * side * 700 + t[0] * 200, y + r[1] * side * 700 + t[1] * 200]], major: true });
-        // village grid beside the junction
-        const ox = x + r[0] * side * 160 - t[0] * 60, oy = y + r[1] * side * 160 - t[1] * 60;
-        for (let i = -2; i <= 2; i++) {
-          roads.push({ pts: [[ox + t[0] * i * 45 - r[0] * 90, oy + t[1] * i * 45 - r[1] * 90], [ox + t[0] * i * 45 + r[0] * 90, oy + t[1] * i * 45 + r[1] * 90]], major: false });
-          roads.push({ pts: [[ox + r[0] * i * 45 - t[0] * 90, oy + r[1] * i * 45 - t[1] * 90], [ox + r[0] * i * 45 + t[0] * 90, oy + r[1] * i * 45 + t[1] * 90]], major: false });
-        }
-      }
-      for (const rd of roads) line(rd.pts, rd.major ? 7.5 : 5, '#1b2430');
-      for (const rd of roads) line(rd.pts, rd.major ? 4.6 : 2.6, rd.major ? '#6d7888' : '#3e4959');
-
-      // route: travelled part dimmed, the road ahead highlighted
-      const back = [], ahead = [];
-      for (let S = s0; S <= s; S += 6) back.push(P(S));
-      back.push(P(s));
-      for (let S = s; S <= s1; S += 6) ahead.push(P(S));
-      line(back, 8, '#1b2430');
-      line(back, 5, '#5e6a7a');
-      line(ahead, 16, 'rgba(40,140,255,0.22)');
-      line(ahead, 7.5, '#2a86f5');
-      line(ahead, 2.2, '#a6d6ff');
-      td.restore();
-
-      // perspective tilt by horizontal slices
       const mc = this.mapCanvas.getContext('2d');
-      const mw = this.mapCanvas.width, mh = this.mapCanvas.height;
+      const mw = this.mapCanvas.width, mh = this.mapCanvas.height, ms = this.mapScale;
+      const targetZoom = 1.05 - 0.4 * clamp(st.speed / 100, 0, 1);
+      this.mapZoom += (targetZoom - this.mapZoom) * (1 - Math.exp(-dt / 1.5));
+      const z = this.mapZoom;
+      const s = st.odoMeters;
+      const th0 = Road.heading(s), sn = Math.sin(th0), cs = Math.cos(th0);
+      const [cx0, cy0] = Road.pos(s);
+
+      // camera: high and well back, as a car navigation 3D view
+      const back = 150 / z, hgt = 118 / z, look = 130 / z;
+      const phi = Math.atan2(hgt, back + look), cp = Math.cos(phi), sp = Math.sin(phi);
+      const F = mw * 1.05;
+      const tx = mw / 2, ty = mh * 0.758;
+      const toLocal = (X, Y) => { const dx = X - cx0, dy = Y - cy0; return [dx * sn + dy * cs, dx * cs - dy * sn]; };
+      const raw = (f, u, h) => {
+        const df = f + back, dz = (h || 0) - hgt;
+        const depth = df * cp - dz * sp;
+        if (depth < 2) return null;
+        return [u * F / depth, -(df * sp + dz * cp) * F / depth, depth];
+      };
+      const o = raw(0, 0, 0), ox = tx - o[0], oy = ty - o[1];
+      const P = (f, u, h) => { const r = raw(f, u, h); return r && [r[0] + ox, r[1] + oy, r[2]]; };
+      const PW = (X, Y, h) => { const [f, u] = toLocal(X, Y); return P(f, u, h); };
+      const poly = (pts) => {
+        if (pts.some((p) => !p)) return false;
+        mc.beginPath();
+        mc.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) mc.lineTo(pts[i][0], pts[i][1]);
+        mc.closePath();
+        return true;
+      };
+      const RW = 9;                                      // drawn half width of the main road (maps exaggerate it)
+
       mc.setTransform(1, 0, 0, 1, 0, 0);
       mc.globalCompositeOperation = 'source-over';
-      mc.clearRect(0, 0, mw, mh);
-      const N = 90;
-      const gF = (v) => v * (1.5 - 0.5 * v);
-      const tdw = this.td.width, tdh = this.td.height;
-      for (let n = 0; n < N; n++) {
-        const v0 = n / N, v1 = (n + 1) / N;
-        const sw = tdw * (1 - 0.45 * (v0 + v1) / 2);
-        const sy0 = tdh * gF(v0), sy1 = tdh * gF(v1);
-        mc.drawImage(this.td, (tdw - sw) / 2, sy0, sw, Math.max(1, sy1 - sy0), 0, Math.floor(v0 * mh), mw, Math.ceil((v1 - v0) * mh) + 1);
+      let g = mc.createLinearGradient(0, 0, 0, mh);
+      g.addColorStop(0, '#0b1524');
+      g.addColorStop(0.35, '#0b111b');
+      g.addColorStop(1, '#0d131c');
+      mc.fillStyle = g;
+      mc.fillRect(0, 0, mw, mh);
+
+      const S_BACK = s - 60, S_FAR = s + 900;
+      const steps = [];
+      for (let S = S_BACK; S < S_FAR; S += Math.max(6, (S - s) * 0.05)) steps.push(S);
+      steps.push(S_FAR);
+      // projected cross-sections of the road at each step, for a set of lateral offsets
+      const LATS = [-62, -RW, -RW + 0.6, -0.15, 0, 0.15, 1.8, 6, RW - 0.6, RW, 62];
+      const sec = steps.map((S) => LATS.map((l) => PW(...Road.at(S, l), 0)));
+      const L = (l) => LATS.indexOf(l);
+      // a band between two offsets over a run of steps, as one polygon
+      const band = (i0, i1, la, lb) => {
+        const A = [], B = [];
+        for (let i = i0; i <= i1; i++) { A.push(sec[i][L(la)]); B.push(sec[i][L(lb)]); }
+        return poly(A.concat(B.reverse()));
+      };
+      const line = (i0, i1, l) => {
+        mc.beginPath();
+        let started = false;
+        for (let i = i0; i <= i1; i++) {
+          const p = sec[i][L(l)];
+          if (!p) { started = false; continue; }
+          started ? mc.lineTo(p[0], p[1]) : mc.moveTo(p[0], p[1]);
+          started = true;
+        }
+      };
+      const runs = (test) => {
+        const out = [];
+        let st0 = -1;
+        for (let i = 0; i < steps.length; i++) {
+          const ok = test(steps[i]);
+          if (ok && st0 < 0) st0 = i;
+          if ((!ok || i === steps.length - 1) && st0 >= 0) { out.push([st0, ok ? i : Math.max(st0, i - 1) + 1 > steps.length - 1 ? steps.length - 1 : i]); st0 = -1; }
+        }
+        return out;
+      };
+      const iNow = steps.findIndex((S) => S >= s);
+
+      // town ground: pavements and lots along the urban stretches
+      mc.fillStyle = '#121a26';
+      for (const [a, b] of runs(Road.isUrban)) {
+        if (band(a, b, RW, 62)) mc.fill();
+        if (band(a, b, -62, -RW)) mc.fill();
       }
+      const city = Road.city(S_BACK, S_FAR);
+      const strip = (Sa, Sb, la, lb, col) => {
+        if (poly([PW(...Road.at(Sa, la), 0), PW(...Road.at(Sb, la), 0), PW(...Road.at(Sb, lb), 0), PW(...Road.at(Sa, lb), 0)])) { mc.fillStyle = col; mc.fill(); }
+      };
+      for (const c of city) {
+        if (c.kind !== 'park') continue;
+        strip(c.S0, c.S1, c.l0, c.l1, '#10291f');
+        strip(c.S0 + 3, c.S1 - 3, c.l0 + c.side * 3, c.l1 - c.side * 3, '#133524');
+      }
+      // side streets with crosswalks
+      for (const S of Road.streets(S_BACK, S_FAR)) {
+        for (const side of [-1, 1]) {
+          strip(S - 6, S + 6, side * RW, side * 120, '#1e2632');
+          if (Math.abs(S - s) < 320) strip(S - 4.5, S + 4.5, side * (RW + 0.8), side * (RW + 4), 'rgba(150,162,180,0.45)');
+        }
+      }
+      // main road, edge lines, dashed centre line
+      mc.fillStyle = '#232b37';
+      if (band(0, steps.length - 1, -RW, RW)) mc.fill();
+      mc.lineJoin = 'round';
+      mc.strokeStyle = 'rgba(150,162,180,0.55)';
+      mc.lineWidth = 1 * ms;
+      line(0, steps.length - 1, -RW + 0.6); mc.stroke();
+      line(0, steps.length - 1, RW - 0.6); mc.stroke();
+      mc.setLineDash([5 * ms, 6 * ms]);
+      mc.strokeStyle = 'rgba(130,142,160,0.7)';
+      line(0, steps.length - 1, 0); mc.stroke();
+      mc.setLineDash([]);
+      // route: the lane ahead lit in blue, the part behind dimmed
+      if (iNow > 0) { mc.fillStyle = 'rgba(90,110,140,0.35)'; if (band(0, iNow, 1.8, 6)) mc.fill(); }
+      if (iNow >= 0) {
+        mc.fillStyle = 'rgba(42,134,245,0.3)';
+        if (band(iNow, steps.length - 1, 0.15, RW - 0.6)) mc.fill();
+        mc.fillStyle = 'rgba(70,160,255,0.9)';
+        if (band(iNow, steps.length - 1, 1.8, 6)) mc.fill();
+      }
+
+      // buildings and park trees, far to near
+      const items = [];
+      for (const c of city) {
+        if (c.kind === 'park') {
+          for (const tr of c.trees) {
+            const [X, Y] = Road.at(tr.S, tr.lat);
+            const [f, u] = toLocal(X, Y);
+            if (f > -40 && f < 900) items.push({ t: 'tree', f, u, h: tr.h, d: f + back });
+          }
+          continue;
+        }
+        const corners = [Road.at(c.S0, c.l0), Road.at(c.S1, c.l0), Road.at(c.S1, c.l1), Road.at(c.S0, c.l1)].map(([X, Y]) => toLocal(X, Y));
+        const fc = corners.reduce((a, p) => a + p[0], 0) / 4, uc = corners.reduce((a, p) => a + p[1], 0) / 4;
+        if (fc < -40 || fc > 900 || Math.abs(uc) > 420) continue;
+        items.push({ t: 'b', c, corners, fc, uc, d: Math.hypot(fc + back, uc) });
+      }
+      items.sort((a, b) => b.d - a.d);
+      const LX = -0.55, LY = 0.83;                       // moonlight direction in the map plane (f, u)
+      const labels = [];
+      for (const it of items) {
+        if (it.t === 'tree') {
+          const b = P(it.f, it.u, 0), tp = P(it.f, it.u, it.h);
+          if (!b || !tp) continue;
+          const r = 2.6 * F / b[2];
+          mc.fillStyle = '#1b4d3c';
+          mc.beginPath(); mc.moveTo(tp[0], tp[1]); mc.lineTo(b[0] + r, b[1]); mc.lineTo(b[0] - r, b[1]); mc.closePath(); mc.fill();
+          mc.fillStyle = 'rgba(120,200,170,0.18)';
+          mc.beginPath(); mc.moveTo(tp[0], tp[1]); mc.lineTo(b[0] + r, b[1]); mc.lineTo(b[0], b[1]); mc.closePath(); mc.fill();
+          continue;
+        }
+        const { c, corners } = it;
+        const base = corners.map(([f, u]) => P(f, u, 0)), top = corners.map(([f, u]) => P(f, u, c.h));
+        if (base.some((p) => !p) || top.some((p) => !p)) continue;
+        const near = it.d < 420;
+        const lm = c.lm;
+        // walls facing the camera
+        for (let i = 0; i < 4; i++) {
+          const j = (i + 1) % 4;
+          const [fa, ua] = corners[i], [fb, ub] = corners[j];
+          let nf = ub - ua, nu = -(fb - fa);
+          const nl = Math.hypot(nf, nu) || 1; nf /= nl; nu /= nl;
+          if ((fa - it.fc) * nf + (ua - it.uc) * nu < 0) { nf = -nf; nu = -nu; }     // outward
+          const mf = (fa + fb) / 2, mu = (ua + ub) / 2;
+          if ((-back - mf) * nf + (0 - mu) * nu <= 0) continue;                   // faces away
+          const lit = 0.55 + 0.45 * Math.max(0, nf * LX + nu * LY);
+          if (!poly([base[i], base[j], top[j], top[i]])) continue;
+          const c0 = lm ? [30, 46, 66] : c.cool ? [28, 40, 58] : [32, 41, 56];
+          mc.fillStyle = `rgb(${c0.map((v) => Math.round(v * lit)).join(',')})`;
+          mc.fill();
+          // lit windows, one path per colour per wall
+          const edge = Math.hypot(fb - fa, ub - ua);
+          const floors = Math.min(14, Math.floor(c.h / 3.6)), cols = Math.min(9, Math.floor(edge / 4.2));
+          const scrH = Math.abs(base[i][1] - top[i][1]);
+          if (near && floors > 0 && cols > 0 && scrH > floors * 1.6) {
+            const warm = new Path2D(), cool = new Path2D();
+            const at = (a, b) => P(fa + (fb - fa) * a, ua + (ub - ua) * a, c.h * b);
+            for (let r = 0; r < floors; r++) {
+              for (let q = 0; q < cols; q++) {
+                const hv = hash(c.id * 17 + i, r, q);
+                if (hv > c.lit) continue;
+                const a0 = (q + 0.22) / cols, a1 = (q + 0.78) / cols, b0 = (r + 0.3) / floors, b1 = (r + 0.72) / floors;
+                const p1 = at(a0, b0), p2 = at(a1, b0), p3 = at(a1, b1), p4 = at(a0, b1);
+                if (!p1 || !p2 || !p3 || !p4) continue;
+                const path = hv < c.lit * 0.25 ? cool : warm;
+                path.moveTo(p1[0], p1[1]); path.lineTo(p2[0], p2[1]); path.lineTo(p3[0], p3[1]); path.lineTo(p4[0], p4[1]); path.closePath();
+              }
+            }
+            mc.fillStyle = c.cool ? 'rgba(150,205,255,0.85)' : 'rgba(255,206,130,0.85)';
+            mc.fill(warm);
+            mc.fillStyle = 'rgba(140,200,255,0.75)';
+            mc.fill(cool);
+          } else if (floors > 0) {
+            mc.fillStyle = c.cool ? 'rgba(120,170,230,0.10)' : 'rgba(255,200,120,0.08)';
+            poly([base[i], base[j], top[j], top[i]]);
+            mc.fill();
+          }
+          if (lm) {                                         // coloured band near the roof
+            const b0 = (c.h - 1.6) / c.h, b1 = (c.h - 0.6) / c.h;
+            const q1 = P(fa, ua, c.h * b0), q2 = P(fb, ub, c.h * b0), q3 = P(fb, ub, c.h * b1), q4 = P(fa, ua, c.h * b1);
+            if (poly([q1, q2, q3, q4])) {
+              mc.fillStyle = lm.band;
+              mc.shadowColor = lm.band;
+              mc.shadowBlur = 6 * ms;
+              mc.fill();
+              mc.shadowBlur = 0;
+            }
+          }
+        }
+        // roof with a light rim and the odd plant room
+        if (poly(top)) {
+          mc.fillStyle = lm ? '#2a3a4e' : '#28323f';
+          mc.fill();
+          mc.strokeStyle = lm ? lm.band : 'rgba(150,170,200,0.28)';
+          mc.lineWidth = (lm ? 1.2 : 0.7) * ms;
+          mc.stroke();
+        }
+        if (!lm && hash(c.id, 3, 3) < 0.4 && near) {
+          const k = 0.3, cf = it.fc, cu = it.uc, hh = c.h + 2.2;
+          const sq = corners.map(([f, u]) => [cf + (f - cf) * k, cu + (u - cu) * k]);
+          const rt = sq.map(([f, u]) => P(f, u, hh));
+          if (poly(rt)) { mc.fillStyle = '#34404f'; mc.fill(); }
+        }
+        if (lm && it.d < 600) {
+          const p = P(it.fc, it.uc, c.h + 9);
+          if (p) labels.push({ p, lm, d: it.d });
+        }
+      }
+
+      // street lights along the urban stretches (one pre-rendered glow sprite)
+      if (!this.lamp) {
+        const lc = document.createElement('canvas');
+        lc.width = lc.height = 32;
+        const lg = lc.getContext('2d');
+        const gr0 = lg.createRadialGradient(16, 16, 0, 16, 16, 16);
+        gr0.addColorStop(0, 'rgba(255,220,160,1)');
+        gr0.addColorStop(0.3, 'rgba(255,200,130,0.5)');
+        gr0.addColorStop(1, 'rgba(255,200,130,0)');
+        lg.fillStyle = gr0;
+        lg.fillRect(0, 0, 32, 32);
+        this.lamp = lc;
+      }
+      for (let S = Math.ceil(S_BACK / 30) * 30; S < s + 500; S += 30) {
+        if (!Road.isUrban(S)) continue;
+        for (const side of [-1, 1]) {
+          const p = PW(...Road.at(S, side * (RW + 2)), 7);
+          if (!p) continue;
+          const r = clamp(22 * F / p[2], 2, 14);
+          mc.drawImage(this.lamp, p[0] - r, p[1] - r, 2 * r, 2 * r);
+        }
+      }
+
+      // landmark name plates, like the floating signs of the city model
+      mc.textAlign = 'center';
+      mc.textBaseline = 'middle';
+      for (const { p, lm, d } of labels) {
+        const sc = clamp(150 / d, 0.55, 1.1) * ms;
+        mc.font = `600 ${10.5 * sc}px ${KR}`;
+        const w = mc.measureText(lm.name).width + 16 * sc, h = 22 * sc;
+        mc.fillStyle = 'rgba(8,16,26,0.88)';
+        mc.beginPath(); mc.roundRect(p[0] - w / 2, p[1] - h / 2, w, h, 3 * sc); mc.fill();
+        mc.strokeStyle = lm.band;
+        mc.lineWidth = 1.2 * sc;
+        mc.stroke();
+        mc.fillStyle = '#ffffff';
+        mc.fillText(lm.name, p[0], p[1] - 3 * sc);
+        mc.font = `600 ${6 * sc}px ${FONT}`;
+        mc.fillStyle = lm.band;
+        mc.fillText(lm.sub, p[0], p[1] + 6 * sc);
+      }
+
+      // distance haze
+      g = mc.createLinearGradient(0, 0, 0, mh * 0.55);
+      g.addColorStop(0, 'rgba(11,19,32,0.95)');
+      g.addColorStop(1, 'rgba(11,19,32,0)');
+      mc.fillStyle = g;
+      mc.fillRect(0, 0, mw, mh * 0.55);
+
+      // soft edges into the cluster
       mc.globalCompositeOperation = 'destination-in';
       let gr = mc.createLinearGradient(0, 0, mw, 0);
       gr.addColorStop(0, 'rgba(0,0,0,0)');
-      gr.addColorStop(0.16, 'rgba(0,0,0,1)');
-      gr.addColorStop(0.84, 'rgba(0,0,0,1)');
+      gr.addColorStop(0.14, 'rgba(0,0,0,1)');
+      gr.addColorStop(0.86, 'rgba(0,0,0,1)');
       gr.addColorStop(1, 'rgba(0,0,0,0)');
       mc.fillStyle = gr;
       mc.fillRect(0, 0, mw, mh);
       gr = mc.createLinearGradient(0, 0, 0, mh);
       gr.addColorStop(0, 'rgba(0,0,0,0)');
-      gr.addColorStop(0.38, 'rgba(0,0,0,0.95)');
-      gr.addColorStop(0.74, 'rgba(0,0,0,1)');
-      gr.addColorStop(0.9, 'rgba(0,0,0,0)');
+      gr.addColorStop(0.22, 'rgba(0,0,0,0.95)');
+      gr.addColorStop(0.84, 'rgba(0,0,0,1)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
       mc.fillStyle = gr;
       mc.fillRect(0, 0, mw, mh);
       mc.globalCompositeOperation = 'source-over';
@@ -331,18 +487,18 @@
       ctx.font = `500 10.5px ${KR}`;
       const nw = ctx.measureText(name).width + 18;
       ctx.beginPath();
-      ctx.roundRect(MAP.x + MAP.w / 2 - nw / 2, 352, nw, 17, 8.5);
+      ctx.roundRect(MAP.x + MAP.w / 2 - nw / 2, 349, nw, 16, 8);
       ctx.fillStyle = 'rgba(8,13,22,0.8)';
       ctx.fill();
-      this.text(ctx, name, MAP.x + MAP.w / 2, 361, 10.5, 'rgba(225,233,245,0.92)', { kr: true, weight: 500 });
+      this.text(ctx, name, MAP.x + MAP.w / 2, 357.5, 10.5, 'rgba(225,233,245,0.92)', { kr: true, weight: 500 });
       ctx.beginPath();
-      ctx.arc(624, 361, 12, 0, Math.PI * 2);
+      ctx.arc(618, 357, 11, 0, Math.PI * 2);
       ctx.fillStyle = '#ffffff';
       ctx.fill();
       ctx.lineWidth = 3.4;
       ctx.strokeStyle = '#e1251b';
       ctx.stroke();
-      this.text(ctx, String(st.limit), 624, 362, 11, '#111111', { weight: 700 });
+      this.text(ctx, String(st.limit), 618, 358, 10.5, '#111111', { weight: 700 });
     }
 
     shade(ctx) {
@@ -883,57 +1039,66 @@
     nowPlaying(ctx, st, t) {
       const m = st.music;
       if (!m) return;
-      const x = 446, y = 298, w = 172, h = 46;
+      // bottom centre, just above the column cover; no frame, it melts into the display
+      const cx = 700, y = 383, w = 236, h = 30, x = cx - w / 2;
+      ctx.save();
+      const bg = ctx.createLinearGradient(x, 0, x + w, 0);
+      bg.addColorStop(0, 'rgba(6,10,18,0)');
+      bg.addColorStop(0.18, 'rgba(6,10,18,0.62)');
+      bg.addColorStop(0.82, 'rgba(6,10,18,0.62)');
+      bg.addColorStop(1, 'rgba(6,10,18,0)');
+      ctx.fillStyle = bg;
+      ctx.fillRect(x, y, w, h);
+      const cs = 24, cxv = x + 30;
       ctx.save();
       ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 8);
-      ctx.fillStyle = 'rgba(8,13,22,0.82)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,90,210,0.35)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.drawImage(this.cover(), x + 5, y + 5, 36, 36);
-      // title and artist scroll as a marquee inside the panel
-      const tx = x + 48, tw = w - 54;
+      ctx.roundRect(cxv, y + 3, cs, cs, 4);
+      ctx.clip();
+      ctx.drawImage(this.cover(), cxv, y + 3, cs, cs);
+      ctx.restore();
+      // equaliser over the cover's lower edge
+      for (let i = 0; i < 4; i++) {
+        const hh = 2 + 4 * Math.abs(Math.sin(t * (4.2 + i * 1.3) + i));
+        ctx.fillStyle = 'rgba(120,240,255,0.9)';
+        ctx.fillRect(cxv + 3 + i * 5, y + cs + 1 - hh, 2.4, hh);
+      }
+      // marquee
+      const tx = cxv + cs + 8, tw = x + w - 30 - tx;
       ctx.save();
       ctx.beginPath();
-      ctx.rect(tx, y + 3, tw, 26);
+      ctx.rect(tx, y, tw, 19);
       ctx.clip();
       const line = `${m.title}  ·  ${m.artist}  ·  ${m.single}`;
-      ctx.font = `600 12px ${FONT}`;
-      const lw = ctx.measureText(line).width + 40;
-      const off = (t * 28) % lw;
+      ctx.font = `600 11.5px ${FONT}`;
+      const lw = ctx.measureText(line).width + 48;
+      const off = (t * 16) % lw;
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(line, tx - off, y + 15);
-      ctx.fillText(line, tx - off + lw, y + 15);
+      ctx.fillText(line, tx - off, y + 11);
+      ctx.fillText(line, tx - off + lw, y + 11);
       ctx.restore();
-      // edge fades so the marquee runs out softly
+      // the marquee fades in and out at its edges instead of being cut
+      ctx.globalCompositeOperation = 'destination-out';
       for (const [fx, dir] of [[tx, 1], [tx + tw, -1]]) {
-        const g = ctx.createLinearGradient(fx, 0, fx + dir * 10, 0);
-        g.addColorStop(0, 'rgba(8,13,22,1)');
-        g.addColorStop(1, 'rgba(8,13,22,0)');
+        const g = ctx.createLinearGradient(fx, 0, fx + dir * 14, 0);
+        g.addColorStop(0, 'rgba(0,0,0,1)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g;
-        ctx.fillRect(dir > 0 ? fx : fx - 10, y + 3, 10, 26);
+        ctx.fillRect(dir > 0 ? fx : fx - 14, y, 14, 19);
       }
-      // progress
+      ctx.globalCompositeOperation = 'source-over';
+      // progress and time
       const p = m.pos / m.len;
-      ctx.fillStyle = 'rgba(200,212,230,0.25)';
-      ctx.fillRect(tx, y + 32, tw - 40, 2);
-      const pg = ctx.createLinearGradient(tx, 0, tx + tw - 40, 0);
-      pg.addColorStop(0, '#ff4fd8');
-      pg.addColorStop(1, '#3fe4ff');
+      ctx.fillStyle = 'rgba(200,212,230,0.22)';
+      ctx.fillRect(tx, y + 22, tw - 46, 1.6);
+      const pg = ctx.createLinearGradient(tx, 0, tx + tw - 46, 0);
+      pg.addColorStop(0, '#ff5cdc');
+      pg.addColorStop(1, '#46e6ff');
       ctx.fillStyle = pg;
-      ctx.fillRect(tx, y + 32, (tw - 40) * p, 2);
-      const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-      this.text(ctx, `${fmt(m.pos)} / ${fmt(m.len)}`, x + w - 6, y + 34, 8.5, 'rgba(205,215,232,0.85)', { align: 'right' });
-      // little equaliser beside the cover
-      for (let i = 0; i < 3; i++) {
-        const hh = 3 + 5 * Math.abs(Math.sin(t * (5 + i * 1.7) + i));
-        ctx.fillStyle = 'rgba(63,228,255,0.9)';
-        ctx.fillRect(x + 7 + i * 4, y + 39 - hh, 2.4, hh);
-      }
+      ctx.fillRect(tx, y + 22, (tw - 46) * p, 1.6);
+      const fmt = (v) => `${Math.floor(v / 60)}:${String(Math.floor(v % 60)).padStart(2, '0')}`;
+      this.text(ctx, `${fmt(m.pos)} / ${fmt(m.len)}`, tx + tw, y + 23, 8.5, 'rgba(205,215,232,0.8)', { align: 'right' });
       ctx.restore();
     }
 

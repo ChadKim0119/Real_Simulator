@@ -177,7 +177,17 @@
         if (p && p[2] > 1.5 && p[2] < 520) { o.a = a; o.f = p[2]; objs.push(o); }
       };
       for (let n = Math.floor(s / 6); n < Math.floor((s + 420) / 6); n++) {
-        if (hash(n, 2) < 0.75) put({ k: 'tree', S: n * 6 + hash(n, 1) * 4, lat: (hash(n, 3) < 0.5 ? -1 : 1) * (8 + hash(n, 4) * 30), n });
+        const S = n * 6 + hash(n, 1) * 4;
+        if (hash(n, 2) < 0.75 && !Road.isUrban(S)) put({ k: 'tree', S, lat: (hash(n, 3) < 0.5 ? -1 : 1) * (8 + hash(n, 4) * 30), n });
+      }
+      // the town from the shared layout: buildings, and the trees of its parks
+      for (const c of Road.city(s - 10, s + 440)) {
+        if (c.kind === 'park') {
+          c.trees.forEach((tr, i) => put({ k: 'tree', S: tr.S, lat: tr.lat, n: Math.round(c.S0 * 3) + i }));
+          continue;
+        }
+        const ln = Math.abs(c.l0) < Math.abs(c.l1) ? c.l0 : c.l1, lf = ln === c.l0 ? c.l1 : c.l0;
+        put({ k: 'bldg', S: c.S0, lat: ln, c, ln, lf });
       }
       for (let n = Math.floor(s / 25); n < Math.floor((s + 300) / 25); n++) {
         put({ k: 'post', S: n * 25, lat: 4.9 });
@@ -216,6 +226,37 @@
             ctx.fillStyle = snow;
             ctx.beginPath(); ctx.moveTo(bx, t0); ctx.lineTo(bx + ww * 0.22, t0 + (t1 - t0) * 0.42); ctx.lineTo(bx - ww * 0.3, t0 + (t1 - t0) * 0.5); ctx.closePath(); ctx.fill();
           }
+        } else if (o.k === 'bldg') {
+          // facade toward the road, the end facing us and the roof, in daylight
+          const c = o.c, b = at(c.S1 - s);
+          const f0 = [pt(o.a, o.ln, 0), pt(b, o.ln, 0), pt(b, o.ln, c.h), pt(o.a, o.ln, c.h)];
+          const e0 = [pt(o.a, o.ln, 0), pt(o.a, o.lf, 0), pt(o.a, o.lf, c.h), pt(o.a, o.ln, c.h)];
+          const r0 = [pt(o.a, o.ln, c.h), pt(b, o.ln, c.h), pt(b, o.lf, c.h), pt(o.a, o.lf, c.h)];
+          const tone = c.lm ? [196, 204, 214] : c.cool ? [176, 186, 198] : [[204, 198, 186], [188, 184, 176], [214, 210, 200]][((c.id % 3) + 3) % 3];
+          const fill = (q, k) => {
+            if (q.some((p) => !p)) return false;
+            ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]);
+            for (let i = 1; i < 4; i++) ctx.lineTo(q[i][0], q[i][1]);
+            ctx.closePath();
+            ctx.fillStyle = rgb(mix(tone.map((v) => v * k), FOG, fog * 0.85));
+            ctx.fill();
+            return true;
+          };
+          fill(e0, 0.72);
+          if (fill(f0, 0.92) && o.f < 220) {
+            // floors as darker window bands
+            ctx.strokeStyle = rgb(mix([70, 80, 92], FOG, fog * 0.85), 0.55);
+            ctx.lineWidth = Math.max(0.5, 0.9 * sc);
+            for (let hh = 2.4; hh < c.h - 1; hh += 3.4) {
+              const p1 = pt(o.a, o.ln, hh), p2 = pt(b, o.ln, hh);
+              if (p1 && p2) { ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke(); }
+            }
+            if (c.lm) {
+              const p1 = pt(o.a, o.ln, c.h - 1.1), p2 = pt(b, o.ln, c.h - 1.1);
+              if (p1 && p2) { ctx.strokeStyle = c.lm.band; ctx.lineWidth = Math.max(0.8, 1.1 * sc); ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke(); }
+            }
+          }
+          fill(r0, 1.05);
         } else if (o.k === 'post') {
           ctx.strokeStyle = rgb(mix([236, 237, 239], FOG, fog));
           ctx.lineWidth = Math.max(0.6, 0.12 * sc);
