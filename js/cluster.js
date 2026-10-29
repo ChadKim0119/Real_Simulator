@@ -1038,7 +1038,7 @@
 
     nowPlaying(ctx, st, t) {
       const m = st.music;
-      if (!m) return;
+      if (!m || st.ecareCall) return;                  // music pauses while e-Care is on the line
       // bottom centre, just above the column cover; no frame, it melts into the display
       const cx = 700, y = 383, w = 236, h = 30, x = cx - w / 2;
       ctx.save();
@@ -1137,6 +1137,34 @@
       });
       if (all || st.cruise) SimIcons.drawIcon(ctx, 'acc', 266, 262, 24, GREEN, GREEN_GLOW);
       if (all || st.cruise) SimIcons.drawIcon(ctx, 'cruise', 266, 296, 22, GREEN, GREEN_GLOW);
+    }
+
+    /* e-Care call in progress (synced with the call-center screen) */
+    callBanner(ctx, st, t) {
+      const c = st.ecareCall;
+      if (!c) return;
+      const x = 590, y = 380, w = 220, h = 36;            // takes the music widget's place during the call
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 18);
+      ctx.fillStyle = 'rgba(6,12,20,0.9)';
+      ctx.fill();
+      const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+      ctx.beginPath();
+      ctx.arc(x + 20, y + h / 2, 11, 0, Math.PI * 2);
+      ctx.fillStyle = c.state === 'connected' ? '#2fd07a' : `rgba(255,180,40,${0.6 + 0.4 * pulse})`;
+      ctx.fill();
+      // handset
+      ctx.fillStyle = '#06130c';
+      ctx.font = `700 12px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('✆', x + 20, y + h / 2 + 1);
+      ctx.restore();
+      const secs = c.state === 'connected' ? Math.floor((Date.now() - c.connectedAt) / 1000) : 0;
+      const dur = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
+      this.text(ctx, 'e-Care 상담센터', x + 40, y + 13, 12, '#ffffff', { kr: true, weight: 600, align: 'left' });
+      this.text(ctx, c.state === 'connected' ? `통화 중 · ${dur}` : '전화 수신 중…', x + 40, y + 26, 10.5, c.state === 'connected' ? '#7fe7a8' : '#ffd27a', { kr: true, align: 'left' });
     }
 
     popup(ctx, st, t) {
@@ -1284,6 +1312,7 @@
       this.lamps(ctx, st, t);
       ctx.globalAlpha = st.backlight;
       this.popup(ctx, st, t);
+      this.callBanner(ctx, st, t);
 
       // panel edge: the backlight falls off toward the bezel
       ctx.globalAlpha = 1;

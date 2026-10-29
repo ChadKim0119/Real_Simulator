@@ -262,6 +262,7 @@
     set.add(item.id);
     st.popup = { level, item, t0: now(), dur: 5.5 };
     audio.chime(level, item.id);
+    director.warning(level, item);
     syncUI();
   }
 
@@ -447,6 +448,47 @@
     st.ampm = d.getHours() < 12 ? 'AM' : 'PM';
   }
 
+  /* ---------------- e-Care call center link ---------------- */
+  const director = new ECare.Director(() => st);
+  // the customer has pulled over on the shoulder by the time the agent calls
+  director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차 · e-Care 상담센터 발신'); } };
+  const ccwWindows = {};
+  function openScreen(name, url) {
+    const w = ccwWindows[name];
+    if (w && !w.closed) { w.focus(); return; }
+    ccwWindows[name] = window.open(url, 'gs-' + name, 'popup=yes,width=1600,height=900');
+    if (!ccwWindows[name]) toast('팝업이 차단되었습니다. 주소창의 팝업 허용을 눌러 주세요.');
+  }
+  function care(name) {
+    const live = director.cases.find((c) => c.kind === 'emergency' && c.contact < 3);
+    if (!live && name !== 'careReset') { toast('먼저 경고등(W)을 발생시켜 주십시오. 긴급 경고가 e-Care 상담 케이스로 등록됩니다.'); return; }
+    if (name === 'careReset') { director.command('reset', {}); toast('e-Care 시나리오를 초기화했습니다'); return; }
+    director.command(name, {});
+  }
+  // vehicle state for every connected screen, 4 times a second
+  setInterval(() => Link.send('veh', {
+    ign: st.ign, speed: st.speed, gear: st.gear, gearNum: st.gearNum, rpm: st.rpm, odoMeters: st.odoMeters, odo: st.odo,
+    fuel: st.fuel, range: st.range, red: [...st.redActive], amber: [...st.amberActive], wheel: st.wheel, mode: st.mode,
+    clock: st.clock, coolant: st.coolant, outside: st.outside,
+  }), 250);
+  let careT = 0;
+  function updateCare(dt) {
+    careT -= dt;
+    if (careT > 0) return;
+    careT = 0.5;
+    const c = director.find();
+    const el = $('#careState');
+    const lk = $('#linkState');
+    lk.textContent = Link.transport === 'lan' ? 'LAN 동기화' : '이 PC 화면 동기화';
+    st.ecareCall = c && c.call && c.call.state !== 'ended' ? c.call : null;
+    if (!c) { el.textContent = '대기 · 상담원 3명'; return; }
+    const sla = ECare.mmss(Math.max(0, ECare.SLA - (Date.now() - c.slaBase)));
+    const contact = ECare.CONTACT[c.contact];
+    const call = c.call ? (c.call.state === 'dialing' ? ' · 발신 중' : c.call.state === 'connected' ? ' · 통화 중' : '') : '';
+    const disp = c.dispatch >= 0 ? ` · 출동 ${ECare.DISPATCH[c.dispatch]}` : '';
+    el.textContent = `${c.id.slice(-4)} · ${contact}${call}${disp}${c.contact === 0 ? ` · SLA ${sla}` : ''}`;
+  }
+
   const actions = {
     ign: ignition,
     drive,
@@ -467,6 +509,13 @@
       else (d.exitFullscreen || d.webkitExitFullscreen).call(d);
     },
     ui: () => { document.body.classList.toggle('ui-hidden'); computeLayout(); },
+    openCcw: () => openScreen('ccw', 'ccw.html'),
+    openTranscript: () => openScreen('transcript', 'ccw.html?view=transcript'),
+    sla25: () => care('sla25'),
+    accept: () => care('accept'),
+    dispatch: () => care('dispatch'),
+    complete: () => care('complete'),
+    careReset: () => care('careReset'),
   };
 
   document.querySelectorAll('[data-action]').forEach((el) => {
@@ -483,6 +532,7 @@
     KeyS: 'stop', ArrowDown: 'stop', Space: 'toggle',
     KeyW: 'red', KeyC: 'amber', KeyX: 'clear', KeyN: 'mode',
     KeyV: 'view', KeyM: 'sound', KeyF: 'full', KeyH: 'ui',
+    KeyO: 'openCcw', KeyY: 'openTranscript', KeyT: 'sla25', KeyA: 'accept', KeyE: 'dispatch', KeyK: 'complete', KeyR: 'careReset',
   };
   window.addEventListener('keydown', (e) => {
     const act = KEYS[e.code];
@@ -532,6 +582,7 @@
     cluster.render(st, t, dt);
     audio.update(st, dt);
     updateStatus(dt);
+    updateCare(dt);
     requestAnimationFrame(frame);
   }
 

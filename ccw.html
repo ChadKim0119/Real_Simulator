@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0c0e">
+  <title>e-Care Call Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/ccw.css">
+</head>
+<body class="view-office">
+  <!-- office scene: the photo, with the live agent screen on the monitor -->
+  <main id="viewport" aria-label="e-Care 상담센터">
+    <div id="stage">
+      <img id="office" src="assets/ccw_office.webp" alt="" draggable="false">
+      <div id="deskGlow" aria-hidden="true"></div>
+      <div id="screen">
+        <div id="app" aria-label="콜센터 웹 (CCW) 상담원 화면"></div>
+        <div id="glassFx" aria-hidden="true"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- transcript view (ccw.html?view=transcript) -->
+  <section id="transcript" aria-label="상담 대화"></section>
+
+  <div id="hud">
+    <button id="viewBtn" title="사무실 ↔ 상담원 화면 (V)">상담원 화면</button>
+    <button id="fsBtn" title="전체 화면 (F)">전체화면</button>
+    <span id="sound" title="클릭하면 통화 음성이 켜집니다">🔇 클릭하여 통화 음성 켜기</span>
+    <span id="conn"></span>
+  </div>
+
+  <script src="js/link.js"></script>
+  <script src="js/road.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/ecare.js"></script>
+  <script src="js/ccw.js"></script>
+</body>
+</html>

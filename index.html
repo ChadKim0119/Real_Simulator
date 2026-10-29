@@ -30,58 +30,74 @@
     <div id="vignette" aria-hidden="true"></div>
   </main>
 
-  <aside id="controls" aria-label="차량 컨트롤">
-    <div id="status" aria-live="polite"></div>
-
-    <div class="ign-wrap">
-      <button id="btnIgn" class="ign" data-action="ign" aria-pressed="false" aria-label="시동 켜기/끄기">
-        <span class="ring"></span>
-        <span class="face">
-          <span class="led"></span>
-          <span class="t1">ENGINE</span>
-          <span class="t2">START</span>
-          <span class="t3">STOP</span>
-        </span>
-      </button>
-      <div class="ign-label">시동 ON / OFF <kbd>I</kbd></div>
+  <aside id="controls" aria-label="시연 컨트롤">
+    <div class="grp grp-car">
+      <div class="ign-wrap">
+        <button id="btnIgn" class="ign" data-action="ign" aria-pressed="false" aria-label="시동 켜기/끄기">
+          <span class="ring"></span>
+          <span class="face">
+            <span class="led"></span>
+            <span class="t1">ENGINE</span>
+            <span class="t2">START</span>
+            <span class="t3">STOP</span>
+          </span>
+        </button>
+      </div>
+      <div class="col">
+        <div id="status" aria-live="polite"></div>
+        <div class="grid">
+          <button id="btnDrive" class="btn go" data-action="drive" title="출발 (D / Space)">
+            <svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg>
+            <span>출발</span><kbd>D</kbd>
+          </button>
+          <button id="btnStop" class="btn halt" data-action="stop" title="정지 (S / Space)">
+            <svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/></svg>
+            <span>정지</span><kbd>S</kbd>
+          </button>
+          <button id="btnRed" class="btn warn-red" data-action="red" title="경고등 · 긴급 (W)">
+            <svg viewBox="0 0 24 24"><path d="M12 3 22 20H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.2"/></svg>
+            <span>경고</span><kbd>W</kbd><i id="redCount" class="badge"></i>
+          </button>
+          <button id="btnAmber" class="btn warn-amber" data-action="amber" title="주의등 · 정비 (C)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="16.5" r="1.2"/></svg>
+            <span>주의</span><kbd>C</kbd><i id="amberCount" class="badge"></i>
+          </button>
+          <button class="btn small" data-action="clear" title="경고 해제 (X)"><span>경고 해제</span><kbd>X</kbd></button>
+          <button class="btn small" data-action="view" title="시점 전환 (V)"><span>시점 전환</span><kbd>V</kbd></button>
+        </div>
+      </div>
     </div>
 
-    <div class="grid">
-      <button id="btnDrive" class="btn go" data-action="drive">
-        <svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg>
-        <span>출발</span><kbd>D</kbd>
-      </button>
-      <button id="btnStop" class="btn halt" data-action="stop">
-        <svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/></svg>
-        <span>정지</span><kbd>S</kbd>
-      </button>
-      <button id="btnRed" class="btn warn-red" data-action="red">
-        <svg viewBox="0 0 24 24"><path d="M12 3 22 20H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.2"/></svg>
-        <span>경고</span><kbd>W</kbd><i id="redCount" class="badge"></i>
-      </button>
-      <button id="btnAmber" class="btn warn-amber" data-action="amber">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="16.5" r="1.2"/></svg>
-        <span>주의</span><kbd>C</kbd><i id="amberCount" class="badge"></i>
-      </button>
-      <button class="btn small" data-action="clear"><span>경고 해제</span><kbd>X</kbd></button>
-      <button class="btn small" data-action="view"><span>시점 전환</span><kbd>V</kbd></button>
+    <div class="grp grp-care">
+      <div class="glabel"><b>e-Care 콜센터</b><span id="careState">대기 · 상담원 3명</span><span id="linkState" class="link"></span></div>
+      <div class="grid care">
+        <button class="btn small accent" data-action="openCcw" title="상담원 화면을 새 창으로 엽니다 (O)"><span>상담원 화면 띄우기</span><kbd>O</kbd></button>
+        <button class="btn small" data-action="openTranscript" title="상담 대화 텍스트 화면 (Y)"><span>대화 화면</span><kbd>Y</kbd></button>
+        <button class="btn small" data-action="sla25" title="고객이 25분간 연락하지 않음 (T)"><span>25분 경과</span><kbd>T</kbd></button>
+        <button class="btn small" data-action="accept" title="상담원 응대 시작 · 고객에게 발신 (A)"><span>상담원 응대</span><kbd>A</kbd></button>
+        <button class="btn small" data-action="dispatch" title="긴급출동 요청 (E)"><span>긴급출동</span><kbd>E</kbd></button>
+        <button class="btn small" data-action="complete" title="상담 완료 · 서비스센터 이관 (K)"><span>완료 · 이관</span><kbd>K</kbd></button>
+        <button class="btn small muted" data-action="careReset" title="e-Care 시나리오 초기화 (R)"><span>시나리오 초기화</span><kbd>R</kbd></button>
+      </div>
     </div>
 
-    <div class="row">
-      <button id="btnSound" class="chip" data-action="sound" aria-pressed="true" title="사운드 (M)">
-        <svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        <span>소리</span>
-      </button>
-      <button class="chip" data-action="full" title="전체 화면 (F)">
-        <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        <span>전체화면</span>
-      </button>
-      <button class="chip" data-action="ui" title="컨트롤 숨기기 (H)">
-        <svg viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6"/></svg>
-        <span>숨기기</span>
-      </button>
+    <div class="grp grp-sys">
+      <div class="row">
+        <button id="btnSound" class="chip" data-action="sound" aria-pressed="true" title="사운드 (M)">
+          <svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>소리</span>
+        </button>
+        <button class="chip" data-action="full" title="전체 화면 (F)">
+          <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>전체화면</span>
+        </button>
+        <button class="chip" data-action="ui" title="컨트롤 숨기기 (H)">
+          <svg viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6"/></svg>
+          <span>숨기기</span>
+        </button>
+      </div>
+      <p class="keys">사진 속 <b>START STOP</b> · 핸들 <b>MODE</b> 버튼도 동작 · <kbd>Space</kbd> 출발/정지 · <kbd>N</kbd> 드라이브 모드</p>
     </div>
-    <p class="keys">사진 속 <b>START STOP</b> 버튼과 핸들의 <b>MODE</b> 버튼도 누를 수 있습니다.<br>키보드: <kbd>I</kbd> 시동 · <kbd>Space</kbd> 출발/정지 · <kbd>D</kbd>/<kbd>↑</kbd> 출발 · <kbd>S</kbd> 정지 · <kbd>W</kbd> 경고 · <kbd>C</kbd> 주의 · <kbd>X</kbd> 해제 · <kbd>N</kbd> 드라이브 모드 · <kbd>V</kbd> 시점 · <kbd>H</kbd> UI</p>
   </aside>
 
   <button id="showUi" data-action="ui" aria-label="컨트롤 보이기">
@@ -92,6 +108,8 @@
   <div id="loading"><div class="spin"></div></div>
 
   <script src="js/icons.js"></script>
+  <script src="js/link.js"></script>
+  <script src="js/ecare.js"></script>
   <script src="js/wheel-geometry.js"></script>
   <script src="js/wheel.js"></script>
   <script src="js/road.js"></script>
