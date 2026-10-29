@@ -29,7 +29,7 @@
 
       // overall daylight breathing (clouds)
       const sky = 0.5 + 0.5 * Math.sin(t * 0.07) * Math.sin(t * 0.031 + 1);
-      ctx.fillStyle = `rgba(255,248,235,${0.06 + sky * 0.08})`;
+      ctx.fillStyle = `rgba(255,248,235,${0.04 + sky * 0.05})`;
       ctx.fillRect(0, 0, W, H);
 
       // objects beside the road; each sweeps across the cabin once
@@ -39,7 +39,7 @@
         if (p < 0 || p > 1) continue;
         const kind = hash(n, 3);
         const light = kind > 0.72;
-        const strength = light ? 0.22 + hash(n, 4) * 0.2 : 0.18 + hash(n, 5) * 0.32;
+        const strength = light ? 0.14 + hash(n, 4) * 0.12 : 0.12 + hash(n, 5) * 0.18;
         const bw = 160 + hash(n, 6) * 420;
         const cx = W * (1.25 - p * 1.6);
         const tilt = 380 + hash(n, 7) * 300;
