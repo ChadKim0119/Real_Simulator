@@ -14,20 +14,17 @@
   <main id="viewport" aria-label="계기판 시뮬레이터 화면">
     <div id="stage">
       <canvas id="exterior" aria-hidden="true"></canvas>
-      <img id="top" src="assets/gx_top.webp" alt="" draggable="false">
-      <img id="dash" src="assets/gx_dash.webp" alt="" draggable="false">
       <canvas id="cluster" aria-label="인스트루먼트 클러스터"></canvas>
-      <img id="shroud" src="assets/gx_shroud.webp" alt="" draggable="false">
-      <div id="wheelRig">
-        <img id="wheel" src="assets/gx_wheel.webp" alt="" draggable="false">
-        <button id="hotMode" class="hot" data-action="mode" aria-label="MODE 버튼 (MTS 모드 변경)"></button>
-      </div>
+      <img id="plate" src="assets/gx2_plate.webp" alt="" draggable="false">
+      <canvas id="wheel" aria-hidden="true"></canvas>
       <canvas id="ambient" aria-hidden="true"></canvas>
       <div id="footShade" aria-hidden="true"></div>
       <div id="focusShade" aria-hidden="true"></div>
       <div id="startGlow" aria-hidden="true"></div>
       <button id="hotStart" class="hot" data-action="ign" aria-label="START STOP ENGINE 버튼"></button>
+      <button id="hotMode" class="hot" data-action="mode" aria-label="MODE 버튼 (MTS 모드 변경)"></button>
     </div>
+    <img id="wheelArt" src="assets/gx2_wheel.webp" alt="" hidden>
     <div id="vignette" aria-hidden="true"></div>
   </main>
 
@@ -92,6 +89,8 @@
   <div id="loading"><div class="spin"></div></div>
 
   <script src="js/icons.js"></script>
+  <script src="js/wheel-geometry.js"></script>
+  <script src="js/wheel.js"></script>
   <script src="js/road.js"></script>
   <script src="js/cluster.js"></script>
   <script src="js/exterior.js"></script>

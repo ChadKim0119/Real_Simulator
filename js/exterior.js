@@ -1,15 +1,15 @@
-/* The snowy country road seen through the strip of windshield above the dash.
+/* The mountain road seen through the windshield and the side glass.
  * Drawn in stage (photo) pixels at low resolution; upscaling plus a CSS blur
  * gives the out-of-focus look of a camera focused on the cluster. */
 (function () {
   'use strict';
 
-  const TOP = -330, HEIGHT = 300, WIDTH = 1440;   // ends under the dash top, never behind the seam
+  const TOP = 0, HEIGHT = 240, WIDTH = 1672;      // windshield band and the side glass
   const Q = 0.36;
-  const F = 600;            // focal length, stage px
+  const F = 540;            // focal length, stage px
   const CAM_H = 1.3;        // eye height, m
-  const HORIZON = -112;
-  const VP_X = 690;
+  const HORIZON = 36;
+  const VP_X = 826;
   const ROAD_HALF = 3.9;
 
   const hash = (n, k) => {
@@ -18,7 +18,7 @@
   };
   const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
   const rgb = (c, a) => a === undefined ? `rgb(${c[0]},${c[1]},${c[2]})` : `rgba(${c[0]},${c[1]},${c[2]},${a})`;
-  const FOG = [206, 214, 222];
+  const FOG = [190, 204, 218];
 
   class Exterior {
     constructor(canvas) {
@@ -29,7 +29,7 @@
       this.cars = [];
       this.nextCar = 3;
       this.flakes = [];
-      for (let i = 0; i < 220; i++) this.flakes.push(this.flake(true));
+      // clear weather: no snowfall
     }
 
     static get box() { return { top: TOP, height: HEIGHT, width: WIDTH }; }
@@ -92,14 +92,14 @@
 
       // overcast sky
       let g = ctx.createLinearGradient(0, TOP, 0, hy);
-      g.addColorStop(0, '#9babb9');
-      g.addColorStop(0.7, '#cfd7de');
-      g.addColorStop(1, '#dde3e8');
+      g.addColorStop(0, '#86aacd');
+      g.addColorStop(0.7, '#bccfe0');
+      g.addColorStop(1, '#d4e0ea');
       ctx.fillStyle = g;
       ctx.fillRect(0, TOP, WIDTH, hy - TOP + 1);
 
       // mountains and the forest edge sit at fixed bearings, so they swing past in corners
-      for (const [amp, base, col, freq] of [[30, 8, [178, 190, 204], 2.2], [16, 4, [120, 134, 138], 4.5], [9, 2, [70, 84, 80], 11]]) {
+      for (const [amp, base, col, freq] of [[30, 8, [138, 160, 188], 2.2], [16, 4, [104, 124, 118], 4.5], [9, 2, [66, 88, 60], 11]]) {
         ctx.beginPath();
         ctx.moveTo(-50, hy + 1);
         for (let x = -50; x <= WIDTH + 50; x += 8) {
@@ -115,8 +115,8 @@
 
       // snow-covered ground
       g = ctx.createLinearGradient(0, hy, 0, TOP + HEIGHT);
-      g.addColorStop(0, '#d7dee5');
-      g.addColorStop(1, '#eef2f6');
+      g.addColorStop(0, '#9fa07c');
+      g.addColorStop(1, '#8c8a5e');
       ctx.fillStyle = g;
       ctx.fillRect(0, hy, WIDTH, TOP + HEIGHT - hy);
 
@@ -137,34 +137,34 @@
             ctx.beginPath();
             ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.lineTo(p3[0], p3[1]);
             ctx.closePath();
-            ctx.fillStyle = rgb(mix(side < 0 ? [232, 237, 242] : [214, 222, 230], FOG, fog));
+            ctx.fillStyle = rgb(mix(side < 0 ? [150, 146, 104] : [138, 134, 94], FOG, fog));
             ctx.fill();
           }
         }
         if (quad(a, b, -ROAD_HALF, ROAD_HALF, 0)) {
-          ctx.fillStyle = rgb(mix([138, 144, 150], FOG, fog));
+          ctx.fillStyle = rgb(mix([88, 90, 95], FOG, fog));
           ctx.fill();
         }
         // slush texture: lighter patches between the tracks
         const tex = hash(Math.floor(a.S / 3), 3);
         if (tex > 0.55 && quad(a, b, -0.4, 0.4, 0)) {
-          ctx.fillStyle = rgb(mix([176, 182, 188], FOG, fog), 0.6);
+          ctx.fillStyle = rgb(mix([104, 106, 110], FOG, fog), 0.45);
           ctx.fill();
         }
-        // dark wet tyre tracks in both lanes, with a faint sky sheen far away
+        // polished wheel tracks in both lanes
         for (const u of [-2.6, -1.0, 1.0, 2.6]) {
           if (quad(a, b, u - 0.34, u + 0.34, 0)) {
-            ctx.fillStyle = rgb(mix([78, 82, 88], FOG, fog), 0.88);
+            ctx.fillStyle = rgb(mix([72, 74, 78], FOG, fog), 0.35);
             ctx.fill();
           }
         }
         // centre line (double yellow) and dashed edge lines, half buried in slush
         for (const u of [-0.08, 0.08]) {
-          if (quad(a, b, u - 0.05, u + 0.05, 0)) { ctx.fillStyle = rgb(mix([218, 178, 58], FOG, fog), 0.6); ctx.fill(); }
+          if (quad(a, b, u - 0.05, u + 0.05, 0)) { ctx.fillStyle = rgb(mix([236, 192, 52], FOG, fog), 0.95); ctx.fill(); }
         }
         if (Math.floor(a.S / 6) % 2 === 0) {
           for (const u of [-3.45, 3.45]) {
-            if (quad(a, b, u - 0.07, u + 0.07, 0)) { ctx.fillStyle = rgb(mix([236, 238, 240], FOG, fog), 0.65); ctx.fill(); }
+            if (quad(a, b, u - 0.07, u + 0.07, 0)) { ctx.fillStyle = rgb(mix([236, 238, 240], FOG, fog), 0.92); ctx.fill(); }
           }
         }
       }
@@ -204,8 +204,8 @@
         if (o.k === 'tree') {
           const h = 6 + hash(o.n, 5) * 10, w = h * (0.3 + hash(o.n, 6) * 0.12);
           const ty = by - h * sc, pw = w * sc;
-          const dark = rgb(mix([30, 48, 40], FOG, fog * 0.9));
-          const snow = rgb(mix([238, 242, 246], FOG, fog * 0.6));
+          const dark = rgb(mix([40, 62, 44], FOG, fog * 0.9));
+          const snow = rgb(mix([78, 104, 66], FOG, fog * 0.8));
           ctx.fillStyle = rgb(mix([60, 50, 42], FOG, fog));
           ctx.fillRect(bx - pw * 0.04, by - h * 0.18 * sc, pw * 0.08, h * 0.18 * sc);
           for (let tier = 0; tier < 4; tier++) {

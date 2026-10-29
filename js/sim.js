@@ -2,11 +2,10 @@
 (function () {
   'use strict';
 
-  const IMG_W = 1440, IMG_H = 810;
-  const EXT_TOP = -330;                 // invented windshield view above the photo
-  const FULL_TOP = -135;                // the full view shows a little of the road outside
-  const WHEEL_PIVOT = [676, 410];
-  const CLUSTER_VIEW = { cx: 663, cy: 168, w: 600, h: 470 };
+  const IMG_W = 1672, IMG_H = 941;
+  const EXT_TOP = 0;
+  const FULL_TOP = 0;
+  const CLUSTER_VIEW = { cx: 807, cy: 250, w: 545, h: 430 };
   // 10-speed automatic: engine rpm per km/h in each gear
   const GEAR_FACTOR = [0, 142, 90, 64, 48, 38, 31, 26, 21, 17.5, 15];
   const IDLE = 650;
@@ -43,7 +42,7 @@
     engine: false, rpm: 0, throttle: 0,
     speed: 0, accel: 0, gear: 'P', gearNum: 1, shiftT: 0,
     mode: 'park', holdT: 0, cruise: false, setSpeed: 80, limit: 80, eco: false,
-    odoMeters: 0, odo: 4236.2, range: 455, fuel: 0.62, outside: 2, coolant: 40,
+    odoMeters: 0, odo: 4236.2, range: 455, fuel: 0.62, outside: 18, coolant: 40,
     redActive: new Set(), amberActive: new Set(), popup: null, clock: '7:17',
     modeTitle: 'MTS', modes: ['DEEP SNOW', 'MUD', 'SAND', 'DIRT', 'AUTO'], modeIndex: 0,
     wheel: 0, yawErr: 0, laneOffset: 0, pitch: 0, bump: 0, pendingDrive: false,
@@ -51,7 +50,7 @@
 
   const $ = (sel) => document.querySelector(sel);
   const stage = $('#stage');
-  const wheelRig = $('#wheelRig');
+  const wheelCanvas = $('#wheel');
   const focusShade = $('#focusShade');
   const startGlow = $('#startGlow');
   const ambientCanvas = $('#ambient');
@@ -59,13 +58,13 @@
   const cluster = new Cluster($('#cluster'));
   const ambient = new Ambient(ambientCanvas);
   const exterior = new Exterior(extCanvas);
+  const wheel = new Wheel(wheelCanvas, $('#wheelArt'));
   const audio = new SimAudio();
 
   const cr = Cluster.rect;
   Object.assign($('#cluster').style, { left: cr.x + 'px', top: cr.y + 'px', width: cr.w + 'px', height: cr.h + 'px' });
   const eb = Exterior.box;
   Object.assign(extCanvas.style, { left: '0px', top: eb.top + 'px', width: eb.width + 'px', height: eb.height + 'px' });
-  wheelRig.style.transformOrigin = `${WHEEL_PIVOT[0]}px ${WHEEL_PIVOT[1]}px`;
 
   /* ---------------- camera ---------------- */
   const now = () => performance.now() / 1000;
@@ -87,12 +86,14 @@
     const aw = area.x1 - area.x0, ah = area.y1 - area.y0;
     const contain = Math.min(vw / IMG_W, ah / IMG_H);
     const cover = Math.max(vw / IMG_W, vh / IMG_H);
-    const sFull = Math.min(cover, contain * 1.3) * 1.04;
+    // fill the free height (on a phone this crops the sides and keeps the wheel)
+    const sFull = Math.min(cover, Math.max(contain * 1.3, ah / IMG_H * 0.97)) * 1.04;
     const halfH = (docked === 'bottom' ? ah : vh) / 2 / sFull;
     const cyFull = Math.min(FULL_TOP + halfH, IMG_H - halfH, (FULL_TOP + IMG_H) / 2);
     const fit = Math.min(aw / CLUSTER_VIEW.w, ah / CLUSTER_VIEW.h);
     const sZoom = Math.max(fit, Math.min(sFull * 1.35, aw / 560));
     layout = {
+      area,
       full: { s: sFull, cx: IMG_W / 2, cy: cyFull, vx: vw / 2, vy: docked === 'bottom' ? ah / 2 : vh / 2 },
       zoom: { s: sZoom, cx: CLUSTER_VIEW.cx, cy: CLUSTER_VIEW.cy, vx: (area.x0 + area.x1) / 2, vy: (area.y0 + area.y1) / 2 },
     };
@@ -122,15 +123,16 @@
     let tx = vx - cx * s, ty = vy - cy * s;
     // keep the picture's edges out of view; when it is smaller than the view the
     // same bounds simply swap, so the limit changes continuously while zooming
-    const bx0 = vw - IMG_W * s, by0 = vh - IMG_H * s, by1 = -EXT_TOP * s;
+    const bx0 = vw - IMG_W * s;
     tx = clamp(tx, Math.min(bx0, 0), Math.max(bx0, 0));
-    ty = clamp(ty, Math.min(by0, by1), Math.max(by0, by1));
+    if (IMG_H * s >= vh) ty = clamp(ty, vh - IMG_H * s, 0);
+    else ty = clamp(ty, 0, Math.max(0, L.area.y1 - IMG_H * s));   // short picture: no gap at the top
     stage.style.transform = `translate3d(${(tx + shakeX).toFixed(2)}px, ${(ty + shakeY).toFixed(2)}px, 0) scale(${s.toFixed(5)})`;
 
     // zoomed in, the wheel fades to a faint translucent ghost that keeps moving
     const wheelA = 1 - 0.8 * smooth(0.1, 0.72, z);
-    wheelRig.style.opacity = wheelA.toFixed(3);
-    wheelRig.classList.toggle('ghost', z > 0.5);
+    wheelCanvas.style.opacity = wheelA.toFixed(3);
+    document.body.classList.toggle('zoomed', z > 0.5);
     focusShade.style.opacity = smooth(0.25, 1, z).toFixed(3);
 
     // Pick the cluster's pixel density for where the camera is heading, once,
@@ -140,6 +142,7 @@
     const goal = cam.zoomAt ? 1 : cam.to;                 // a zoom-in is already scheduled
     const sEnd = Math.exp(Math.log(L.full.s) + (Math.log(L.zoom.s) - Math.log(L.full.s)) * goal);
     const want = cam.dur > 0 || cam.zoomAt ? Math.max(cluster.scale, density(Math.max(s, sEnd))) : density(s);
+    wheel.setScale(s * dpr);
     resT += dt;
     if (want !== cluster.scale && (want > cluster.scale || resT > 0.5)) {
       cluster.setScale(want);
@@ -470,10 +473,12 @@
   let last = now();
   function frame() {
     const t = now();
-    const dt = Math.min(0.05, t - last);
+    const dt = Math.min(0.25, t - last);
     last = t;
 
-    physics(t, dt);
+    // fixed small physics steps, so a slow device drives at the same speed
+    const steps = Math.ceil(dt / 0.02);
+    for (let i = 1; i <= steps; i++) physics(t - dt + dt * i / steps, dt / steps);
     if (cam.zoomAt && t >= cam.zoomAt) {
       cam.zoomAt = null;
       if (st.gear === 'D') camTo(1, 5.5);
@@ -485,7 +490,7 @@
     if (st.popup && t - st.popup.t0 > st.popup.dur) st.popup = null;
 
     applyCamera(t, dt);
-    wheelRig.style.transform = `rotate(${st.wheel.toFixed(3)}deg)`;
+    wheel.render(st.wheel);
     exterior.update(st, dt);
     exterior.render(st);
     ambient.render(st, t);
@@ -504,7 +509,7 @@
     requestAnimationFrame(frame);
   }
 
-  const imgs = [...document.querySelectorAll('#stage img')];
+  const imgs = [...document.querySelectorAll('#stage img, #wheelArt')];
   const fonts = document.fonts
     ? Promise.race([
       Promise.all([
