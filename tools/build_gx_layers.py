@@ -42,17 +42,21 @@ OUTER = [
     (1015, 110), (1045, 155), (1068, 205), (1086, 255), (1098, 310), (1108, 380),
     (1110, 450), (1104, 520), (1092, 600), (1068, 680), (1040, 760), (1025, 815),
     (330, 815), (290, 700), (262, 600),]
+# opening above the spokes. Its lower edge follows the top of each spoke and runs
+# just under the turn-signal and wiper stalks, which belong to the column and
+# must stay put when the wheel turns.
 UPPER = [
-    (305, 342), (318, 260), (345, 200), (395, 145), (470, 100), (560, 70), (680, 57),
-    (800, 62), (880, 90), (940, 130), (985, 190), (1010, 250), (1027, 342),
-    (910, 342), (885, 318), (850, 298), (800, 291), (760, 288), (680, 286), (600, 288), (560, 291),
-    (510, 298), (470, 318), (440, 342),
+    (300, 352), (307, 300), (318, 260), (345, 200), (395, 145), (470, 100), (560, 70), (680, 57),
+    (800, 62), (880, 90), (940, 130), (978, 185), (995, 240), (1003, 272), (1010, 300), (1020, 335), (1024, 352),
+    (1016, 344), (986, 337), (950, 329), (910, 323), (870, 316), (840, 308), (800, 296),
+    (760, 288), (680, 286), (600, 288), (560, 294), (530, 305), (500, 314), (470, 318),
+    (420, 322), (370, 327), (330, 334),
 ]
 LOWER_L = [(322, 485), (448, 485), (468, 555), (500, 640), (530, 720), (548, 770),
            (470, 770), (420, 740), (375, 690), (345, 620), (328, 550)]
 LOWER_R = [(1352 - x, y) for x, y in LOWER_L]
-PADDLE_L = [(398, 276), (440, 276), (480, 283), (474, 302), (430, 301), (402, 296)]
-PADDLE_R = [(1352 - x, y) for x, y in PADDLE_L]
+PADDLE_L = [(413, 286), (428, 281), (486, 277), (492, 300), (500, 316), (470, 315), (440, 306), (420, 296)]
+PADDLE_R = [(866, 278), (927, 283), (934, 288), (928, 300), (904, 312), (870, 314), (852, 316), (855, 297)]
 
 wheel = poly(OUTER) & ~poly(UPPER) & ~poly(LOWER_L) & ~poly(LOWER_R)
 wheel |= poly(PADDLE_L) | poly(PADDLE_R)
@@ -94,7 +98,9 @@ sfill = cv2.inpaint(small, smask, 9, cv2.INPAINT_TELEA)
 sfill = cv2.GaussianBlur(sfill, (0, 0), 6)
 big = cv2.resize(sfill, (W, H), interpolation=cv2.INTER_CUBIC)
 dash = im.copy()
-dash[fill] = (big[fill] * 0.7).astype(np.uint8)
+# blend the fill in softly so no outline of the wheel or paddles is left behind
+fa = feather(fill, 3.0)[..., None]
+dash = (dash * (1 - fa) + big * 0.78 * fa).astype(np.uint8)
 # blank screen: deep black glass with a faint top reflection
 glass = screen & ~shroud
 yy, xx = np.mgrid[0:H, 0:W]
