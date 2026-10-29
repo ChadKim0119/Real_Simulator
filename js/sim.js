@@ -467,6 +467,11 @@
       syncCare();
       return;
     }
+    if (name === 'inbound') {
+      const r = director.command('inbound', {});
+      toast(r === 'busy' ? '상담원이 통화 중입니다. 통화가 끝난 뒤 다시 걸어 주세요.' : r === 'case' ? '고객 e-Care 인바운드 콜 · 상담센터 전화 수신 팝업' : '고객 일반 전화 · 상담센터 전화 수신 팝업 (경고 케이스 없음)');
+      return;
+    }
     if (!director.live()) { toast('먼저 경고등(W)을 발생시켜 주십시오. 긴급 경고가 e-Care 상담 케이스로 등록됩니다.'); return; }
     director.command(name, {});
   }
@@ -499,6 +504,8 @@
     const lk = $('#linkState');
     lk.textContent = Link.transport === 'lan' ? 'LAN 동기화' : '이 PC 화면 동기화';
     st.ecareCall = c && c.call && (c.call.state === 'connected' || c.call.state === 'dialing') ? c.call : null;
+    const g = director.general;
+    if (g) { el.textContent = `일반 전화 · ${{ ringing: '전화 수신', connected: '통화 중', ended: '후처리' }[g.state]}`; st.ecareCall = g.state === 'connected' ? { state: 'connected', connectedAt: g.connectedAt } : g.state === 'ringing' ? { state: 'dialing' } : null; return; }
     if (!c) { el.textContent = '대기 · 상담원 3명'; return; }
     const sla = ECare.mmss(Math.max(0, ECare.SLA - (Date.now() - c.slaBase)));
     const contact = ECare.CONTACT[c.contact];

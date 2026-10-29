@@ -68,6 +68,15 @@
     { who: 'agent', text: '주행 불가 경고입니다. 가까운 안전한 곳에 정차하신 뒤 비상등을 켜 주세요. 지금 위치로 긴급출동을 접수하겠습니다.', dur: 7.2 },
     { who: 'customer', text: '네, 갓길에 세웠습니다. 감사합니다.', dur: 2.8 },
   ];
+  // general call: the customer calls with no open warning case (11.1.1.3)
+  const CALL_GEN = [
+    { who: 'agent', text: '네, e-Care 상담센터 김상담입니다. 무엇을 도와드릴까요?', dur: 3.6 },
+    { who: 'customer', text: '지난번 경고등 때문에 상담받았는데요, 서비스센터 입고 예약이 잘 됐는지 확인하고 싶어요.', dur: 5.2 },
+    { who: 'agent', text: '확인해 보니 서비스센터로 상담 내용이 전달되어 있고, 담당 어드바이저가 오늘 중 연락드릴 예정입니다.', dur: 6.4 },
+    { who: 'customer', text: '네, 알겠습니다. 감사합니다.', dur: 2.2 },
+  ];
+  const SCRIPTS = { out: CALL_OUT, in: CALL_IN, gen: CALL_GEN };
+  const SCRIPT_NAMES = { out: '25분 경과 아웃바운드', in: '고객 인바운드 (경고 발생)', gen: '일반 전화 (재문의)' };
   const CONTACT = ['컨택 전', '컨택 중', '상담 완료', '이관 완료'];
   const DISPATCH = ['신고접수', '출동', '도착', '출동완료'];
   // service center, DMS-SVC-002 repairStatus
@@ -86,6 +95,7 @@
       this.getVehicle = getVehicle;
       this.hooks = {};
       this.noAnswer = false;
+      this.scripts = loadScripts();
       this.reset(true);
       Link.on('cmd', (c) => this.command(c.name, c.args || {}));
       Link.on('hello', () => this.publish());
@@ -99,6 +109,7 @@
       this.timers = [];
       this.agents = AGENTS.map((a) => ({ ...a, state: '대기' }));
       this.consults = [];
+      this.general = null;
       if (!silent) this.publish();
     }
 
@@ -146,10 +157,16 @@
         case 'reset': return this.reset();
         case 'select': if (c) { this.active = c.id; this.publish(); } return;
         case 'sla25': return this.sla25(c);
-        case 'inbound': return this.inbound(c);
+        case 'inbound': return this.inbound(this.live());
+        case 'answerGeneral': return this.answerGeneral();
+        case 'endGeneral': return this.endGeneral();
+        case 'closeGeneral': return this.closeGeneral(args.text);
+        case 'line': return this.editLine(args);
+        case 'script': return this.script(args);
+        case 'consultMemo': { const k = this.consults.find((x) => x.id === args.consult); if (k && args.text) { (k.memos = k.memos || []).push({ t: Date.now(), text: args.text, agent: this.me().name }); k.updated = Date.now(); this.publish(); } return; }
         case 'ack': return this.ack(c);
         case 'accept': return this.accept(c);
-        case 'hangup': return this.hangup(c);
+        case 'hangup': if (this.general && this.general.state === 'connected') return this.endGeneral(); return this.hangup(c);
         case 'hold': if (c && c.call) { c.call.hold = !c.call.hold; this.publish(); } return;
         case 'redial': return this.redial(c);
         case 'noAnswer': this.noAnswer = args.on == null ? !this.noAnswer : !!args.on; this.publish(); return;
@@ -179,17 +196,92 @@
       Link.send('ccw-open-case', { id: c.id });
     }
 
-    /** A) the customer calls in (MM call through CTI). */
+    /** A) the customer calls in (MM call through CTI). Returns what happened. */
     inbound(c) {
-      if (!c || c.kind !== 'emergency' || c.contact > 0 || c.inbound) return;
-      const idle = this.agents.find((a) => a.state === '대기') || this.me();
-      c.inbound = { at: Date.now(), agent: idle.id };
-      c.agent = idle.id;
-      c.assign = null;
-      this.log(c, `고객 인바운드 콜 (MM 콜 · CTI) · ${CUSTOMER.phone} → ${idle.name} 상담원`, 'call');
-      this.active = c.id;
+      const busy = this.cases.find((x) => x.call && (x.call.state === 'connected' || x.call.state === 'dialing')) || (this.general && this.general.state !== 'ended');
+      if (busy) return 'busy';
+      if (c && c.kind === 'emergency' && c.contact === 0 && !c.inbound) {
+        const idle = this.agents.find((a) => a.state === '대기') || this.me();
+        c.inbound = { at: Date.now(), agent: idle.id };
+        c.agent = idle.id;
+        c.assign = null;
+        this.log(c, `고객 인바운드 콜 (MM 콜 · CTI) · ${CUSTOMER.phone} → ${idle.name} 상담원`, 'call');
+        this.active = c.id;
+        this.publish();
+        Link.send('ccw-open-case', { id: c.id });
+        return 'case';
+      }
+      // no open warning case: a general call (11.1.1.3), answered without leaving the screen
+      this.general = { state: 'ringing', at: Date.now(), lines: [], agent: this.me().id, consult: this.consults[0] ? this.consults[0].id : null };
       this.publish();
-      Link.send('ccw-open-case', { id: c.id });
+      return 'general';
+    }
+
+    answerGeneral() {
+      const g = this.general;
+      if (!g || g.state !== 'ringing') return;
+      g.state = 'connected';
+      g.connectedAt = Date.now();
+      this.me().state = '상담중';
+      this.publish();
+      const next = (i) => {
+        if (this.general !== g || g.state !== 'connected') return;
+        const script = this.scripts.gen;
+        if (i >= script.length) { this.after(1500, () => this.endGeneral()); return; }
+        g.lines.push({ ...script[i], t: Date.now() });
+        this.publish();
+        Link.send('say', { line: script[i], index: i, general: true });
+        this.after(script[i].dur * 1000 + 700, () => next(i + 1));
+      };
+      next(0);
+    }
+
+    endGeneral() {
+      const g = this.general;
+      if (!g || g.state !== 'connected') return;
+      g.state = 'ended';
+      g.endedAt = Date.now();
+      this.me().state = '후처리중';
+      g.memo = '고객 재문의: 서비스센터 입고 예약 확인 요청 → 상담 메모 전달 및 어드바이저 연락 예정 안내 완료.';
+      this.publish();
+    }
+
+    closeGeneral(text) {
+      const g = this.general;
+      if (!g) return;
+      if (g.state === 'connected') this.endGeneral();
+      const k = this.consults.find((x) => x.id === g.consult);
+      if (k && text) { (k.memos = k.memos || []).push({ t: Date.now(), text, agent: this.me().name }); k.updated = Date.now(); }
+      this.consults.unshift({ id: `GN-${Date.now()}`, at: g.at, type: '인바운드 콜', title: '일반문의_홍길동', agent: this.me().name, result: '상담 완료', dealer: '-', general: true, memo: text || g.memo });
+      this.general = null;
+      this.me().state = '대기';
+      this.publish();
+    }
+
+    /** Edit or delete a line of a call that is in progress or done. */
+    editLine(args) {
+      const lines = args.general ? this.general && this.general.lines : (this.find(args.id) || {}).call && this.find(args.id).call.lines;
+      const l = lines && lines[args.idx];
+      if (!l) return;
+      if (args.del) l.deleted = true;
+      else if (typeof args.text === 'string') { l.text = args.text; l.edited = true; }
+      this.publish();
+    }
+
+    /** Edit the call scripts used by the next calls (kept on this PC). */
+    script(args) {
+      const list = this.scripts[args.key];
+      if (args.reset) this.scripts = defaults();
+      else if (!list) return;
+      else if (args.add) list.push({ who: args.who || 'agent', text: args.text || '', dur: 4 });
+      else if (args.del) list.splice(args.idx, 1);
+      else if (list[args.idx]) {
+        const l = list[args.idx];
+        if (typeof args.text === 'string' && args.text !== l.text) { l.text = args.text; l.audio = null; l.dur = Math.max(2, args.text.length * 0.16); }
+        if (args.who) l.who = args.who;
+      }
+      saveScripts(this.scripts);
+      this.publish();
     }
 
     /** [확인] on the incoming-call popup: the call is answered. */
@@ -202,7 +294,7 @@
       if (this.hooks.accept) this.hooks.accept(c);
       this.log(c, `${agent.name} 상담원 수신 · 통화 연결 (인바운드)`, 'call');
       this.publish();
-      this.nextLine(c, 0, CALL_IN);
+      this.nextLine(c, 0, this.scripts.in);
     }
 
     /** [전화 걸기] on the warning popup: outbound call through CTI. */
@@ -236,7 +328,7 @@
         c.retry = c.retry ? { ...c.retry, done: true } : null;
         this.log(c, '통화 연결', 'call');
         this.publish();
-        this.nextLine(c, 0, CALL_OUT);
+        this.nextLine(c, 0, this.scripts.out);
       });
     }
 
@@ -341,7 +433,7 @@
       c.dealer = c.memo.transfer ? c.memo.dealer : null;
       const agent = this.agents.find((a) => a.id === c.agent);
       if (agent) agent.state = '대기';
-      this.consults.unshift({ id: c.id, at: Date.now(), type: c.memo.callType || '아웃바운드 콜', title: c.memo.title, agent: agent ? agent.name : '', result: c.memo.transfer ? '이관 완료' : '상담 완료', dealer: c.dealer || '-' });
+      this.consults.unshift({ id: c.id, at: c.at, updated: Date.now(), type: c.memo.callType || '아웃바운드 콜', title: c.memo.title, agent: agent ? agent.name : '', result: c.memo.transfer ? '이관 완료' : '상담 완료', dealer: c.dealer || '-', warn: c.warn.title, memo: c.memo.text, request: c.memo.request, memos: [] });
       if (c.memo.transfer) {
         c.contact = 3;
         c.dms = 0;
@@ -355,13 +447,19 @@
     }
 
     snapshot() {
-      return { cases: this.cases, active: this.active, agents: this.agents, consults: this.consults, noAnswer: this.noAnswer, now: Date.now() };
+      return { cases: this.cases, active: this.active, agents: this.agents, consults: this.consults, noAnswer: this.noAnswer, general: this.general, scripts: this.scripts, now: Date.now() };
     }
 
     publish() { Link.send('ecare', this.snapshot()); }
   }
 
   function pad4(n) { return String(n).padStart(4, '0'); }
+  const defaults = () => JSON.parse(JSON.stringify(SCRIPTS));
+  function loadScripts() {
+    try { const v = JSON.parse(localStorage.getItem('ecare-scripts')); if (v && v.out && v.in && v.gen) return v; } catch (e) { /* none saved */ }
+    return defaults();
+  }
+  function saveScripts(v) { try { localStorage.setItem('ecare-scripts', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
-  window.ECare = { SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
+  window.ECare = { SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, SCRIPT_NAMES, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();
