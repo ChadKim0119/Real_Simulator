@@ -4,8 +4,8 @@
 (function () {
   'use strict';
 
-  const W = 1440, H = 810, Q = 1 / 8;
-  const SCREEN = { x: 405, y: 95, w: 515, h: 195 };
+  const W = 1672, H = 941, Q = 1 / 8;
+  const SCREEN = { x: 574, y: 185, w: 464, h: 173 };
 
   const hash = (n, k) => {
     const s = Math.sin(n * 78.233 + k * 12.989) * 43758.5453;
