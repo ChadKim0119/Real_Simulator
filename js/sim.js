@@ -165,6 +165,7 @@
   }
 
   function toast(msg, ms) {
+    Link.send('toast', { msg });
     const el = $('#toast');
     el.textContent = msg;
     el.classList.add('show');
@@ -246,7 +247,7 @@
     syncUI();
   }
 
-  function warn(level) {
+  function warn(level, id) {
     audio.unlock();
     if (st.ign !== 'on') {
       toast(st.ign === 'off' ? '시동을 켠 후 경고등이 표시됩니다' : '계기판 점검 중입니다');
@@ -254,8 +255,9 @@
     }
     const list = level === 'red' ? SimData.RED : SimData.AMBER;
     const set = level === 'red' ? st.redActive : st.amberActive;
-    const item = list.find((w) => !set.has(w.id));
-    if (!item) {
+    const item = id ? list.find((w) => w.id === id) : list.find((w) => !set.has(w.id));
+    if (!item || (id && set.has(id))) {
+      if (id && item) return;
       toast(level === 'red' ? '모든 경고등이 이미 점등되어 있습니다' : '모든 주의등이 이미 점등되어 있습니다');
       return;
     }
@@ -563,6 +565,23 @@
     KeyV: 'view', KeyM: 'sound', KeyF: 'full', KeyH: 'ui',
     KeyO: 'openCcw', KeyY: 'openTranscript', KeyT: 'sla25', KeyA: 'accept', KeyE: 'dispatch', KeyK: 'complete', KeyR: 'careReset', KeyG: 'inbound', KeyU: 'noAnswer', KeyL: 'ccwNoise',
   };
+  // the presenter's remote (remote.html) drives the vehicle over the link
+  Link.on('act', (d) => {
+    if (d.name === 'warnItem') {
+      const level = SimData.RED.some((w) => w.id === d.args.id) ? 'red' : 'amber';
+      return warn(level, d.args.id);
+    }
+    if (actions[d.name]) actions[d.name](d.args);
+  });
+  // big-screen mode: no control panel, sound on without a click (kiosk Chrome
+  // is started with --autoplay-policy=no-user-gesture-required)
+  if (new URLSearchParams(location.search).has('stage')) {
+    document.body.classList.add('ui-hidden', 'stage');
+    computeLayout();
+    try { audio.unlock(); } catch (e) { /* needs a gesture outside kiosk mode */ }
+    document.addEventListener('pointerdown', () => audio.unlock(), { once: true });
+  }
+
   window.addEventListener('keydown', (e) => {
     const act = KEYS[e.code];
     if (!act || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;

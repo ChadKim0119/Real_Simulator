@@ -128,6 +128,7 @@
     E.CALL_OUT.forEach((l) => { const a = audios[l.audio] = new Audio(l.audio); a.preload = 'auto'; });
     if (noise.on && VIEW !== 'transcript') noise.start();
   }
+  if (params.has('stage')) { document.body.classList.add('stage'); setTimeout(unlock, 300); }
   document.addEventListener('pointerdown', unlock);
   document.addEventListener('keydown', unlock);
   $('#sound').addEventListener('click', unlock);

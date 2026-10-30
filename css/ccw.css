@@ -427,3 +427,6 @@ body.view-transcript #transcript { display: flex; }
   .tr-side .sw, .tr-side .hint { display: none; }
   .tb { max-width: 90%; }
 }
+
+/* big-screen stage mode (ccw.html?stage=1) */
+body.stage #hud { display: none; }

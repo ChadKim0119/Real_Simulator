@@ -460,3 +460,6 @@ body.ready #loading { opacity: 0; visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   #controls, #toast { transition: none; }
 }
+
+/* big-screen stage mode (index.html?stage=1, driven by remote.html) */
+body.stage #showUi, body.stage #toast { display: none !important; }

@@ -74,5 +74,8 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`  vehicle     http://${ip}:${PORT}/`);
     console.log(`  call center http://${ip}:${PORT}/ccw.html   (agent screen only: /ccw.html?view=app)`);
     console.log(`  transcript  http://${ip}:${PORT}/ccw.html?view=transcript`);
+    console.log(`  data flow   http://${ip}:${PORT}/flow.html`);
+    console.log(`  stage       http://${ip}:${PORT}/stage.html?screen=left | center | right   (rehearsal: ?screen=all)`);
+    console.log(`  remote      http://${ip}:${PORT}/remote.html`);
   }
 });

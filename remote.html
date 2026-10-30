@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f17">
+  <title>Demo Remote</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="css/remote.css">
+</head>
+<body>
+  <header>
+    <b>시연 리모컨</b>
+    <span id="link"></span>
+    <span id="state">대기</span>
+  </header>
+  <main>
+    <section class="now">
+      <div class="act" id="nowAct"></div>
+      <h1 id="nowTitle"></h1>
+      <p class="cue" id="nowCue"></p>
+      <div class="nav">
+        <button id="prev" aria-label="이전 단계">◀ 이전</button>
+        <button id="next" class="go">다음 ▶</button>
+      </div>
+      <p class="toast" id="toast"></p>
+    </section>
+    <section class="steps" id="steps" aria-label="시나리오 단계"></section>
+    <section class="manual" aria-label="수동 조작">
+      <h2>장면</h2>
+      <div class="row" data-group="scene">
+        <button data-scene="opening">오프닝</button><button data-scene="live">라이브</button><button data-scene="closing">클로징</button><button data-scene="black">암전</button><button data-identify>화면 확인</button>
+      </div>
+      <h2>차량</h2>
+      <div class="row">
+        <button data-act="ign">시동</button><button data-act="drive">출발</button><button data-act="stop">정지</button><button data-act="clear">경고 해제</button>
+        <button data-warn="brake">브레이크 (A)</button><button data-warn="coolant">냉각수 (A)</button><button data-warn="airbag">에어백 (B)</button><button data-warn="brakepad">브레이크 패드 (C)</button>
+      </div>
+      <h2>e-Care</h2>
+      <div class="row">
+        <button data-act="sla25">25분 경과</button><button data-act="accept">전화 걸기</button><button data-act="inbound">고객 전화</button><button data-act="dispatch">긴급출동</button>
+        <button data-act="complete">완료 · 이관</button><button data-act="noAnswer">고객 미응답</button><button data-act="ccwNoise">콜센터 소음</button><button data-reset class="warn">전체 초기화</button>
+      </div>
+    </section>
+  </main>
+  <script src="js/link.js"></script>
+  <script src="js/ecare.js"></script>
+  <script src="js/remote.js"></script>
+</body>
+</html>

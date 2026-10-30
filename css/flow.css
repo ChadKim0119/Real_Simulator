@@ -1,0 +1,17 @@
+/* e-Care data flow monitor: drawn at 1920x1080 in SVG, sized for auditorium screens */
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #04070d; font-family: "Pretendard", "Noto Sans KR", sans-serif; }
+#flow { position: fixed; inset: 0; background: radial-gradient(ellipse 80% 70% at 50% 40%, #0c1626 0%, #060a12 60%, #03050a 100%); }
+#board { position: absolute; inset: 0; width: 100%; height: 100%; }
+#board text { font-family: "Pretendard", sans-serif; }
+#board .num { font-family: "Barlow", "Pretendard", sans-serif; font-variant-numeric: tabular-nums; }
+
+/* 25-minute fast-forward */
+#skip { position: absolute; left: 50%; top: 44%; padding: 5vh 7vh; border-radius: 4vh; background: radial-gradient(ellipse at center, rgba(4,8,16,0.94) 40%, rgba(4,8,16,0.75) 75%, transparent); transform: translate(-50%, -50%) scale(0.9); opacity: 0; pointer-events: none; text-align: center; color: #fff; transition: opacity 0.5s, transform 0.5s; }
+#skip.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+#skip b { display: block; font: 800 15vh/1 "Pretendard", sans-serif; letter-spacing: -0.02em; text-shadow: 0 0 6vh rgba(120, 170, 255, 0.55); }
+#skip b::before { content: '⏩ '; font-size: 0.7em; vertical-align: 0.08em; }
+#skip span { display: block; margin-top: 2.2vh; font: 600 3.6vh "Pretendard", sans-serif; color: #9fb6d6; }
+
+@keyframes pulse { 0% { opacity: 0.9; } 100% { opacity: 0; } }
