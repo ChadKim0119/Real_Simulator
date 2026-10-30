@@ -104,8 +104,27 @@
     { who: 'agent', text: '확인해 보니 서비스센터로 상담 내용이 전달되어 있고, 담당 어드바이저가 오늘 중 연락드릴 예정입니다.', dur: 6.4 },
     { who: 'customer', text: '네, 알겠습니다. 감사합니다.', dur: 2.2 },
   ];
-  const SCRIPTS = { in: CALL_IN, out: CALL_OUT, gen: CALL_GEN };
-  const SCRIPT_NAMES = { in: '고객 인바운드 · HU 전화연결 (메인)', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)' };
+  // second inbound set (ElevenLabs female v4): engine warning, a frightened customer
+  const CALL_IN2 = [
+    { who: 'customer', text: '어, 저기요. 차 계기판에 막 빨간불이 켜지고 차가 막 덜컹거리는데, 저 지금 도로 한가운데라 너무 무서워요. 이거 차에서 불나는 거 아니에요? 어떡해요, 진짜!', audio: 'assets/audio/ecare_f4_01_customer.mp3', dur: 11.96 },
+    { who: 'agent', text: '고객님, 갑작스러운 알림에 많이 놀라셨죠? 우선 안심하셔도 괜찮습니다. 제가 끝까지 도와드리겠습니다.', audio: 'assets/audio/ecare_f4_02_agent.mp3', dur: 8.62 },
+    { who: 'agent', text: '시스템 확인 결과 고객님 차량에서 엔진 시스템 이상이 감지되었습니다. 현재 안전 주행이 어려운 상황으로 즉각적인 조치가 필요합니다. 현재 안전한 장소에 정차하셨나요? 현재 위치를 알려주실 수 있으신가요?', audio: 'assets/audio/ecare_f4_03_agent.mp3', dur: 16.38 },
+    { who: 'customer', text: '네, 갓길에 겨우 세웠어요. 여기가 올림픽대로 한남 방향으로 빠지는 길목 부근이에요.', audio: 'assets/audio/ecare_f4_04_customer.mp3', dur: 6.03, stop: true },
+    { who: 'agent', text: '네, 위치 확인되었습니다. 안전한 장소에 즉시 정차해 주셔서 정말 다행입니다. 안전이 확인될 때까지 재출발을 삼가 주시기 바랍니다.', audio: 'assets/audio/ecare_f4_05_agent.mp3', dur: 10.19 },
+    { who: 'customer', text: '하… 휴… 상담원님이 차분하게 말해 주시니까 이제야 좀 살 것 같아요. 당장 어쩌나 싶어 너무 겁먹었거든요.', audio: 'assets/audio/ecare_f4_06_customer.mp3', dur: 8.62 },
+    { who: 'agent', text: '견인 또는 긴급 지원이 필요하시면 바로 접수 도와드리겠습니다. 가장 가까운 지정 서비스센터로 안전하게 입고하실 수 있도록 안내해 드리겠습니다.', audio: 'assets/audio/ecare_f4_07_agent.mp3', dur: 10.0 },
+    { who: 'customer', text: '안내해 주신 대로 차 안에서 안전하게 기다릴게요. 정말 감사합니다.', audio: 'assets/audio/ecare_f4_08_customer.mp3', dur: 4.13 },
+  ];
+  const SCRIPTS = { in: CALL_IN, in2: CALL_IN2, out: CALL_OUT, gen: CALL_GEN };
+  const SCRIPT_NAMES = { in: '인바운드 세트 1 · 빨간 경고등 (차분한 고객)', in2: '인바운드 세트 2 · 엔진 이상 (긴박한 고객)', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)' };
+  /* Conversation sets per call type; the director plays the picked one.
+   * warn: the lamp the presenter's run sheet raises for that set. */
+  const SCRIPT_SETS = {
+    in: { label: '고객 인바운드 (HU 전화연결)', keys: ['in', 'in2'] },
+    out: { label: '상담원 아웃바운드', keys: ['out'] },
+    gen: { label: '일반 전화', keys: ['gen'] },
+  };
+  const SCRIPT_WARN = { in: 'brake', in2: 'engine', out: 'brake' };
   const CONTACT = ['컨택 전', '컨택 중', '상담 완료', '이관 완료'];
   const DISPATCH = ['신고접수', '출동', '도착', '출동완료'];
   // service center, DMS-SVC-002 repairStatus
@@ -125,6 +144,7 @@
       this.hooks = {};
       this.noAnswer = false;
       this.scripts = loadScripts();
+      this.pick = loadPick();
       this.reset(true);
       Link.on('cmd', (c) => this.command(c.name, c.args || {}));
       Link.on('hello', () => this.publish());
@@ -246,6 +266,7 @@
         case 'closeGeneral': return this.closeGeneral(args.text);
         case 'line': return this.editLine(args);
         case 'script': return this.script(args);
+        case 'pick': return this.pickSet(args);
         case 'consultMemo': { const k = this.consults.find((x) => x.id === args.consult); if (k && args.text) { (k.memos = k.memos || []).push({ t: Date.now(), text: args.text, agent: this.me().name }); k.updated = Date.now(); this.publish(); } return; }
         case 'ack': return this.ack(c);
         case 'accept': return this.accept(c);
@@ -323,7 +344,7 @@
       this.publish();
       const next = (i) => {
         if (this.general !== g || g.state !== 'connected') return;
-        const script = this.scripts.gen;
+        const script = this.setFor('gen');
         if (i >= script.length) { this.after(1500, () => this.endGeneral()); return; }
         g.lines.push({ ...script[i], t: Date.now() });
         this.publish();
@@ -366,6 +387,17 @@
     }
 
     /** Edit the call scripts used by the next calls (kept on this PC). */
+    /** The conversation set picked for a call type. */
+    setFor(kind) { return this.scripts[this.pick[kind]] || this.scripts[kind]; }
+
+    pickSet(args) {
+      const set = SCRIPT_SETS[args.kind];
+      if (!set || !set.keys.includes(args.key)) return;
+      this.pick[args.kind] = args.key;
+      try { localStorage.setItem('ecare-pick', JSON.stringify(this.pick)); } catch (e) { /* private mode */ }
+      this.publish();
+    }
+
     script(args) {
       const list = this.scripts[args.key];
       if (args.reset) this.scripts = defaults();
@@ -390,11 +422,11 @@
       c.contact = 1;
       c.call = { dir: 'in', state: 'connected', at: Date.now(), connectedAt: Date.now(), line: -1, lines: [], attempts: 1 };
       // the car pulls over during the call when the script says so
-      if (this.hooks.accept && !this.scripts.in.some((l) => l.stop)) this.hooks.accept(c);
+      if (this.hooks.accept && !this.setFor('in').some((l) => l.stop)) this.hooks.accept(c);
       this.log(c, `${agent.name} 상담원 수신 · 통화 연결 (인바운드)`, 'call');
       this.flow(c, [['ccw', 'cti', '수신', '상담원 응답 · 통화 연결 (녹취)', null, 0], ['cti', 'car', '음성', '차량 MM ↔ 상담원 통화', null]]);
       this.publish();
-      this.nextLine(c, 0, this.scripts.in);
+      this.nextLine(c, 0, this.setFor('in'));
     }
 
     /** [전화 걸기] on the warning popup: outbound call through CTI. */
@@ -430,7 +462,7 @@
         this.log(c, '통화 연결', 'call');
         this.flow(c, [['phone', 'cti', '응답', '고객 응답 · 통화 연결 (녹취)', null, 0]]);
         this.publish();
-        this.nextLine(c, 0, this.scripts.out);
+        this.nextLine(c, 0, this.setFor('out'));
       });
     }
 
@@ -562,7 +594,7 @@
     }
 
     snapshot() {
-      return { cases: this.cases, active: this.active, agents: this.agents, consults: this.consults, noAnswer: this.noAnswer, general: this.general, scripts: this.scripts, flows: this.flows, skip: this.skip, now: Date.now() };
+      return { cases: this.cases, active: this.active, agents: this.agents, consults: this.consults, noAnswer: this.noAnswer, general: this.general, scripts: this.scripts, pick: this.pick, flows: this.flows, skip: this.skip, now: Date.now() };
     }
 
     publish() { Link.send('ecare', this.snapshot()); }
@@ -572,10 +604,20 @@
   const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => { const r = Math.random() * 16 | 0; return (ch === 'x' ? r : (r & 3) | 8).toString(16); });
   const defaults = () => JSON.parse(JSON.stringify(SCRIPTS));
   function loadScripts() {
-    try { const v = JSON.parse(localStorage.getItem('ecare-scripts-v3')); if (v && v.out && v.in && v.gen) return v; } catch (e) { /* none saved */ }
-    return defaults();
+    const d = defaults();
+    try {
+      const v = JSON.parse(localStorage.getItem('ecare-scripts-v3'));
+      // sets added since the scripts were saved come from the defaults
+      if (v && typeof v === 'object') { Object.keys(d).forEach((k) => { if (!Array.isArray(v[k])) v[k] = d[k]; }); return v; }
+    } catch (e) { /* none saved */ }
+    return d;
+  }
+  function loadPick() {
+    const p = { in: 'in', out: 'out', gen: 'gen' };
+    try { const v = JSON.parse(localStorage.getItem('ecare-pick')); Object.keys(p).forEach((k) => { if (v && SCRIPT_SETS[k].keys.includes(v[k])) p[k] = v[k]; }); } catch (e) { /* none saved */ }
+    return p;
   }
   function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v3', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
-  window.ECare = { SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, SCRIPT_NAMES, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
+  window.ECare = { SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();

@@ -458,3 +458,16 @@ body.stage #hud { display: none; }
 .srow .aud { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding-top: 6px; }
 .srow .aud button { border: 0; border-radius: 6px; background: #1c3a66; color: #cfe1ff; font: 600 11.5px "Pretendard", sans-serif; padding: 4px 8px; cursor: pointer; white-space: nowrap; }
 .srow .aud label { color: #5aa2ff; cursor: pointer; font-size: 11px; }
+
+/* conversation set picker */
+.pickbar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; background: rgba(61, 220, 132, 0.06); border: 1px solid rgba(61, 220, 132, 0.25); }
+.pickbar > b { font-size: 15px; margin-right: 6px; }
+.pickbar > span { font-size: 12px; color: #8fa0b5; }
+.pickbar button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.05); color: #dfe6ee; font: 700 14px "Pretendard", sans-serif; padding: 9px 14px; border-radius: 10px; cursor: pointer; }
+.pickbar button small { font: 500 11.5px "Pretendard", sans-serif; color: #8fa0b5; }
+.pickbar button.on { background: #14432b; border-color: #3ddc84; color: #fff; }
+.pickbar button.on::before { content: '● 사용 중'; font-size: 11px; color: #7fe7a8; }
+.tr-scripts section.inuse { border-color: rgba(61, 220, 132, 0.45); }
+.tr-scripts h3 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tr-scripts h3 .inuse { font-size: 12px; color: #7fe7a8; }
+.tr-scripts h3 .usebtn { border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); color: #dfe6ee; font: 600 12px "Pretendard", sans-serif; padding: 5px 10px; border-radius: 7px; cursor: pointer; }

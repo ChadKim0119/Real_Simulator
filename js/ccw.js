@@ -764,7 +764,7 @@
   function renderTranscript(force) {
     if (!snap) return;
     const v = convo();
-    const key = JSON.stringify([trTab, trSys, trSel, trEdit, vsVer, v && [v.title, v.lines, v.call && v.call.state, v.log.length], v && v.c && [v.c.contact, v.c.dispatch, v.c.dms], trTab === 'script' && snap.scripts]);
+    const key = JSON.stringify([trTab, trSys, trSel, trEdit, vsVer, v && [v.title, v.lines, v.call && v.call.state, v.log.length], v && v.c && [v.c.contact, v.c.dispatch, v.c.dms], trTab === 'script' && [snap.scripts, snap.pick]]);
     if (!force && key === trKey) return;
     const f = document.activeElement;
     if (!force && f && tr.contains(f) && f.matches('textarea')) return;
@@ -809,14 +809,25 @@
     }).join('');
     return `<div class="tr-wrap">${side}<div class="tr-list">${bubbles || '<div class="tr-empty">통화 연결 중…</div>'}</div></div>`;
   }
+  // which conversation set each call type plays (only types with several sets)
+  function pickBar() {
+    const pick = snap.pick || {};
+    return Object.keys(E.SCRIPT_SETS).filter((k) => E.SCRIPT_SETS[k].keys.length > 1).map((kind) => `<div class="pickbar"><b>대화 상황 · ${E.SCRIPT_SETS[kind].label}</b>
+      ${E.SCRIPT_SETS[kind].keys.map((k) => `<button data-pick="${kind}:${k}" class="${pick[kind] === k ? 'on' : ''}">${esc(E.SCRIPT_NAMES[k])}<small>${(snap.scripts[k] || []).length}줄 · ${Math.round((snap.scripts[k] || []).reduce((t, l) => t + (l.dur || 0) + 0.7, 0))}초</small></button>`).join('')}
+      <span>다음 통화부터 적용 · 리모컨에서도 선택 가능</span></div>`).join('');
+  }
   function scriptsView() {
     const sc = snap.scripts || {};
     const where = Link.transport === 'lan' ? '릴레이 서버에 저장 · 모든 화면에서 재생' : '이 브라우저에 저장 · 같은 브라우저의 콜센터 화면에서 재생 (여러 PC는 릴레이로 실행)';
     return `<div class="tr-scripts"><p class="hint">다음 통화부터 아래 대사가 사용됩니다. 음성 파일이 있는 대사는 녹음으로, 없는 대사는 음성 합성(TTS)으로 재생됩니다. 대사를 고치면 그 줄의 녹음은 해제됩니다. <button data-sreset>기본 대사 · 음성으로 초기화</button></p>
+      ${pickBar()}
       ${Object.keys(E.SCRIPT_NAMES).map((k) => {
         const list = sc[k] || [];
         const n = (who) => list.filter((l) => !who || l.who === who).length;
-        return `<section><h3>${E.SCRIPT_NAMES[k]}</h3>
+        const kind = Object.keys(E.SCRIPT_SETS).find((x) => E.SCRIPT_SETS[x].keys.includes(k));
+        const multi = E.SCRIPT_SETS[kind].keys.length > 1;
+        const used = (snap.pick || {})[kind] === k;
+        return `<section class="${multi && used ? 'inuse' : ''}"><h3>${E.SCRIPT_NAMES[k]}${multi ? (used ? '<span class="inuse">● 사용 중</span>' : `<button class="usebtn" data-pick="${kind}:${k}">이 세트 사용</button>`) : ''}</h3>
         <div class="vset"><b>음성 세트</b><span>MP3 · WAV · M4A — 한 파일을 대사 사이 쉬는 구간에서 자동으로 나눕니다</span>
           <div class="vslots"><label class="vslot agent">상담원 음성<small>상담원 대사 ${n('agent')}줄 이어서</small><input type="file" accept="audio/*" data-vslot="${k}:agent" hidden></label>
           <label class="vslot customer">고객 음성<small>고객 대사 ${n('customer')}줄 이어서</small><input type="file" accept="audio/*" data-vslot="${k}:customer" hidden></label>
@@ -926,6 +937,7 @@
       else if (t.dataset.line) trSel = trSel === +t.dataset.line ? -1 : +t.dataset.line;
       else if (t.dataset.swho) { const r = ref(t.dataset.swho); const l = snap.scripts[r.key][r.idx]; cmd('script', { ...r, who: l.who === 'agent' ? 'customer' : 'agent' }); }
       else if (t.dataset.sdel) cmd('script', { ...ref(t.dataset.sdel), del: true });
+      else if (t.dataset.pick) { const [kind, key] = t.dataset.pick.split(':'); cmd('pick', { kind, key }); }
       else if (t.dataset.sadd) { const [key, who] = t.dataset.sadd.split(':'); cmd('script', { key, add: true, who, text: who === 'agent' ? '상담원 대사를 입력하세요.' : '고객 대사를 입력하세요.' }); }
       else if (t.hasAttribute('data-sreset')) { if (confirm('대화 스크립트를 기본 대사 · 기본 음성으로 되돌릴까요?')) cmd('script', { reset: true }); }
       else if (t.dataset.vplay) { const sg = VoiceSet.segments(vs.a, vs.cuts)[+t.dataset.vplay]; if (sg) VoiceSet.preview(vs.a, sg); return; }
