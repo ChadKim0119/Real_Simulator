@@ -125,7 +125,7 @@
     soundOn = true;
     $('#sound').classList.add('on');
     ac();
-    E.CALL_OUT.forEach((l) => { const a = audios[l.audio] = new Audio(l.audio); a.preload = 'auto'; });
+    E.CALL_OUT.concat(E.CALL_IN).forEach((l) => { if (!l.audio) return; const a = audios[l.audio] = new Audio(l.audio); a.preload = 'auto'; });
     if (noise.on && VIEW !== 'transcript') noise.start();
   }
   if (params.has('stage')) { document.body.classList.add('stage'); setTimeout(unlock, 300); }

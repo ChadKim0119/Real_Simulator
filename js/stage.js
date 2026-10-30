@@ -17,18 +17,45 @@
   if (SCREEN === 'all') document.body.classList.add('all');
   else document.documentElement.style.setProperty('--idx', IDX);
 
-  // content panes
-  (SCREEN === 'all' ? ['left', 'center', 'right'] : [SCREEN]).forEach((k) => {
+  // content panes; the left screen holds the cockpit and the head unit
+  const frame = (src, title) => {
     const f = document.createElement('iframe');
-    f.src = SRC[k];
-    f.title = NAME[k];
+    f.src = src;
+    f.title = title;
     f.allow = 'autoplay; fullscreen';
-    $('#panes').appendChild(f);
+    return f;
+  };
+  let left = null;
+  (SCREEN === 'all' ? ['left', 'center', 'right'] : [SCREEN]).forEach((k) => {
+    if (k !== 'left') { $('#panes').appendChild(frame(SRC[k], NAME[k])); return; }
+    left = document.createElement('div');
+    left.className = 'left drive';
+    left.append(frame(SRC.left, '계기판'), frame('hu.html', '헤드유닛'));
+    $('#panes').appendChild(left);
   });
 
+  /* Left screen layout: 'drive' shows the cockpit; 'hu' shows the head unit
+   * with the cockpit as a picture-in-picture. 'auto' follows the e-Care case:
+   * the head unit comes up with a warning and stays until the case is closed. */
+  let leftMode = 'auto';
   let snap = null;
+  function layout() {
+    if (!left) return;
+    let hu = leftMode === 'hu';
+    if (leftMode === 'auto' && snap) {
+      const now = Date.now();
+      hu = snap.cases.some((c) => (c.wcase === 'A' && !(c.sheet && c.sheet.saved && now - c.sheet.saved > 15000)) || (c.wcase !== 'A' && now - c.at < 20000));
+    }
+    left.classList.toggle('hu', hu);
+    left.classList.toggle('drive', !hu);
+    const doc = left.lastChild.contentDocument;
+    if (doc && doc.body) doc.body.classList.toggle('pip', hu);
+  }
+  Link.on('stage-left', (d) => { leftMode = d.mode || 'auto'; layout(); });
+  setInterval(layout, 1000);
+
   let scene = 'live';
-  Link.on('ecare', (d) => { snap = d; if (scene === 'closing') render(); });
+  Link.on('ecare', (d) => { snap = d; layout(); if (scene === 'closing') render(); });
   Link.on('stage', (d) => setScene(d.scene));
   const identify = () => { const t = $('#tag'); t.textContent = NAME[SCREEN] || 'ALL'; t.classList.add('on'); setTimeout(() => t.classList.remove('on'), 4000); };
   Link.on('stage-identify', identify);

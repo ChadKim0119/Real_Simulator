@@ -85,11 +85,12 @@
   ];
   // inbound MM call (customer presses the e-Care button / calls from the app)
   const CALL_IN = [
-    { who: 'agent', text: '네, e-Care 상담센터입니다. 차량에서 경고가 확인되어 화면에 고객님 정보가 떠 있습니다.', dur: 5.4 },
-    { who: 'customer', text: '계기판에 빨간 경고등이 들어왔어요. 계속 운전해도 되나요?', dur: 4.2 },
-    { who: 'agent', text: '주행 불가 경고입니다. 가까운 안전한 곳에 정차하신 뒤 비상등을 켜 주세요. 지금 위치로 긴급출동을 접수하겠습니다.', dur: 7.2 },
-    { who: 'customer', text: '네, 갓길에 세웠습니다. 감사합니다.', dur: 2.8 },
-  ];
+    { who: 'customer', text: '차량 화면에 브레이크 경고가 떠서 전화하기 버튼을 눌렀어요.', audio: 'assets/audio/ko_customer_006.wav', dur: 4.45 },
+    { who: 'agent', text: 'e-Care 상담센터입니다. 차량에서 바로 연결되어 고객님 차량의 진단 정보가 함께 접수되었습니다.', audio: 'assets/audio/ko_agent_007.wav', dur: 8.06 },
+    { who: 'agent', text: '브레이크 시스템 이상이라 주행을 멈추셔야 합니다. 정차하셨나요?', audio: 'assets/audio/ko_agent_008.wav', dur: 7.3 },
+    { who: 'customer', text: '네, 갓길에 세웠어요.', audio: 'assets/audio/ko_customer_009.wav', dur: 1.7 },
+    { who: 'agent', text: '현재 위치로 긴급출동 차량을 보내드리겠습니다. 차 밖 안전한 곳에서 기다려 주세요.', audio: 'assets/audio/ko_agent_010.wav', dur: 5.62 },
+];
   // general call: the customer calls with no open warning case (11.1.1.3)
   const CALL_GEN = [
     { who: 'agent', text: '네, e-Care 상담센터 김상담입니다. 무엇을 도와드릴까요?', dur: 3.6 },
@@ -97,8 +98,8 @@
     { who: 'agent', text: '확인해 보니 서비스센터로 상담 내용이 전달되어 있고, 담당 어드바이저가 오늘 중 연락드릴 예정입니다.', dur: 6.4 },
     { who: 'customer', text: '네, 알겠습니다. 감사합니다.', dur: 2.2 },
   ];
-  const SCRIPTS = { out: CALL_OUT, in: CALL_IN, gen: CALL_GEN };
-  const SCRIPT_NAMES = { out: '25분 경과 아웃바운드', in: '고객 인바운드 (경고 발생)', gen: '일반 전화 (재문의)' };
+  const SCRIPTS = { in: CALL_IN, out: CALL_OUT, gen: CALL_GEN };
+  const SCRIPT_NAMES = { in: '고객 인바운드 · HU 전화연결 (메인)', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)' };
   const CONTACT = ['컨택 전', '컨택 중', '상담 완료', '이관 완료'];
   const DISPATCH = ['신고접수', '출동', '도착', '출동완료'];
   // service center, DMS-SVC-002 repairStatus
@@ -562,10 +563,10 @@
   const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => { const r = Math.random() * 16 | 0; return (ch === 'x' ? r : (r & 3) | 8).toString(16); });
   const defaults = () => JSON.parse(JSON.stringify(SCRIPTS));
   function loadScripts() {
-    try { const v = JSON.parse(localStorage.getItem('ecare-scripts')); if (v && v.out && v.in && v.gen) return v; } catch (e) { /* none saved */ }
+    try { const v = JSON.parse(localStorage.getItem('ecare-scripts-v2')); if (v && v.out && v.in && v.gen) return v; } catch (e) { /* none saved */ }
     return defaults();
   }
-  function saveScripts(v) { try { localStorage.setItem('ecare-scripts', JSON.stringify(v)); } catch (e) { /* private mode */ } }
+  function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v2', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
   window.ECare = { SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, SCRIPT_NAMES, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();
