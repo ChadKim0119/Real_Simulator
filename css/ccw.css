@@ -430,3 +430,31 @@ body.view-transcript #transcript { display: flex; }
 
 /* big-screen stage mode (ccw.html?stage=1) */
 body.stage #hud { display: none; }
+
+/* voice sets (대화 스크립트 · 음성 세트) */
+.vset { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 12px; padding: 12px; border-radius: 12px; background: rgba(90, 162, 255, 0.07); border: 1px dashed rgba(90, 162, 255, 0.35); }
+.vset > b { font-size: 14px; color: #cfe1ff; }
+.vset > span { font-size: 12px; color: #8fa0b5; }
+.vslots { flex: 1 0 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+.vslot { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; cursor: pointer; font: 700 14px "Pretendard", sans-serif; color: #eef2f7; background: #142238; border: 1px solid rgba(255, 255, 255, 0.12); }
+.vslot:hover { border-color: #5aa2ff; }
+.vslot::before { content: '⬆'; font-size: 13px; color: #5aa2ff; }
+.vslot.customer::before { color: #c9d3e2; } .vslot.all::before { color: #ffb02e; }
+.vslot small { font: 500 11.5px "Pretendard", sans-serif; color: #8fa0b5; }
+.vset .where { flex: 1 0 100%; font-size: 11.5px; color: #6f8098; }
+.vwork { margin: 0 0 14px; padding: 12px; border-radius: 12px; background: #0e1726; border: 1px solid #2b4466; }
+.vh { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; margin-bottom: 8px; }
+.vh .ok { color: #7fe7a8; } .vh .bad { color: #ffb46b; }
+.vwave { display: block; width: 100%; height: 96px; border-radius: 8px; cursor: col-resize; touch-action: none; }
+.vsegs { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.vsegs li { display: grid; grid-template-columns: 34px 46px 1fr auto; gap: 8px; align-items: center; font-size: 13px; padding: 4px 8px 4px 4px; border-left: 4px solid var(--c); background: rgba(255, 255, 255, 0.03); border-radius: 6px; }
+.vsegs button { border: 0; border-radius: 6px; background: #1c3a66; color: #fff; padding: 5px 0; cursor: pointer; }
+.vsegs em { font-style: normal; color: #9fb6d6; font-weight: 700; }
+.vsegs span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #dfe6ee; }
+.vsegs small { color: #8fa0b5; font-variant-numeric: tabular-nums; }
+.vbtn { display: flex; gap: 8px; flex-wrap: wrap; }
+.vbtn button { border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); color: #dfe6ee; font: 600 13px "Pretendard", sans-serif; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+.vbtn button.pri { background: #2f6fe0; border-color: #2f6fe0; color: #fff; }
+.srow .aud { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding-top: 6px; }
+.srow .aud button { border: 0; border-radius: 6px; background: #1c3a66; color: #cfe1ff; font: 600 11.5px "Pretendard", sans-serif; padding: 4px 8px; cursor: pointer; white-space: nowrap; }
+.srow .aud label { color: #5aa2ff; cursor: pointer; font-size: 11px; }

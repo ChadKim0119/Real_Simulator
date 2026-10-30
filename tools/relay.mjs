@@ -11,7 +11,7 @@
  * windows of one browser.
  */
 import http from 'node:http';
-import { readFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -49,6 +49,23 @@ const server = http.createServer(async (req, res) => {
         for (const c of clients) c.write(`data: ${line}\n\n`);
       } catch (e) { /* ignore */ }
       res.writeHead(204); res.end();
+    });
+    return;
+  }
+  // line recordings cut on the transcript screen (대화 스크립트 · 음성 세트)
+  if (url.pathname === '/__relay/audio' && req.method === 'POST') {
+    const name = (url.searchParams.get('name') || '').replace(/[^\w-]/g, '').slice(0, 80);
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => { size += c.length; if (size > 30e6) req.destroy(); else chunks.push(c); });
+    req.on('end', async () => {
+      if (!name) { res.writeHead(400); return res.end(); }
+      try {
+        await mkdir(join(ROOT, 'assets', 'audio', 'user'), { recursive: true });
+        await writeFile(join(ROOT, 'assets', 'audio', 'user', `${name}.wav`), Buffer.concat(chunks));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ path: `assets/audio/user/${name}.wav` }));
+      } catch (e) { res.writeHead(500); res.end(); }
     });
     return;
   }

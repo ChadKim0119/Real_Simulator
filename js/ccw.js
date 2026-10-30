@@ -85,9 +85,12 @@
   function speak(line) {
     if (!soundOn) return;
     if (line.audio) {
-      const a = audios[line.audio] || (audios[line.audio] = new Audio(line.audio));
-      a.currentTime = 0;
-      a.play().catch(() => {});
+      VoiceSet.url(line.audio).then((u) => {
+        if (!u) return;
+        const a = audios[u] || (audios[u] = new Audio(u));
+        a.currentTime = 0;
+        a.play().catch(() => {});
+      });
       return;
     }
     // inbound lines have no recording: the browser's Korean voice reads them
@@ -125,7 +128,8 @@
     soundOn = true;
     $('#sound').classList.add('on');
     ac();
-    E.CALL_OUT.concat(E.CALL_IN).forEach((l) => { if (!l.audio) return; const a = audios[l.audio] = new Audio(l.audio); a.preload = 'auto'; });
+    const lines = snap && snap.scripts ? [].concat(...Object.values(snap.scripts)) : E.CALL_OUT.concat(E.CALL_IN);
+    lines.forEach((l) => { if (l.audio && !l.audio.startsWith('idb:') && !audios[l.audio]) { const a = audios[l.audio] = new Audio(l.audio); a.preload = 'auto'; } });
     if (noise.on && VIEW !== 'transcript') noise.start();
   }
   if (params.has('stage')) { document.body.classList.add('stage'); setTimeout(unlock, 300); }
@@ -760,7 +764,7 @@
   function renderTranscript(force) {
     if (!snap) return;
     const v = convo();
-    const key = JSON.stringify([trTab, trSys, trSel, trEdit, v && [v.title, v.lines, v.call && v.call.state, v.log.length], v && v.c && [v.c.contact, v.c.dispatch, v.c.dms], trTab === 'script' && snap.scripts]);
+    const key = JSON.stringify([trTab, trSys, trSel, trEdit, vsVer, v && [v.title, v.lines, v.call && v.call.state, v.log.length], v && v.c && [v.c.contact, v.c.dispatch, v.c.dms], trTab === 'script' && snap.scripts]);
     if (!force && key === trKey) return;
     const f = document.activeElement;
     if (!force && f && tr.contains(f) && f.matches('textarea')) return;
@@ -777,6 +781,7 @@
     tr.innerHTML = head + body;
     const list = $('.tr-list', tr);
     if (list) list.scrollTop = keep != null ? keep : list.scrollHeight;
+    drawVs();
     tickTranscript();
   }
   function liveView(v) {
@@ -806,12 +811,97 @@
   }
   function scriptsView() {
     const sc = snap.scripts || {};
-    return `<div class="tr-scripts"><p class="hint">다음 통화부터 아래 대사가 사용됩니다. 녹음된 대사는 원문 그대로일 때 녹음 음성으로, 고치거나 추가한 대사는 음성 합성으로 재생됩니다. <button data-sreset>기본 대사로 초기화</button></p>
-      ${Object.keys(E.SCRIPT_NAMES).map((k) => `<section><h3>${E.SCRIPT_NAMES[k]}</h3>${(sc[k] || []).map((l, i) => `<div class="srow">
+    const where = Link.transport === 'lan' ? '릴레이 서버에 저장 · 모든 화면에서 재생' : '이 브라우저에 저장 · 같은 브라우저의 콜센터 화면에서 재생 (여러 PC는 릴레이로 실행)';
+    return `<div class="tr-scripts"><p class="hint">다음 통화부터 아래 대사가 사용됩니다. 음성 파일이 있는 대사는 녹음으로, 없는 대사는 음성 합성(TTS)으로 재생됩니다. 대사를 고치면 그 줄의 녹음은 해제됩니다. <button data-sreset>기본 대사 · 음성으로 초기화</button></p>
+      ${Object.keys(E.SCRIPT_NAMES).map((k) => {
+        const list = sc[k] || [];
+        const n = (who) => list.filter((l) => !who || l.who === who).length;
+        return `<section><h3>${E.SCRIPT_NAMES[k]}</h3>
+        <div class="vset"><b>음성 세트</b><span>MP3 · WAV · M4A — 한 파일을 대사 사이 쉬는 구간에서 자동으로 나눕니다</span>
+          <div class="vslots"><label class="vslot agent">상담원 음성<small>상담원 대사 ${n('agent')}줄 이어서</small><input type="file" accept="audio/*" data-vslot="${k}:agent" hidden></label>
+          <label class="vslot customer">고객 음성<small>고객 대사 ${n('customer')}줄 이어서</small><input type="file" accept="audio/*" data-vslot="${k}:customer" hidden></label>
+          <label class="vslot all">대화 전체<small>두 목소리 ${n()}줄 한 파일</small><input type="file" accept="audio/*" data-vslot="${k}:all" hidden></label></div>
+          <small class="where">${where}</small></div>
+        ${vs && vs.key === k ? vsView(list) : ''}
+        ${list.map((l, i) => `<div class="srow">
         <button class="who ${l.who}" data-swho="${k}:${i}">${l.who === 'agent' ? '상담원' : '고객'}</button><textarea data-stext="${k}:${i}" rows="2">${esc(l.text)}</textarea>
-        <span class="aud">${l.audio ? '녹음' : 'TTS'}</span><button class="del" data-sdel="${k}:${i}">삭제</button></div>`).join('')}
-        <div class="sadd"><button data-sadd="${k}:agent">+ 상담원 대사</button><button data-sadd="${k}:customer">+ 고객 대사</button></div></section>`).join('')}</div>`;
+        <span class="aud">${l.audio ? `<button data-splay="${k}:${i}" title="${esc(l.audio)}">▶ ${l.dur.toFixed(1)}초</button>` : 'TTS'}<label>파일<input type="file" accept="audio/*" data-sfile="${k}:${i}" hidden></label></span><button class="del" data-sdel="${k}:${i}">삭제</button></div>`).join('')}
+        <div class="sadd"><button data-sadd="${k}:agent">+ 상담원 대사</button><button data-sadd="${k}:customer">+ 고객 대사</button></div></section>`;
+      }).join('')}</div>`;
   }
+
+  /* voice set being cut: { key, slot, name, a (decoded), cuts (s), idxs (script lines) } */
+  let vs = null, vsVer = 0, vsDrag = -1;
+  const VS_COL = ['#5aa2ff', '#ffb02e', '#3fd0c9', '#ff6b81', '#a98bff', '#8ff0b3', '#f7d774', '#ff9a5a'];
+  const SLOT = { agent: '상담원 음성', customer: '고객 음성', all: '대화 전체' };
+  function vsView(list) {
+    const segs = VoiceSet.segments(vs.a, vs.cuts);
+    const short = segs.length < vs.idxs.length;
+    return `<div class="vwork"><div class="vh"><b>${SLOT[vs.slot]} · ${esc(vs.name)}</b><span class="${short ? 'bad' : 'ok'}">${segs.length} / ${vs.idxs.length} 구간</span></div>
+      <canvas class="vwave" data-vwave></canvas>
+      <p class="hint">${short ? `<b>구간이 대사 수보다 적습니다.</b> 파형에서 대사가 바뀌는 곳을 눌러 경계를 추가하세요. ` : ''}노란 경계선을 끌어 옮길 수 있고, ▶로 각 구간을 들어볼 수 있습니다.</p>
+      <ol class="vsegs">${vs.idxs.map((idx, j) => { const l = list[idx], sg = segs[j]; return `<li style="--c:${VS_COL[j % VS_COL.length]}">${sg ? `<button data-vplay="${j}">▶</button>` : '<button disabled>—</button>'}<em>${l.who === 'agent' ? '상담원' : '고객'}</em><span>${esc(l.text)}</span><small>${sg ? `${(sg.end - sg.start).toFixed(1)}초` : '없음'}</small></li>`; }).join('')}</ol>
+      <div class="vbtn"><button data-vapply class="pri" ${vs.busy ? 'disabled' : ''}>${vs.busy ? '저장 중…' : `대사 ${Math.min(segs.length, vs.idxs.length)}줄에 적용`}</button><button data-vauto>자동으로 다시 나누기</button><button data-vcancel>취소</button></div></div>`;
+  }
+  function drawVs() {
+    const cv = $('[data-vwave]', tr);
+    if (!cv || !vs) return;
+    VoiceSet.draw(cv, vs.a, vs.cuts, VoiceSet.segments(vs.a, vs.cuts), VS_COL);
+  }
+  async function vsLoad(key, slot, file) {
+    const list = snap.scripts[key];
+    const idxs = list.map((l, i) => i).filter((i) => slot === 'all' || list[i].who === slot);
+    if (!idxs.length) return alert('이 시나리오에 해당 대사가 없습니다.');
+    try {
+      const a = await VoiceSet.decode(await file.arrayBuffer());
+      vs = { key, slot, name: file.name, a, idxs, cuts: VoiceSet.autoCuts(a, idxs.length).cuts };
+    } catch (e) { alert(`오디오 파일을 읽을 수 없습니다: ${file.name}`); return; }
+    vsVer++;
+    renderTranscript(true);
+  }
+  async function vsApply() {
+    const segs = VoiceSet.segments(vs.a, vs.cuts);
+    vs.busy = true; vsVer++; renderTranscript(true);
+    const audios = [];
+    const stamp = Date.now().toString(36);
+    for (let j = 0; j < Math.min(segs.length, vs.idxs.length); j++) {
+      const idx = vs.idxs[j];
+      const audio = await VoiceSet.store(`${vs.key}_${idx}_${stamp}`, VoiceSet.wav(vs.a, segs[j]));
+      audios.push({ idx, audio, dur: +(segs[j].end - segs[j].start).toFixed(2) });
+    }
+    cmd('script', { key: vs.key, audios });
+    vs = null; vsVer++;
+    renderTranscript(true);
+  }
+  async function lineFile(key, idx, file) {
+    try {
+      const a = await VoiceSet.decode(await file.arrayBuffer());
+      const seg = VoiceSet.segments(a, [])[0];
+      const audio = await VoiceSet.store(`${key}_${idx}_${Date.now().toString(36)}`, VoiceSet.wav(a, seg));
+      cmd('script', { key, audios: [{ idx, audio, dur: +(seg.end - seg.start).toFixed(2) }] });
+    } catch (e) { alert(`오디오 파일을 읽을 수 없습니다: ${file.name}`); }
+  }
+  // drag a cut, or click the waveform to add one when lines are missing
+  function vsAt(e) { const r = e.target.getBoundingClientRect(); return { t: ((e.clientX - r.left) / r.width) * vs.a.dur, px: r.width / vs.a.dur }; }
+  tr.addEventListener('pointerdown', (e) => {
+    if (!vs || !e.target.matches('[data-vwave]')) return;
+    const { t, px } = vsAt(e);
+    let best = -1;
+    vs.cuts.forEach((c, i) => { if (Math.abs(c - t) * px < 10 && (best < 0 || Math.abs(c - t) < Math.abs(vs.cuts[best] - t))) best = i; });
+    if (best < 0 && vs.cuts.length < vs.idxs.length - 1) { vs.cuts.push(t); vs.cuts.sort((x, y) => x - y); best = vs.cuts.indexOf(t); }
+    if (best < 0) return;
+    vsDrag = best;
+    e.target.setPointerCapture(e.pointerId);
+    drawVs();
+  });
+  tr.addEventListener('pointermove', (e) => {
+    if (!vs || vsDrag < 0) return;
+    const lo = vsDrag > 0 ? vs.cuts[vsDrag - 1] + 0.1 : 0.1, hi = vsDrag < vs.cuts.length - 1 ? vs.cuts[vsDrag + 1] - 0.1 : vs.a.dur - 0.1;
+    vs.cuts[vsDrag] = Math.max(lo, Math.min(hi, vsAt(e).t));
+    drawVs();
+  });
+  tr.addEventListener('pointerup', () => { if (vsDrag >= 0) { vsDrag = -1; vsVer++; renderTranscript(true); } });
+
   function tickTranscript() {
     const st = $('[data-trst]', tr);
     const v = convo();
@@ -837,12 +927,20 @@
       else if (t.dataset.swho) { const r = ref(t.dataset.swho); const l = snap.scripts[r.key][r.idx]; cmd('script', { ...r, who: l.who === 'agent' ? 'customer' : 'agent' }); }
       else if (t.dataset.sdel) cmd('script', { ...ref(t.dataset.sdel), del: true });
       else if (t.dataset.sadd) { const [key, who] = t.dataset.sadd.split(':'); cmd('script', { key, add: true, who, text: who === 'agent' ? '상담원 대사를 입력하세요.' : '고객 대사를 입력하세요.' }); }
-      else if (t.hasAttribute('data-sreset')) { if (confirm('대화 스크립트를 기본 대사로 되돌릴까요?')) cmd('script', { reset: true }); }
+      else if (t.hasAttribute('data-sreset')) { if (confirm('대화 스크립트를 기본 대사 · 기본 음성으로 되돌릴까요?')) cmd('script', { reset: true }); }
+      else if (t.dataset.vplay) { const sg = VoiceSet.segments(vs.a, vs.cuts)[+t.dataset.vplay]; if (sg) VoiceSet.preview(vs.a, sg); return; }
+      else if (t.hasAttribute('data-vapply')) { if (!vs.busy) vsApply(); return; }
+      else if (t.hasAttribute('data-vauto')) { vs.cuts = VoiceSet.autoCuts(vs.a, vs.idxs.length).cuts; vsVer++; }
+      else if (t.hasAttribute('data-vcancel')) { VoiceSet.stop(); vs = null; vsVer++; }
+      else if (t.dataset.splay) { const r = ref(t.dataset.splay); const l = snap.scripts[r.key][r.idx]; VoiceSet.url(l.audio).then((u) => { if (u) { const a = new Audio(u); a.play().catch(() => {}); } }); return; }
       else return;
       renderTranscript(true);
     });
     tr.addEventListener('change', (e) => {
-      const k = e.target.dataset && e.target.dataset.stext;
+      const d = e.target.dataset || {};
+      if (d.vslot && e.target.files[0]) { const [key, slot] = d.vslot.split(':'); vsLoad(key, slot, e.target.files[0]); return; }
+      if (d.sfile && e.target.files[0]) { const [key, idx] = d.sfile.split(':'); lineFile(key, +idx, e.target.files[0]); return; }
+      const k = d.stext;
       if (!k) return;
       const [key, idx] = k.split(':');
       cmd('script', { key, idx: +idx, text: e.target.value.trim() });

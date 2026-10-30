@@ -365,6 +365,7 @@
       if (args.reset) this.scripts = defaults();
       else if (!list) return;
       else if (args.add) list.push({ who: args.who || 'agent', text: args.text || '', dur: 4 });
+      else if (args.audios) args.audios.forEach((x) => { const l = list[x.idx]; if (l) { l.audio = x.audio || null; l.dur = x.audio ? x.dur : Math.max(2, l.text.length * 0.16); } });
       else if (args.del) list.splice(args.idx, 1);
       else if (list[args.idx]) {
         const l = list[args.idx];
