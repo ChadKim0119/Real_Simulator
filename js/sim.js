@@ -454,6 +454,7 @@
   const director = new ECare.Director(() => st);
   // the customer has pulled over on the shoulder by the time the agent calls
   director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차 · e-Care 상담센터 발신'); } };
+  director.hooks.stop = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차 · 비상등'); } };
   const ccwWindows = {};
   function openScreen(name, url) {
     const w = ccwWindows[name];

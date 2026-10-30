@@ -84,13 +84,19 @@
     { who: 'agent', text: '현재 위치로 긴급출동 차량을 바로 보내드리겠습니다. 비상등을 켜고 차 밖 안전한 곳에서 기다려 주세요.', audio: 'assets/audio/ko_agent_005.wav', dur: 7.36 },
   ];
   // inbound MM call (customer presses the e-Care button / calls from the app)
+  // inbound call from the HU [전화연결] (ElevenLabs v4 recording, cut per turn).
+  // stop: the car pulls over while that line plays
   const CALL_IN = [
-    { who: 'customer', text: '차량 화면에 브레이크 경고가 떠서 전화하기 버튼을 눌렀어요.', audio: 'assets/audio/ko_customer_006.wav', dur: 4.45 },
-    { who: 'agent', text: 'e-Care 상담센터입니다. 차량에서 바로 연결되어 고객님 차량의 진단 정보가 함께 접수되었습니다.', audio: 'assets/audio/ko_agent_007.wav', dur: 8.06 },
-    { who: 'agent', text: '브레이크 시스템 이상이라 주행을 멈추셔야 합니다. 정차하셨나요?', audio: 'assets/audio/ko_agent_008.wav', dur: 7.3 },
-    { who: 'customer', text: '네, 갓길에 세웠어요.', audio: 'assets/audio/ko_customer_009.wav', dur: 1.7 },
-    { who: 'agent', text: '현재 위치로 긴급출동 차량을 보내드리겠습니다. 차 밖 안전한 곳에서 기다려 주세요.', audio: 'assets/audio/ko_agent_010.wav', dur: 5.62 },
-];
+    { who: 'customer', text: '여보세요?', audio: 'assets/audio/ecare_v4_01_customer.mp3', dur: 1.12 },
+    { who: 'agent', text: '안녕하세요, 토요타 e-Care 고객센터입니다. 무엇을 도와드릴까요?', audio: 'assets/audio/ecare_v4_02_agent.mp3', dur: 4.44 },
+    { who: 'customer', text: '지금 운전 중인데 갑자기 차량에 빨간색 경고등이 켜졌어요. 처음 보는 경고등인데 차에 무슨 문제가 생긴 건가요? 계속 운전해도 되는 건지 너무 불안해서요.', audio: 'assets/audio/ecare_v4_03_customer.mp3', dur: 11.31 },
+    { who: 'agent', text: '갑작스러운 경고등 때문에 많이 놀라셨겠어요. 너무 걱정하지 마세요. 제가 차근차근 안내해 드리겠습니다. 우선 비상등을 켜고 안전한 장소에 정차하셨는지 확인 부탁드립니다.', audio: 'assets/audio/ecare_v4_04_agent.mp3', dur: 12.38 },
+    { who: 'customer', text: '아… 네, 일단 안전한 곳에 차를 세웠어요.', audio: 'assets/audio/ecare_v4_05_customer.mp3', dur: 3.74, stop: true },
+    { who: 'agent', text: '네, 잘하셨습니다. 빨간색 경고등은 점검이 필요한 상황일 수 있으니 원인이 확인되기 전까지는 운행을 재개하지 않는 것이 좋겠습니다. 현재 상황에 맞는 조치 방법을 안내해 드리고, 필요하시면 긴급출동 서비스까지 연결해 드리겠습니다.', audio: 'assets/audio/ecare_v4_06_agent.mp3', dur: 15.65 },
+    { who: 'customer', text: '아, 그렇군요. 긴급출동까지 안내해 주신다니 정말 다행이에요.', audio: 'assets/audio/ecare_v4_07_customer.mp3', dur: 4.6 },
+    { who: 'agent', text: '고객님께서 안전하게 도움을 받으실 수 있도록 끝까지 안내해 드리겠습니다. 안심하세요.', audio: 'assets/audio/ecare_v4_08_agent.mp3', dur: 5.62 },
+    { who: 'customer', text: '덕분에 마음이 놓이네요. 친절하게 안내해 주셔서 정말 감사합니다.', audio: 'assets/audio/ecare_v4_09_customer.mp3', dur: 4.18 },
+  ];
   // general call: the customer calls with no open warning case (11.1.1.3)
   const CALL_GEN = [
     { who: 'agent', text: '네, e-Care 상담센터 김상담입니다. 무엇을 도와드릴까요?', dur: 3.6 },
@@ -383,7 +389,8 @@
       agent.state = '상담중';
       c.contact = 1;
       c.call = { dir: 'in', state: 'connected', at: Date.now(), connectedAt: Date.now(), line: -1, lines: [], attempts: 1 };
-      if (this.hooks.accept) this.hooks.accept(c);
+      // the car pulls over during the call when the script says so
+      if (this.hooks.accept && !this.scripts.in.some((l) => l.stop)) this.hooks.accept(c);
       this.log(c, `${agent.name} 상담원 수신 · 통화 연결 (인바운드)`, 'call');
       this.flow(c, [['ccw', 'cti', '수신', '상담원 응답 · 통화 연결 (녹취)', null, 0], ['cti', 'car', '음성', '차량 MM ↔ 상담원 통화', null]]);
       this.publish();
@@ -469,6 +476,7 @@
       call.lines.push({ ...script[i], t: Date.now() });
       this.publish();
       Link.send('say', { caseId: c.id, line: script[i], index: i });
+      if (script[i].stop && this.hooks.stop) this.hooks.stop(c);
       this.after(script[i].dur * 1000 + 700, () => { if (c.call === call) this.nextLine(c, i + 1, script); });
     }
 
@@ -564,10 +572,10 @@
   const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => { const r = Math.random() * 16 | 0; return (ch === 'x' ? r : (r & 3) | 8).toString(16); });
   const defaults = () => JSON.parse(JSON.stringify(SCRIPTS));
   function loadScripts() {
-    try { const v = JSON.parse(localStorage.getItem('ecare-scripts-v2')); if (v && v.out && v.in && v.gen) return v; } catch (e) { /* none saved */ }
+    try { const v = JSON.parse(localStorage.getItem('ecare-scripts-v3')); if (v && v.out && v.in && v.gen) return v; } catch (e) { /* none saved */ }
     return defaults();
   }
-  function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v2', JSON.stringify(v)); } catch (e) { /* private mode */ } }
+  function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v3', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
   window.ECare = { SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, SCRIPT_NAMES, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();
