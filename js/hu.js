@@ -118,12 +118,13 @@
   function popup(c) {
     const w = c.wng || { name: c.warn.title, case: 'A' };
     const A = w.case === 'A';
+    // multimedia notification text of the WNG master (v8.2)
     const text = A
-      ? `${w.name} 이상이 감지되었습니다. 즉시 안전한 장소에 정차하시기 바랍니다. 차량을 계속 운전하면 위험할 수 있습니다. 콜센터에 연결하겠습니까?`
-      : `${w.name} 이상이 감지되었습니다. 가까운 서비스센터에서 점검을 받아주시기 바랍니다. 딜러에 연결하겠습니까?`;
+      ? `${w.name} 이상이 감지되었습니다. 즉시 안전한 장소에 정차하시기 바랍니다.\n차량을 계속 운전하면 위험할 수 있습니다.\n고객 지원실로 연결하시겠습니까?`
+      : `${w.name} 이상이 감지되었습니다. 가까운 서비스센터에서 점검을 받아주시기 바랍니다.\n지정된 서비스센터로 연결하시겠습니까?`;
     const col = A ? '#ff4757' : '#ffb02e';
     return `<div class="pop ${A ? '' : 'b'}"><div class="hd"><canvas data-ic="${c.warn.id}" data-col="${col}"></canvas><div><b>${esc(w.name)}</b><span>${A ? '주행 불가 · 긴급' : '점검 필요'}</span></div></div>
-      <p>${esc(text)}</p>
+      <p>${esc(text).replace(/\n/g, '<br>')}</p>
       <div class="btns"><button class="call">${phoneSvg}${A ? '전화연결' : '서비스센터 연결'}</button><button>닫기</button></div>
       <div class="foot">e-Care · 연결하면 차량 진단 정보가 ${A ? '상담센터' : '서비스센터'}로 함께 전달됩니다</div></div>`;
   }

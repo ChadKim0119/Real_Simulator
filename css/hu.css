@@ -36,7 +36,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-f
 .home .card.warn b { color: #ff8a94; font-size: 36px; }
 
 /* warning popup (MM) */
-.pop { position: absolute; left: 50%; top: 52%; width: 1180px; transform: translate(-50%, -50%); border-radius: 30px; background: #12161e; border: 2px solid #3a2328; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.75); padding: 44px 56px 40px; z-index: 5; animation: popin 0.45s cubic-bezier(.2, .9, .3, 1.15); }
+.pop { position: absolute; left: 50%; top: 53%; width: 1240px; transform: translate(-50%, -50%); border-radius: 30px; background: #12161e; border: 2px solid #3a2328; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.75); padding: 34px 56px 30px; z-index: 5; animation: popin 0.45s cubic-bezier(.2, .9, .3, 1.15); }
 .pop.b { border-color: #4d3a19; }
 @keyframes popin { from { transform: translate(-50%, -46%) scale(0.95); opacity: 0; } }
 .pop .hd { display: flex; align-items: center; gap: 26px; }
@@ -44,14 +44,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-f
 .pop .hd b { display: block; font-size: 52px; font-weight: 800; }
 .pop .hd span { display: inline-block; margin-top: 8px; font-size: 26px; font-weight: 700; padding: 6px 16px; border-radius: 10px; background: #ff4757; color: #fff; }
 .pop.b .hd span { background: #ffb02e; color: #1a1205; }
-.pop p { margin: 30px 0 0; font-size: 36px; line-height: 1.5; color: #dfe5ee; font-weight: 500; }
-.pop .btns { display: flex; gap: 22px; margin-top: 38px; }
-.pop button { flex: 1; height: 112px; border-radius: 22px; border: 0; font: 800 40px "Pretendard", sans-serif; display: flex; align-items: center; justify-content: center; gap: 18px; background: #262c37; color: #e6ebf2; }
+.pop p { margin: 22px 0 0; font-size: 34px; line-height: 1.42; color: #dfe5ee; font-weight: 500; }
+.pop .btns { display: flex; gap: 22px; margin-top: 28px; }
+.pop button { flex: 1; height: 100px; border-radius: 22px; border: 0; font: 800 40px "Pretendard", sans-serif; display: flex; align-items: center; justify-content: center; gap: 18px; background: #262c37; color: #e6ebf2; }
 .pop button.call { flex: 1.6; background: #19a35a; color: #fff; }
 .pop button.call svg { width: 48px; height: 48px; }
 .pop button.press { animation: press 0.6s ease; }
 @keyframes press { 30% { transform: scale(0.94); box-shadow: 0 0 0 18px rgba(25, 163, 90, 0.35); } }
-.pop .foot { margin-top: 26px; font-size: 24px; color: #8b97a9; }
+.pop .foot { margin-top: 18px; font-size: 24px; color: #8b97a9; }
 
 /* minimized warning banner */
 .mini { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); display: flex; align-items: center; gap: 18px; padding: 16px 30px; border-radius: 40px; background: #2a1014; border: 2px solid #ff4757; font-size: 30px; font-weight: 700; z-index: 4; }

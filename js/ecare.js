@@ -203,7 +203,7 @@
       steps.push(
         ['wam', 'dms', 'WAM-EVT-001', `경고 이벤트 전달 · ${CASE[wng.case].label}`, { workflowId: group, vin: VEHICLE.vin, wngInfo: [{ wngId: wng.code, wngName: wng.name, grade: wng.case }] }, 300],
         ['wam', 'dms', 'WAM-SLA-001', `SLA 기준 전달 · ${CASE[wng.case].slaText}`, { workflowId: group, case: wng.case, thresholdMinutes: CASE[wng.case].sla / 60000 }, 300],
-        ['wam', 'vdp', '고객 알림', wng.case === 'A' ? 'MM 팝업 · 앱 푸시 "콜센터에 연결하겠습니까?"' : 'MM 팝업 · 앱 푸시 "딜러에 연결하겠습니까?"', { channel: ['MM', 'Global App'], case: wng.case }, 300],
+        ['wam', 'vdp', '고객 알림', wng.case === 'A' ? 'MM 팝업 "고객 지원실로 연결하시겠습니까?" · 앱 푸시' : 'MM 팝업 "지정된 서비스센터로 연결하시겠습니까?" · 앱 푸시', { channel: ['MM', 'Global App'], case: wng.case }, 300],
         ['vdp', 'car', 'MM 알림', 'HU 경고 팝업 표시', null, 400],
         ['vdp', 'phone', '앱 푸시', '고객 앱 경고 알림', null, 0],
       );
