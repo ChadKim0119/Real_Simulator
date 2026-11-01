@@ -94,5 +94,6 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`  data flow   http://${ip}:${PORT}/flow.html`);
     console.log(`  stage       http://${ip}:${PORT}/stage.html?screen=left | center | right   (rehearsal: ?screen=all)`);
     console.log(`  remote      http://${ip}:${PORT}/remote.html`);
+    console.log(`  monitor test http://${ip}:${PORT}/test.html`);
   }
 });
