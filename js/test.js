@@ -27,7 +27,8 @@
   /* ---------------- shared state ---------------- */
   const DEF = {
     mode: 'pattern', step: 0, fit: 'fit', labels: true,
-    venue: { center: { a: '16:9', w: 16, h: 9, m: 7 }, side: { a: '16:9', w: 16, h: 9, m: 7 }, dist: 25 },
+    // estimated from the venue video (1101.mp4): three LED sections about 4.6 x 2.2 m, last row about 18 m
+    venue: { center: { a: '2:1', w: 2, h: 1, m: 4.6 }, side: { a: '2:1', w: 2, h: 1, m: 4.6 }, dist: 18 },
     comp: { left: ['left'], center: ['center'], right: ['right'], sides: ['left'] },
   };
   let S = load();
