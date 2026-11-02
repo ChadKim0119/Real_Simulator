@@ -103,8 +103,11 @@ td button { padding: 5px 8px !important; font-size: 12px !important; margin: 2px
 .cv { position: absolute; left: 0; top: 0; height: 1080px; transform-origin: 0 0; background: #03050a; }
 .cv .pat { width: 100%; height: 100%; display: block; }
 .cv .pn { position: absolute; overflow: hidden; background: #000; outline: 2px solid #000; }
-.cv .pn img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.cv .pn .tg { position: absolute; left: 14px; top: 12px; padding: 6px 14px; border-radius: 10px; background: rgba(3, 6, 12, 0.75); border: 1px solid rgba(150, 190, 255, 0.3); font-size: 26px; font-weight: 700; color: #cfe1ff; }
+.cv .pn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* the whole wall still (same layout as when it was taken): panels only carry labels on top */
+.cv img.whole { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+.cv .pn.over { background: transparent; outline: 0; }
+.cv .pn .tg { position: absolute; right: 14px; bottom: 12px; padding: 6px 14px; border-radius: 10px; background: rgba(3, 6, 12, 0.75); border: 1px solid rgba(150, 190, 255, 0.3); font-size: 26px; font-weight: 700; color: #cfe1ff; }
 .cv .pn .rv { position: absolute; left: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 6px; }
 .cv .pn .rv div { padding: 6px 14px; border-radius: 10px; font-size: 28px; font-weight: 700; background: rgba(3, 6, 12, 0.85); }
 .cv .rv .ok { color: #3ddc84; } .cv .rv .mid { color: #ffcf4a; } .cv .rv .bad { color: #ff5d6c; }

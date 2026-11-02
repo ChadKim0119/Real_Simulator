@@ -5,19 +5,21 @@
  * per step.
  *
  *   node tools/relay.mjs &
- *   NODE_PATH=$(npm root -g) node tools/capture-stills.cjs [http://127.0.0.1:8787]
+ *   NODE_PATH=$(npm root -g) node tools/capture-stills.cjs [base url] [21|169]
  *
- * Output: assets/test/stills/<nn>_<panel>.jpg and index.json */
+ * Output (21:9 → assets/test/stills, 16:9 → assets/test/stills-169):
+ * <nn>_wall.jpg (the whole wall), <nn>_<panel>.jpg and index.json with the
+ * layout the frames were taken in. Each mode needs its own relay (PORT=…) to
+ * run both at once. */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
 const BASE = process.argv[2] || 'http://127.0.0.1:8787';
-const OUT = path.join(__dirname, '..', 'assets', 'test', 'stills');
-// the default layout of js/walldef.js (cx 1480, ly 610, ry 610, gutter 10)
-const W = 2560;
-const LAYOUT = { car: [0, 0, 1475, 605], talk: [0, 615, 1475, 465], flow: [1485, 0, 1075, 605], ccw: [1485, 615, 1075, 465] };
+const MODE = process.argv[3] === '169' ? '169' : '21';
+const OUT = path.join(__dirname, '..', 'assets', 'test', MODE === '21' ? 'stills' : 'stills-169');
+const W = MODE === '21' ? 2560 : 1920;
 
 // [press "next" this many times (each once the panel is idle), wait ms, then capture id/title/what]
 const PLAN = [
@@ -47,10 +49,12 @@ const PLAN = [
   fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const wctx = await b.newContext({ viewport: { width: W, height: 1080 } });
-  await wctx.addInitScript(() => { try { localStorage.setItem('wall-mode', '"21"'); localStorage.removeItem('wall-layout-21'); localStorage.setItem('wall-labels', 'false'); } catch (e) { /* blank frames */ } });
+  await wctx.addInitScript((m) => { try { localStorage.setItem('wall-mode', JSON.stringify(m)); localStorage.removeItem('wall-layout-' + m); localStorage.setItem('wall-labels', 'false'); } catch (e) { /* blank frames */ } }, MODE);
   const st = await wctx.newPage();
   await st.goto(`${BASE}/wall.html`, { waitUntil: 'domcontentloaded' });
   await st.waitForTimeout(3000);
+  // the mode's default layout, as the wall itself computes it
+  const LAYOUT = await st.evaluate((m) => WallDef.rects(WallDef.load(m), m), MODE);
   const rc = await (await b.newContext({ viewport: { width: 1180, height: 900 } })).newPage();
   await rc.goto(`${BASE}/control.html`, { waitUntil: 'domcontentloaded' });
   await rc.waitForTimeout(1500);
@@ -71,6 +75,10 @@ const PLAN = [
     if (!id) continue;
     n++;
     const key = String(n).padStart(2, '0');
+    const full = path.join(OUT, `${key}_wall.png`);
+    await st.screenshot({ path: full });
+    execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', full, '-q:v', '4', path.join(OUT, `${key}_wall.jpg`)]);
+    fs.unlinkSync(full);
     for (const k in LAYOUT) {
       const [x, y, w, h] = LAYOUT[k];
       const png = path.join(OUT, `${key}_${k}.png`);
@@ -81,6 +89,6 @@ const PLAN = [
     index.push({ key, id, title, what, step: (await rc.textContent('#now b')).trim() });
     console.log(key, id, title);
   }
-  fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index, null, 1));
+  fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify({ mode: MODE, W, layout: LAYOUT, steps: index }, null, 1));
   await b.close();
 })();

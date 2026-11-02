@@ -48,9 +48,24 @@
   Link.on('wall-state', (d) => { if (d.mode) adopt(d); });
   Link.send('wall-hello', {});
 
-  let STILLS = [];
-  fetch('assets/test/stills/index.json').then((r) => r.json()).then((d) => { STILLS = d; render(); }).catch(() => {});
-  const still = (k) => { const s = STILLS[S.step]; return s ? `assets/test/stills/${s.key}_${k}.jpg` : ''; };
+  // stills of each screen mode, taken in that mode's default layout (tools/capture-stills.cjs)
+  let STILLS = [], SHOT = null, stillsOf = null;
+  const dir = () => (wmode() === '169' ? 'assets/test/stills-169/' : 'assets/test/stills/');
+  function loadStills() {
+    const m = wmode();
+    if (stillsOf === m) return;
+    stillsOf = m;
+    fetch(dir() + 'index.json', { cache: 'no-cache' }).then((r) => r.json()).then((d) => {
+      if (stillsOf !== m) return;
+      STILLS = Array.isArray(d) ? d : d.steps;
+      SHOT = Array.isArray(d) ? null : d.layout;
+      if (S.step >= STILLS.length) S.step = 0;
+      render();
+    }).catch(() => { STILLS = []; SHOT = null; render(); });
+  }
+  const still = (k) => { const s = STILLS[S.step]; return s ? `${dir()}${s.key}_${k}.jpg` : ''; };
+  // the wall still as one picture when the current layout is the one it was taken in
+  const sameLayout = (L) => !!SHOT && Object.keys(PANELS).every((k) => SHOT[k] && L[k] && SHOT[k].every((v, i) => Math.abs(v - L[k][i]) < 1));
   const W = () => window.WallDef.MODES[wmode()].W;
 
   /* ---------------- physical size and readability ---------------- */
@@ -64,7 +79,7 @@
   // text that matters on each panel, in the page's own design pixels
   // car: sizes in the photo's pixels at the overview; zoomed views enlarge them
   const TEXT = {
-    car: [['계기판 속도 (확대 시)', 120], ['HU 팝업 문구 (HU 확대 시)', 34]],
+    car: [['계기판 속도 (확대 시)', 120], ['HU 팝업 문구 (HU 확대 시)', 27]],
     flow: [['상자 이름', 32], ['통화 자막', 34], ['로그 · 패킷 라벨', 22]],
     ccw: [['팝업 제목', 18], ['화면 본문', 13], ['표 글자', 11]],
     talk: [['대화 말풍선', 22], ['보조 글자', 14]],
@@ -107,11 +122,12 @@
     }
     if (S.mode === 'read' && !opts.preview) { cv.innerHTML = ladder(); return; }
     const verdict = S.mode === 'read' ? Object.fromEntries(readability().map((r) => [r.k, r.rows])) : null;
-    cv.innerHTML = Object.keys(PANELS).map((p) => {
+    const whole = sameLayout(L) && STILLS[S.step];
+    cv.innerHTML = (whole ? `<img class="whole" src="${still('wall')}" alt="" draggable="false">` : '') + Object.keys(PANELS).map((p) => {
       const [x, y, w, h] = L[p];
       const v = verdict && verdict[p];
-      return `<div class="pn" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">
-        ${S.mode === 'stills' || S.mode === 'read' ? `<img src="${still(p)}" alt="" draggable="false">` : ''}
+      return `<div class="pn ${whole ? 'over' : ''}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">
+        ${!whole && STILLS[S.step] ? `<img src="${still(p)}" alt="" draggable="false">` : ''}
         ${S.labels || v ? `<span class="tg">${esc(PANELS[p].t)}</span>` : ''}
         ${v ? `<div class="rv">${v.map((r) => `<div class="${r.v}">${esc(r.what)} ${r.cm.toFixed(1)}cm ${r.v === 'ok' ? '✓' : r.v === 'mid' ? '△' : '✗'}</div>`).join('')}</div>` : ''}</div>`;
     }).join('');
@@ -181,7 +197,7 @@
   /* ---------------- output window ---------------- */
   let outKey = '';
   function renderOut(force) {
-    const key = JSON.stringify([S.mode, S.step, S.labels, S.m, S.dist, STILLS.length, layoutOf()]);
+    const key = JSON.stringify([S.mode, S.step, S.labels, S.m, S.dist, STILLS.length, stillsOf, !!SHOT, layoutOf()]);
     if (!force && key === outKey) return;
     outKey = key;
     document.body.className = 'out';
@@ -218,10 +234,10 @@
   }
 
   const GUIDE = `
-    <div class="g"><b>연결</b><p>맥 → C to HDMI 1개 → 21:9 디스플레이. 맥에 외부 디스플레이 1대로 잡히면 됩니다. 아래 ③에서 <em>디스플레이 감지</em>로 해상도와 비율을 확인하세요. 21:9는 보통 2560×1080 · 3440×1440. <em>1920×1080 같은 16:9로 나가면 디스플레이가 가로로 늘려서 글자가 넓적해집니다</em> — 반드시 21:9 해상도를 고르세요.</p></div>
+    <div class="g"><b>연결</b><p>맥 → C to HDMI 1개 → 디스플레이. 맥에 외부 디스플레이 1대로 잡히면 됩니다. 아래 ③에서 <em>디스플레이 감지</em>로 해상도와 비율을 확인하고, 시연 화면 모드를 디스플레이에 맞춥니다: <em>21:9 디스플레이 → 21:9 모드</em>(2560×1080 · 3440×1440), <em>16:9 TV · 모니터 → 16:9 모드</em>(1920×1080 · 3840×2160). 모드와 신호 비율이 다르면 화면이 늘어나거나 여백이 생깁니다.</p></div>
     <div class="g"><b>맥 설정</b><p>시스템 설정 › 디스플레이: <em>확장</em>(미러링 아님), 해상도 “기본값” 또는 디스플레이 고유 해상도, 새로 고침 60Hz. 소리 출력 = HDMI 또는 현장 음향. 방해금지 · 화면보호기 · 잠자기 끄기, 충전기 연결.</p></div>
     <div class="g"><b>크롬</b><p>시연 화면(<code>wall.html</code>)을 외부 디스플레이에서 <em>F</em>로 전체화면. 소리가 클릭 없이 나오게 하려면 크롬을 <code>--autoplay-policy=no-user-gesture-required</code> 옵션으로 실행. 컨트롤 패널은 맥 화면이나 태블릿에서.</p></div>
-    <div class="g"><b>비율이 다를 때</b><p>디스플레이 비율이 21:9와 조금 다르면 위아래나 좌우에 검은 여백이 생깁니다. 배치 편집(<code>wall.html</code>에서 E): 경계선을 끌면 옆 패널이 함께 줄고, 패널을 끌어 자리를 바꿉니다.</p></div>`;
+    <div class="g"><b>비율이 다를 때</b><p>디스플레이 비율이 모드(21:9 · 16:9)와 조금 다르면 위아래나 좌우에 검은 여백이 생깁니다. 배치 편집(<code>wall.html</code>에서 E): 경계선을 끌면 옆 패널이 함께 줄고, 패널을 끌어 자리를 바꿉니다.</p></div>`;
   const CHECKS = [
     ['연결 · 신호', ['맥이 인식하는 해상도 · 비율 기록', '패턴의 원이 동그랗다 (늘어남 없음)', '네 모서리 · 노란 점선 · 패널 테두리가 다 보임', '흰 막대가 왼쪽 끝에서 오른쪽 끝까지 끊김 없이 지나감', '색 막대 · 회색 단계 구분됨']],
     ['구성 · 가독성', ['패널 배치 확정 (필요하면 배치 편집)', '맨 뒷줄에서 HU · 흐름 자막 읽힘', '맨 뒷줄에서 흐름 상자 이름 읽힘', '상담원 화면(CCW)에서 보여 줄 부분이 보임', '조명 아래 밝기 · 반사']],
@@ -246,7 +262,7 @@
           <div class="seg"><button data-step="-1">◀</button><span class="stp"><b>${S.step + 1}/${STILLS.length || 0} ${esc(st.title)}</b><small>${esc(st.what || '')}</small></span><button data-step="1">▶</button></div>
           <div class="seg"><button data-labels class="${S.labels ? 'on' : ''}">라벨</button></div>
         </div>
-        <div class="steps">${STILLS.map((s, i) => `<button data-go="${i}" class="${i === S.step ? 'on' : ''}"><img src="assets/test/stills/${s.key}_car.jpg" alt=""><span>${i + 1}. ${esc(s.title)}</span></button>`).join('')}</div>
+        <div class="steps">${STILLS.map((s, i) => `<button data-go="${i}" class="${i === S.step ? 'on' : ''}"><img src="${dir()}${s.key}_car.jpg" alt=""><span>${i + 1}. ${esc(s.title)}</span></button>`).join('')}</div>
       </section>
 
       <section class="card"><h2>② 디스플레이 크기 · 가독성 <small>실측해서 입력</small></h2>
@@ -320,7 +336,7 @@
   }
   function copy() {
     const p = phys();
-    const lines = [`[모니터 테스트] ${new Date().toLocaleString('ko-KR')}`, `21:9 · ${p.w.toFixed(1)}×${p.h.toFixed(2)}m (${Math.round(p.inch)}″) · 맨 뒷줄 ${S.dist}m`];
+    const lines = [`[모니터 테스트] ${new Date().toLocaleString('ko-KR')}`, `${window.WallDef.MODES[wmode()].name} · ${p.w.toFixed(1)}×${p.h.toFixed(2)}m (${Math.round(p.inch)}″) · 맨 뒷줄 ${S.dist}m`];
     const L = layoutOf();
     lines.push(`배치: ${Object.keys(PANELS).map((k) => `${PANELS[k].t} ${L[k].join(',')}`).join(' / ')}`);
     readability().forEach((r) => lines.push(`  ${PANELS[r.k].t}: ${r.rows.map((x) => `${x.what} ${x.cm.toFixed(1)}cm${x.v === 'ok' ? '✓' : x.v === 'mid' ? '△' : '✗'}`).join(', ')}`));
@@ -331,6 +347,7 @@
   }
 
   function render() {
+    loadStills();
     if (OUT) { renderOut(); return; }
     const f = document.activeElement;
     if (f && app.contains(f) && f.matches('textarea, input')) return;
