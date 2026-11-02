@@ -1,12 +1,13 @@
 /* Head unit (MM) of the customer's car.
  * Home is the music screen; on a warning the e-Care popup from the WNG
  * master texts with [전화연결], which places the MM inbound call to the call
- * center; then the call and dispatch status. For outbound calls the
+ * center; then the call and service center status (no dispatch details). For outbound calls the
  * customer's phone slides in. The control panel presses the button
  * (Link 'hu' {action:'press'}).
  *
  *   hu.html              the head unit in its frame with captions (1920x1080)
- *   hu.html?embed=1      the screen alone (1640x840), composited into the car
+ *   hu.html?embed=1      the screen alone (1920x622, the 14-inch display's picture
+ *                        area), composited into the car
  *                        interior by index.html
  *   hu.html?overlay=1    only the customer's phone, over the car interior */
 (function () {
@@ -20,7 +21,7 @@
   const q = new URLSearchParams(location.search);
   const MODE = q.has('embed') ? 'embed' : q.has('overlay') ? 'overlay' : 'full';
   document.body.classList.add(MODE);
-  const [BW, BH] = MODE === 'embed' ? [1640, 840] : [1920, 1080];
+  const [BW, BH] = MODE === 'embed' ? [1920, 622] : [1920, 1080];
 
   function fit() {
     const k = Math.min(innerWidth / BW, innerHeight / BH);
@@ -87,14 +88,16 @@
     if (!snap) return;
     const s = state();
     const c = s.c;
-    const key = JSON.stringify([s.v, s.phone, c && [c.id, c.contact, c.dispatch, c.dms, c.call && c.call.state, c.sheet && !!c.sheet.saved], pressed]);
+    const key = JSON.stringify([s.v, s.phone, c && [c.id, c.contact, c.dms, c.call && c.call.state, c.sheet && !!c.sheet.saved], pressed]);
     if (!force && key === lastKey) return;
     lastKey = key;
     const hu = $('#hu');
+    // a popup already on screen is redrawn in place, without its entrance again
+    const popShown = s.v === 'pop' && !!hu.querySelector('.pop');
     const alert = c && c.contact === 0 && c.kind === 'emergency';
     const bar = `<div class="bar"><span class="num" data-clock></span><span>18°C</span><span>LTE ▮▮▮</span><span class="ecare ${alert ? 'alert' : ''}"><i></i>e-Care</span></div>`;
     let body = home(c);
-    if (s.v === 'pop') body += popup(c);
+    if (s.v === 'pop') body += popShown ? popup(c).replace('class="pop ', 'class="pop still ') : popup(c);
     if (s.v === 'mini') body += `<div class="mini"><i></i>${esc(c.wng ? c.wng.name : c.warn.title)} 경고 · e-Care 연결 가능</div>`;
     if (s.v === 'calling') body = callScreen(c, false);
     if (s.v === 'incall') body = callScreen(c, true);
@@ -123,18 +126,18 @@
   function home(c) {
     let st = '';
     if (c && c.wcase === 'A' && c.contact > 0) {
-      const parts = [E.CONTACT[c.contact], c.dispatch >= 0 ? `긴급출동 ${E.DISPATCH[c.dispatch]}` : '', c.dms >= 0 ? `${c.dealer} ${E.DMS[c.dms]}` : ''].filter(Boolean);
+      // the head unit shows no emergency dispatch information
+      const parts = [E.CONTACT[c.contact], c.dms >= 0 ? `${c.dealer} ${E.DMS[c.dms]}` : ''].filter(Boolean);
       st = `<div class="card st"><small>e-Care</small><b>${parts.join(' · ')}</b><span>상담센터 연결 완료</span></div>`;
     } else if (c && c.wcase !== 'A' && c.dms >= 0) {
       st = `<div class="card st"><small>e-Care · 서비스센터</small><b>${esc(c.dealer)} ${E.DMS[c.dms]}</b><span>서비스센터에서 연락드립니다</span></div>`;
     } else if (c && c.contact === 0) {
       st = `<div class="card warn"><small>차량 경고</small><b>${esc(c.wng ? c.wng.name : c.warn.title)}</b><span>${c.wcase === 'A' ? '주행 불가 · 고객 지원실 연결 가능' : '점검 필요'}</span></div>`;
     }
-    const disp = c && c.dispatch >= 0 && c.dispatch < 3 ? `<div class="disp">🚚 <b>긴급출동 ${E.DISPATCH[c.dispatch]}</b> · ${c.dispatch === 0 ? '출동 차량 배정 중' : c.dispatch === 1 ? '도착 예정 12분' : '현장 도착 · 견인 준비'}</div>` : '';
     return `<div class="scr music">
       <nav class="rail">${RAIL.map(([k, d]) => `<i class="${k === 'nav' ? 'on' : ''}"><svg viewBox="0 0 24 24">${d}</svg></i>`).join('')}</nav>
       <div class="sky"><div class="ttl">essential;</div><div class="wave">${'<b></b>'.repeat(WAVE)}</div><div class="np">NEON · A2O LITE</div></div>
-      ${disp}${st ? `<div class="cards">${st}</div>` : ''}</div>`;
+      ${st ? `<div class="cards">${st}</div>` : ''}</div>`;
   }
   // the playing waveform: a bright cluster of bars travels along a dotted line
   let waveT0 = performance.now();
@@ -171,8 +174,7 @@
 
   function callScreen(c, live) {
     const w = c.wng || { code: '', name: c.warn.title };
-    const disp = c.dispatch >= 0 ? `<div class="disp">🚚 <b>긴급출동 ${E.DISPATCH[c.dispatch]}</b> · ${c.dispatch === 0 ? '출동 차량 배정 중' : c.dispatch === 1 ? '도착 예정 12분' : '현장 도착'}</div>` : '';
-    return `<div class="callscr ${live ? 'live' : ''}">${disp}<div class="who"><div class="av">e-Care</div><div><b>e-Care 상담센터</b><span data-calltime>${live ? '통화 중' : '연결 중…'}</span><em>차량 진단 정보 함께 전송 · ${esc(w.code)} ${esc(w.name)}</em></div></div>
+    return `<div class="callscr ${live ? 'live' : ''}"><div class="who"><div class="av">e-Care</div><div><b>e-Care 상담센터</b><span data-calltime>${live ? '통화 중' : '연결 중…'}</span><em>차량 진단 정보 함께 전송 · ${esc(w.code)} ${esc(w.name)}</em></div></div>
       <div class="ctl"><div><i>🎤</i>음소거</div><div><i>⌨</i>키패드</div><div><i>🔊</i>스피커</div><div></div><div class="end"><i>${phoneSvg.replace('fill="#fff"', 'fill="#fff" style="transform:rotate(135deg);width:60px"')}</i>종료</div><div></div></div></div>`;
   }
 

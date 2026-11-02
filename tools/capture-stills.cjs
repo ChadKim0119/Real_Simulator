@@ -25,7 +25,7 @@ const PLAN = [
   [1, 6500, 'ignition', '시동 · 웰컴', '계기판 세리머니, 데이터 흐름 대기'],
   [1, 6000, 'driving', '주행', '주행 중 계기판'],
   [1, 3500, 'warning', '경고 · HU 팝업', '계기판 경고 → 시선이 HU로, “고객 지원실로 연결하시겠습니까?”'],
-  [1, 3000, 'incoming', 'HU 전화연결 → 인바운드', '상담원 화면 “전화가 왔습니다” 팝업'],
+  [1, 6500, 'incoming', 'HU 전화연결 → 인바운드', '상담원 화면 “전화가 왔습니다” 팝업'],
   [1, 9000, 'call', '상담 통화', '통화 화면 · 자막 · 차량 진단 정보'],
   [0, 30000, 'pullover', '통화 중 갓길 정차', '고객이 정차했다고 말하는 시점'],
   [0, 34000, 'dispatch', '통화 종료 · 긴급출동', '긴급출동 요청, 통화 종료'],
@@ -47,7 +47,7 @@ const PLAN = [
   fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const wctx = await b.newContext({ viewport: { width: W, height: 1080 } });
-  await wctx.addInitScript(() => { try { localStorage.removeItem('wall-layout-v3'); localStorage.setItem('wall-labels', 'false'); } catch (e) { /* blank frames */ } });
+  await wctx.addInitScript(() => { try { localStorage.setItem('wall-mode', '"21"'); localStorage.removeItem('wall-layout-21'); localStorage.setItem('wall-labels', 'false'); } catch (e) { /* blank frames */ } });
   const st = await wctx.newPage();
   await st.goto(`${BASE}/wall.html`, { waitUntil: 'domcontentloaded' });
   await st.waitForTimeout(3000);

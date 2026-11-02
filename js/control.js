@@ -46,8 +46,17 @@
     else if (kind === 'act') Link.send('act', { name: a, args: b || {} });
     else if (kind === 'warn') Link.send('act', { name: 'warnItem', args: { id: a === '@in' ? E.SCRIPT_WARN[(snap && snap.pick && snap.pick.in) || 'in'] : a } });
     else if (kind === 'cmd') Link.send('cmd', { name: a, args: b || {} });
-    else if (kind === 'hu') Link.send('hu', { action: a });
+    else if (kind === 'hu') {
+      if (a !== 'press') { Link.send('hu', { action: a }); return; }
+      // the driver's hand presses the button on the car panel; with no car panel open
+      // (nobody acknowledges the reach) the head unit is pressed directly
+      reachAck = false;
+      Link.send('hu', { action: 'reach' });
+      setTimeout(() => { if (!reachAck) Link.send('hu', { action: 'press' }); }, 1500);
+    }
   }
+  let reachAck = false;
+  Link.on('hu', (d) => { if (d.action === 'reaching') reachAck = true; });
   async function run(ops) {
     for (const [kind, a, b] of ops) {
       if (kind === 'wait') await wait(a);
@@ -219,14 +228,14 @@
     const b = (attr, label, cls) => `<button ${attr} class="${cls || ''}">${label}</button>`;
     $('#manual').innerHTML = `<h2>수동 제어</h2>
       ${g('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join('') + b('data-identify', '화면 확인'))}
-      ${g('고객 차량 시선', [['auto', '자동 (시나리오대로)'], ['full', '전체'], ['cluster', '계기판 확대'], ['hu', 'HU 확대']].map(([k, n]) => b(`data-cam="${k}"`, n)).join(''))}
       ${g('시연 화면', b('data-wmode="21"', '21:9 모드') + b('data-wmode="169"', '16:9 모드') + b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))}
       ${g('차량', b('data-a="ign"', '시동 ON/OFF') + b('data-a="drive"', '출발') + b('data-a="stop"', '정지') + b('data-a="clear"', '경고 해제'))}
       ${g('경고등', WARNS.map(([id, n, k]) => b(`data-warn="${id}"`, `${n} <i class="k${k}">${k}</i>`)).join(''))}
       ${g('헤드유닛', b('data-hu="show"', 'HU 팝업 다시') + b('data-hu="press"', 'HU 전화연결'))}
       ${g('상담센터', b('data-a="sla25"', '25분 경과') + b('data-c="ack"', '상담원 받기') + b('data-a="accept"', '상담원 전화 걸기') + b('data-c="redial"', '재연결') + b('data-c="hangup"', '통화 종료') + b('data-a="dispatch"', '긴급출동') + b('data-a="complete"', '완료 · 이관'))}
       ${g('일반 전화', b('data-a="inbound"', '고객 전화 (경고 없을 때)') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))}
-      ${g('설정', b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음') + b('data-reset', '전체 초기화', 'warn'))}
+      ${g('설정', b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음'))}
+      <p class="note">초기화 · 시선 이동은 오른쪽 끝 고정 막대에 있습니다.</p>
       ${g('화면 열기', ['wall.html:시연 화면', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))}`;
     manualState();
   }
@@ -270,7 +279,7 @@
     else if (d.hu) send('hu', d.hu);
     else if (d.c) send('cmd', d.c, d.c === 'closeGeneral' ? {} : undefined);
     else if ('noans' in d) send('cmd', 'noAnswer', { on: !(snap && snap.noAnswer) });
-    else if ('reset' in d) { if (confirm('차량 경고 · e-Care 시나리오를 초기화할까요?')) { run([['reset']]); cur = -1; auto = false; steps(); } }
+    else if ('reset' in d) { if (confirm('차량 경고 · e-Care 시나리오를 초기화할까요?')) { run([['reset']]); cur = -1; auto = false; camView = 'auto'; Link.send('cam', { view: 'auto' }); steps(); manualState(); } }
   });
   addEventListener('keydown', (e) => {
     if (e.target.matches('input,textarea')) return;

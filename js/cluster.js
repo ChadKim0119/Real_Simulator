@@ -1133,7 +1133,9 @@
         }
       });
       SimData.AMBER.forEach((w, i) => {
-        if (all || st.amberActive.has(w.id)) SimIcons.drawIcon(ctx, w.id, AMBER_X[i], LAMP_Y, 24, AMBER, AMBER_GLOW);
+        // a caution lamp raised as an emergency (Case A of the WNG master) lights red, blinking
+        if (st.redActive.has(w.id)) { if (blink) SimIcons.drawIcon(ctx, w.id, AMBER_X[i], LAMP_Y, 24, RED, RED_GLOW); }
+        else if (all || st.amberActive.has(w.id)) SimIcons.drawIcon(ctx, w.id, AMBER_X[i], LAMP_Y, 24, AMBER, AMBER_GLOW);
       });
       if (all || st.cruise) SimIcons.drawIcon(ctx, 'acc', 266, 262, 24, GREEN, GREEN_GLOW);
       if (all || st.cruise) SimIcons.drawIcon(ctx, 'cruise', 266, 296, 22, GREEN, GREEN_GLOW);

@@ -38,7 +38,15 @@
   }
   Link.on('test', (d) => { S = d; save(); render(); });
   Link.on('test-hello', () => { if (!OUT) Link.send('test', S); });
-  Link.on('wall', (d) => { if (d.layout || d.reset || d.mode) setTimeout(render, 100); });
+  // the wall may run on another PC: follow its screen mode and layout
+  const adopt = (d) => {
+    if (d.mode && WallDef.MODES[d.mode]) WallDef.setMode(d.mode);
+    if (d.layout && d.layout.slots) WallDef.save(d.mode || wmode(), d.layout);
+    setTimeout(render, 100);
+  };
+  Link.on('wall', (d) => { if (d.layout || d.reset || d.mode) adopt(d); });
+  Link.on('wall-state', (d) => { if (d.mode) adopt(d); });
+  Link.send('wall-hello', {});
 
   let STILLS = [];
   fetch('assets/test/stills/index.json').then((r) => r.json()).then((d) => { STILLS = d; render(); }).catch(() => {});

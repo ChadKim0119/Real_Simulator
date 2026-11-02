@@ -465,13 +465,16 @@ body.ready #loading { opacity: 0; visibility: hidden; }
 body.stage #showUi, body.stage #toast { display: none !important; }
 
 /* head unit drawn into the centre display (index.html?hu) */
-#huScreen { border: 0; transform-origin: 0 0; background: #000; pointer-events: none; }
-#huGlass { pointer-events: none; mix-blend-mode: screen; border-radius: 3px;
+#huScreen { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: #000; pointer-events: none; z-index: 1; }
+#huGlass { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 1; pointer-events: none; mix-blend-mode: screen; border-radius: 3px;
   background:
     linear-gradient(117deg, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0.16) 30%, rgba(255, 255, 255, 0.04) 41%, rgba(255, 255, 255, 0) 52%),
     linear-gradient(117deg, rgba(255, 255, 255, 0) 56%, rgba(255, 255, 255, 0.07) 63%, rgba(255, 255, 255, 0) 70%),
     radial-gradient(ellipse 120% 90% at 50% 0%, rgba(180, 210, 255, 0.10), transparent 60%);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 0 14px rgba(0, 0, 0, 0.55); }
 #huShade { left: 0; top: 0; width: 2300px; height: 941px; pointer-events: none; opacity: 0;
-  background: radial-gradient(ellipse 420px 300px at 1432px 290px, transparent 62%, rgba(0, 0, 0, 0.55) 100%); }
+  background: radial-gradient(ellipse 460px 260px at 1447px 262px, transparent 64%, rgba(0, 0, 0, 0.55) 100%); }
 #huPhone { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; z-index: 5; background: transparent; }
+/* the driver's hand over the head unit (alpha video) */
+#huHand { position: absolute; left: 0; top: 0; z-index: 3; transform-origin: 0 0; pointer-events: none; display: none; }
+#huHand.on { display: block; }

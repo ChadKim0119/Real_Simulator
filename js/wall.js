@@ -251,8 +251,8 @@
     if (typeof d.labels === 'boolean') { labels = d.labels; store.set('wall-labels', labels); render(); }
     if (typeof d.edit === 'boolean') { edit = d.edit; render(); }
   });
-  Link.on('wall-hello', () => Link.send('wall-state', { labels, edit, mode }));
-  Link.send('wall-state', { labels, edit, mode });
+  Link.on('wall-hello', () => Link.send('wall-state', { labels, edit, mode, layout: mode ? L : null }));
+  Link.send('wall-state', { labels, edit, mode, layout: mode ? L : null });
 
   /* ---------------- scenes: opening / closing over the whole wall ---------------- */
   let snap = null, scene = 'live';

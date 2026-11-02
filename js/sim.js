@@ -8,8 +8,10 @@
   const WHEEL_SHIFT = 812.75 - 825.8;   // display centre minus wheel hub centre (photo px)
   const CLUSTER_VIEW = { cx: 812, cy: 270, w: 490, h: 330 };
   // the centre display: its picture area (photo px) and the view that frames it with the climate bar
-  const HU_SCREEN = { x: 1222, y: 132, w: 419, h: 214, design: [1640, 840] };
-  const HU_VIEW = { cx: 1432, cy: 292, w: 560, h: 360 };
+  // (the 14-inch display: a wide picture area over the climate bar and the knobs)
+  const HU_SCREEN = { x: 1191, y: 117, w: 512, h: 166, design: [1920, 622] };
+  const HU_VIEW = { cx: 1447, cy: 262, w: 620, h: 350 };
+  const HAND_CONTACT = 1.35, HAND_AR = 1680 / 720;   // hand_call.webm: fingertip on the button at this second; aspect of the view it was shot on
   // 10-speed automatic: engine rpm per km/h in each gear
   const GEAR_FACTOR = [0, 142, 90, 64, 48, 38, 31, 26, 21, 17.5, 15];
   const IDLE = 650;
@@ -147,6 +149,16 @@
     if (IMG_H * s >= vh) ty = clamp(ty, vh - IMG_H * s, 0);
     else ty = clamp(ty, 0, Math.max(0, L.area.y1 - IMG_H * s));   // short picture: no gap at the top
     stage.style.transform = `translate3d(${(tx + shakeX).toFixed(2)}px, ${(ty + shakeY).toFixed(2)}px, 0) scale(${s.toFixed(5)})`;
+    // the head unit sits outside the stage layer (which is rasterized once, at one scale),
+    // so it stays sharp when the camera closes in: it follows the same transform here
+    if (huLayer) {
+      const hk = s * huLayer.k;
+      const t3 = `translate3d(${(tx + shakeX + HU_SCREEN.x * s).toFixed(2)}px, ${(ty + shakeY + HU_SCREEN.y * s).toFixed(2)}px, 0)`;
+      huLayer.scr.style.transform = `${t3} scale(${hk.toFixed(5)})`;
+      huLayer.glass.style.transform = `${t3} scale(${s.toFixed(5)})`;
+      huLayer.scr.style.filter = z > 0.05 ? `brightness(${(1 - 0.55 * smooth(0.25, 1, z) * (1 - cam.h)).toFixed(3)})` : '';
+      if (huLayer.hand) huLayer.hand(tx + shakeX, ty + shakeY, s);
+    }
 
     // zoomed in, the wheel fades to a faint translucent ghost that keeps moving
     const wheelA = 1 - 0.8 * smooth(0.1, 0.72, z);
@@ -272,7 +284,7 @@
     }
     const list = level === 'red' ? SimData.RED : SimData.AMBER;
     const set = level === 'red' ? st.redActive : st.amberActive;
-    const item = id ? list.find((w) => w.id === id) : list.find((w) => !set.has(w.id));
+    const item = id ? SimData.RED.concat(SimData.AMBER).find((w) => w.id === id) : list.find((w) => !set.has(w.id));
     if (!item || (id && set.has(id))) {
       if (id && item) return;
       toast(level === 'red' ? '모든 경고등이 이미 점등되어 있습니다' : '모든 주의등이 이미 점등되어 있습니다');
@@ -479,33 +491,84 @@
    * follows the scenario: a warning on the cluster, then the head unit popup,
    * the call on the head unit, back to the cabin. The control panel can hold a
    * view (Link 'cam' {view: auto | full | cluster | hu}). */
-  let huShade = null;
+  let huShade = null, huLayer = null;
   if (new URLSearchParams(location.search).has('hu')) {
     const k = Math.min(HU_SCREEN.w / HU_SCREEN.design[0], HU_SCREEN.h / HU_SCREEN.design[1]);
     const scr = document.createElement('iframe');
     scr.id = 'huScreen';
     scr.src = 'hu.html?embed=1';
     scr.title = '헤드유닛';
-    Object.assign(scr.style, { left: `${HU_SCREEN.x}px`, top: `${HU_SCREEN.y}px`, width: `${HU_SCREEN.design[0]}px`, height: `${HU_SCREEN.design[1]}px`, transform: `scale(${k})` });
+    Object.assign(scr.style, { width: `${HU_SCREEN.design[0]}px`, height: `${HU_SCREEN.design[1]}px` });
     const glare = document.createElement('div');
     glare.id = 'huGlass';
-    Object.assign(glare.style, { left: `${HU_SCREEN.x}px`, top: `${HU_SCREEN.y}px`, width: `${HU_SCREEN.w}px`, height: `${HU_SCREEN.h}px` });
+    Object.assign(glare.style, { width: `${HU_SCREEN.w}px`, height: `${HU_SCREEN.h}px` });
     huShade = document.createElement('div');
     huShade.id = 'huShade';
-    $('#plate').after(scr, glare);
+    stage.after(scr, glare);
     stage.appendChild(huShade);
+    huLayer = { scr, glass: glare, k };
     const ov = document.createElement('iframe');
     ov.id = 'huPhone';
     ov.src = 'hu.html?overlay=1';
     ov.title = '고객 휴대전화';
     document.body.appendChild(ov);
+    initHand();
+  }
+  /* the driver's hand: a filmed reach to the [전화연결] button (alpha video, keyed
+   * against the empty frame), laid over the live head unit. The video was shot on
+   * the head-unit view: its frame is HU_VIEW's height, centred on HU_VIEW. */
+  let handHold = false;
+  function initHand() {
+    const HAND = { src: 'assets/hand_call.webm', contact: HAND_CONTACT, ar: HAND_AR };
+    const R = { h: HU_VIEW.h, w: HU_VIEW.h * HAND.ar };
+    R.x = HU_VIEW.cx - R.w / 2; R.y = HU_VIEW.cy - R.h / 2;
+    const vid = document.createElement('video');
+    vid.id = 'huHand';
+    vid.muted = true; vid.playsInline = true; vid.preload = 'auto';
+    vid.src = HAND.src;
+    document.body.appendChild(vid);
+    let vw = 0, vh = 0, busy = false;
+    vid.addEventListener('loadedmetadata', () => { vw = vid.videoWidth; vh = vid.videoHeight; });
+    huLayer.hand = (tx, ty, s) => {
+      if (!busy || !vw) return;
+      vid.style.transform = `translate3d(${(tx + R.x * s).toFixed(2)}px, ${(ty + R.y * s).toFixed(2)}px, 0) scale(${(s * R.w / vw).toFixed(5)}, ${(s * R.h / vh).toFixed(5)})`;
+    };
+    const ready = () => !cam.hdur && cam.h > 0.98;
+    Link.on('hu', async (d) => {
+      if (d.action !== 'reach') return;
+      const c = director.cases[0];
+      if (busy || !c || c.wcase !== 'A' || c.contact > 0 || c.inbound) return;
+      Link.send('hu', { action: 'reaching' });
+      Link.send('hu', { action: 'show' });     // the popup may have folded away: bring it back for the hand
+      busy = true; handHold = true;
+      if (huFocus !== 1) focusPolicy(true);
+      for (let i = 0; i < 40 && !ready(); i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 450));
+      let pressed = false;
+      const press = () => { if (!pressed) { pressed = true; Link.send('hu', { action: 'press' }); } };
+      const tick = () => {
+        if (vid.currentTime >= HAND.contact) press();
+        if (!vid.ended && busy) requestAnimationFrame(tick);
+      };
+      const done = () => { press(); busy = false; handHold = false; vid.classList.remove('on'); };
+      vid.onended = done;
+      vid.onerror = done;
+      try {
+        vid.currentTime = 0;
+        vid.classList.add('on');
+        await vid.play();
+        requestAnimationFrame(tick);
+      } catch (e) { done(); }
+      setTimeout(() => { if (busy) { vid.pause(); done(); } }, 15000);
+    });
   }
   let camHold = 'auto', seenCase = null, huFocus = 0, huEndAt = 0;
   Link.on('cam', (d) => { camHold = d.view || 'auto'; focusPolicy(true); });
   function focusPolicy(force) {
     if (!huShade) return;
     let want;                                   // 'hu' | 'cluster' | null (vehicle decides)
-    if (camHold !== 'auto') want = camHold === 'full' ? 'full' : camHold;
+    if (handHold) want = 'hu';
+    else if (camHold !== 'auto') want = camHold === 'full' ? 'full' : camHold;
     else {
       const c = director.cases[0];
       const nowMs = Date.now();
@@ -653,7 +716,9 @@
   // the presenter's remote (remote.html) drives the vehicle over the link
   Link.on('act', (d) => {
     if (d.name === 'warnItem') {
-      const level = SimData.RED.some((w) => w.id === d.args.id) ? 'red' : 'amber';
+      // a Case A lamp of the WNG master (e.g. the engine lamp) is an emergency: shown red
+      const wng = ECare.WNG[d.args.id];
+      const level = (wng && wng.case === 'A') || SimData.RED.some((w) => w.id === d.args.id) ? 'red' : 'amber';
       return warn(level, d.args.id);
     }
     if (actions[d.name]) actions[d.name](d.args);
