@@ -100,5 +100,5 @@ server.listen(PORT, '0.0.0.0', () => {
   }
   console.log('');
   console.log('  ※ 차량 시뮬레이터(wall.html 또는 index.html)는 전체 기기 중 한 곳에서만 엽니다.');
-  console.log('  ※ localhost · Vercel 주소로 연 창은 다른 기기와 동기화되지 않습니다. 위 IP 주소로 여세요.');
+  console.log('  ※ 위 주소로 연 화면은 LAN과 인터넷을 함께 써서, Vercel 주소로 연 다른 기기와도 동기화됩니다.');
 });

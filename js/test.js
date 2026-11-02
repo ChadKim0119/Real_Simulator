@@ -255,7 +255,7 @@
     const scr = screens ? screens.map((s, i) => `<tr><td>${i + 1}${s.isPrimary ? ' · 기본' : ''}${s.isInternal ? ' · 내장' : ''}</td><td>${esc(s.label || '')}</td><td>${s.width}×${s.height}</td><td>${s.devicePixelRatio}</td><td>${(s.width / s.height).toFixed(3)} (${nearest(s.width / s.height)})</td>
       <td><button data-open="test:${i}">테스트 출력</button><button data-open="wall:${i}">시연 화면</button></td></tr>`).join('') : '';
     app.innerHTML = `
-    <header><b>모니터 테스트 모드</b><span>시연 화면 (21:9 · 16:9) 사전 점검</span><em id="lk">${Link.transport === 'lan' ? '● LAN 릴레이' : '● 이 PC'}</em></header>
+    <header><b>모니터 테스트 모드</b><span>시연 화면 (21:9 · 16:9) 사전 점검</span><em id="lk">● ${esc(Link.label())}</em></header>
     <main>
       <section class="card wide"><h2>① 시연 화면 미리보기 <small>${window.WallDef.MODES[wmode()].name} · 시연 화면의 현재 배치 · 장면 스틸</small></h2>
         <div class="wallwrap"><div class="prev" style="aspect-ratio:${W()}/${H}"></div></div>
@@ -355,7 +355,7 @@
     if (f && app.contains(f) && f.matches('textarea, input')) return;
     renderConsole();
   }
-  if (OUT) Link.send('test-hello', {}); else { wire(); Link.on('@transport', () => { const e = $('#lk'); if (e) e.textContent = '● LAN 릴레이'; }); }
+  if (OUT) Link.send('test-hello', {}); else { wire(); Link.on('@transport', () => { const e = $('#lk'); if (e) e.textContent = `● ${Link.label()}`; }); }
   addEventListener('resize', () => (OUT ? renderOut(true) : render()));
   render();
 })();

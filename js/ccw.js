@@ -83,7 +83,7 @@
 
   function conn() {
     const ok = Date.now() - lastVeh < 2500;
-    $('#conn').textContent = ok ? `● 차량 연결됨 · ${Link.transport === 'lan' ? 'LAN' : '이 PC'}` : '○ 차량 시뮬레이터 연결 대기';
+    $('#conn').textContent = ok ? `● 차량 연결됨 · ${Link.label()}` : '○ 차량 시뮬레이터 연결 대기';
     $('#conn').style.color = ok ? '#7fe7a8' : '#ffb46b';
   }
 
@@ -818,7 +818,7 @@
   }
   function scriptsView() {
     const sc = snap.scripts || {};
-    const where = Link.transport === 'lan' ? '릴레이 서버에 저장 · 모든 화면에서 재생' : '이 브라우저에 저장 · 같은 브라우저의 콜센터 화면에서 재생 (여러 PC는 릴레이로 실행)';
+    const where = Link.relay ? '릴레이 서버에 저장 · 모든 화면에서 재생' : '이 브라우저에 저장 · 같은 브라우저의 콜센터 화면에서 재생 (여러 PC는 릴레이로 실행)';
     return `<div class="tr-scripts"><p class="hint">다음 통화부터 아래 대사가 사용됩니다. 음성 파일이 있는 대사는 녹음으로, 없는 대사는 음성 합성(TTS)으로 재생됩니다. 대사를 고치면 그 줄의 녹음은 해제됩니다. <button data-sreset>기본 대사 · 음성으로 초기화</button></p>
       ${pickBar()}
       ${Object.keys(E.SCRIPT_NAMES).map((k) => {

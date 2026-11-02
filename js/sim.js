@@ -499,6 +499,20 @@
 
   /* ---------------- e-Care call center link ---------------- */
   const director = new ECare.Director(() => st);
+  // one vehicle simulator per group of devices: a second one (wall.html or index.html open
+  // on another device or tab) would raise every warning and call twice, so it says so
+  const simT0 = Date.now();
+  let dupUntil = 0;
+  const dup = document.createElement('div');
+  dup.id = 'dupSim';
+  dup.textContent = '다른 창 · 기기에서 차량 시뮬레이터(시연 화면)가 이미 실행 중입니다. 이 창을 닫아 주세요 — 두 곳에서 열면 경고 · 통화가 두 번 일어납니다.';
+  document.body.appendChild(dup);
+  Link.on('sim-alive', (d, m) => {
+    if (d.t0 < simT0 || (d.t0 === simT0 && m.from < Link.me)) { dupUntil = Date.now() + 8000; dup.classList.add('on'); }
+  });
+  const alive = () => { Link.send('sim-alive', { t0: simT0 }); if (Date.now() > dupUntil) dup.classList.remove('on'); };
+  alive();
+  setInterval(alive, 3000);
   // the customer has pulled over on the shoulder by the time the agent calls
   director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차 · e-Care 상담센터 발신'); } };
   director.hooks.stop = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차'); } };
@@ -698,7 +712,7 @@
     const c = director.find();
     const el = $('#careState');
     const lk = $('#linkState');
-    lk.textContent = Link.transport === 'lan' ? 'LAN 동기화' : '이 PC 화면 동기화';
+    lk.textContent = Link.label();
     st.ecareCall = c && c.call && (c.call.state === 'connected' || c.call.state === 'dialing') ? c.call : null;
     const g = director.general;
     if (g) { el.textContent = `일반 전화 · ${{ ringing: '전화 수신', connected: '통화 중', ended: '후처리' }[g.state]}`; st.ecareCall = g.state === 'connected' ? { state: 'connected', connectedAt: g.connectedAt } : g.state === 'ringing' ? { state: 'dialing' } : null; return; }

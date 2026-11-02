@@ -137,7 +137,7 @@
 
   /** Saves one line file; returns the path to put in the script. */
   async function store(name, blob) {
-    if (window.Link && Link.transport === 'lan') {
+    if (window.Link && Link.relay) {
       const r = await fetch(`/__relay/audio?name=${encodeURIComponent(name)}`, { method: 'POST', body: blob });
       if (r.ok) return (await r.json()).path;
     }

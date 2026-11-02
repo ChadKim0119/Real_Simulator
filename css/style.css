@@ -486,3 +486,6 @@ body.stage #showUi, body.stage #toast { display: none !important; }
 #hazBtn path { fill: #ff2b1c; opacity: 0; filter: drop-shadow(0 0 3px rgba(255, 60, 30, 0.95)) drop-shadow(0 0 9px rgba(255, 40, 20, 0.7)); }
 #hazBtn.on path { opacity: 1; }
 #hazBtn.on { background: radial-gradient(ellipse 60% 55% at 50% 52%, rgba(255, 60, 30, 0.28), transparent 70%); }
+/* a second vehicle simulator in the same group of devices */
+#dupSim { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 50; display: none; max-width: 90vw; padding: 12px 20px; border-radius: 12px; background: rgba(120, 10, 20, 0.95); border: 1px solid #ff6b78; color: #fff; font: 600 15px/1.45 "Pretendard", sans-serif; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+#dupSim.on { display: block; }

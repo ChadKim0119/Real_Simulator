@@ -32,7 +32,7 @@
   Link.on('stage-hello', () => Link.send('stage', { scene }));
   Link.on('@transport', linkText);
   Link.send('hello', { screen: 'control' });
-  function linkText() { $('#link').textContent = Link.transport === 'lan' ? '● LAN 릴레이 연결' : '● 이 PC (같은 브라우저)'; }
+  function linkText() { $('#link').textContent = `● ${Link.label()}`; }
   linkText();
 
   const active = () => snap && (snap.cases.find((c) => c.id === snap.active) || snap.cases[snap.cases.length - 1]);
