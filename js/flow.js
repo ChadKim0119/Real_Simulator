@@ -1,5 +1,6 @@
-/* e-Care data flow monitor. Draws the systems involved (vehicle, VDP, VEP, WAM,
- * call center, CTI, dealer DMS, emergency dispatch, SMS, customer phone) and
+/* e-Care data flow monitor. Draws the systems involved (vehicle, Japan server
+ * VDP, Korea server TSP with VEP / WAM / OPW / SMS, the support center CCW with
+ * CTI, dispatch, service center DMS, customer phone) and
  * animates every message the director records in snapshot.flows, labelled
  * with the interface name from the e-Care interface definition. */
 (function () {
@@ -11,23 +12,34 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = (n) => String(n).padStart(2, '0');
 
-  // systems, at 1920x1080
+  /* systems, at 1920x1080: an easy name on top, the project name below.
+   * Zones run left to right: customer → Japan server (VDP) → Korea server
+   * (TSP: VEP + WAM) → response (e-Care support center with CTI, dispatch,
+   * service center). */
   const N = {
-    car: { x: 225, y: 330, t: '차량 · HU', s: 'GX 550 · DCM / MM', zone: 'cust' },
-    phone: { x: 225, y: 660, t: '고객 휴대폰', s: 'Global App · 통화 · SMS', zone: 'cust' },
-    vdp: { x: 640, y: 330, t: 'VDP', s: 'Toyota · 일본', zone: 'plat' },
-    vep: { x: 905, y: 330, t: 'VEP', s: '필터 · Case 판정', zone: 'plat' },
-    wam: { x: 1170, y: 330, t: 'WAM', s: '오케스트레이션', zone: 'plat' },
-    sms: { x: 905, y: 760, t: 'SMS', s: '문자 발송', zone: 'plat', small: true },
-    ccw: { x: 1655, y: 225, t: '콜센터 CCW', s: 'e-Care 상담원', zone: 'ops' },
-    cti: { x: 1655, y: 365, t: 'CTI', s: '콜 · 상담원 배정', zone: 'ops' },
-    rescue: { x: 1655, y: 505, t: '긴급출동', s: '마스터자동차', zone: 'ops' },
-    dms: { x: 1655, y: 645, t: '딜러 DMS', s: '서비스센터', zone: 'ops' },
-    opw: { x: 1655, y: 785, t: '운영 OPW', s: '정책 · WNG master', zone: 'ops' },
+    car: { x: 195, y: 330, w: 260, t: '고객 차량', s: 'DCM · 헤드유닛 (MM)', zone: 'cust' },
+    phone: { x: 195, y: 700, w: 260, t: '고객 휴대폰', s: 'Global App · 문자', zone: 'cust' },
+    vdp: { x: 520, y: 330, w: 240, t: '차량 신호 수집', s: 'VDP', zone: 'jp' },
+    vep: { x: 840, y: 290, w: 280, t: '경고 판정', s: 'VEP · Case 판정', zone: 'kr' },
+    wam: { x: 1150, y: 290, w: 280, t: '업무 흐름 관리', s: 'WAM · 배정 · SLA', zone: 'kr' },
+    opw: { x: 840, y: 768, w: 280, h: 88, t: '운영 관리', s: 'OPW · 정책', zone: 'kr' },
+    sms: { x: 1150, y: 768, w: 280, h: 88, t: '문자 발송', s: 'SMS', zone: 'kr' },
+    ccw: { x: 1607, y: 318, w: 310, t: '상담원 화면', s: 'CCW', zone: 'res' },
+    cti: { x: 1607, y: 428, w: 310, h: 88, t: '전화 교환 · 상담원 배정', s: 'CTI', zone: 'res' },
+    rescue: { x: 1607, y: 610, w: 310, t: '긴급출동', s: '마스터자동차', zone: 'res' },
+    dms: { x: 1607, y: 760, w: 310, t: '서비스센터 (딜러)', s: 'DMS', zone: 'res' },
   };
+  const ZONES = [
+    { k: 'cust', x: 40, w: 310, t: '고객', tag: '', col: '#9fb6d6' },
+    { k: 'jp', x: 375, w: 290, t: '일본측 서버', tag: 'VDP', col: '#c58bff' },
+    { k: 'kr', x: 690, w: 620, t: '한국측 서버', tag: 'TSP', col: '#5aa2ff' },
+    { k: 'res', x: 1335, w: 545, t: '대응', tag: '', col: '#3ddc84' },
+  ];
+  const ZCOL = Object.fromEntries(ZONES.map((z) => [z.k, z.col]));
   const W = 250, H = 104;
-  const LINKS = [['car', 'vdp'], ['vdp', 'vep'], ['vep', 'wam'], ['wam', 'ccw'], ['wam', 'cti'], ['wam', 'dms'], ['wam', 'opw'], ['wam', 'vdp'], ['vdp', 'phone'],
-    ['cti', 'ccw'], ['cti', 'phone'], ['cti', 'car'], ['ccw', 'rescue'], ['ccw', 'sms'], ['sms', 'phone'], ['ccw', 'car'], ['wam', 'phone']];
+  const size = (n) => ({ w: n.w || W, h: n.h || H });
+  // the backbone drawn at rest; other messages (calls, alerts) draw their path while they travel
+  const LINKS = [['car', 'vdp'], ['vdp', 'vep'], ['vep', 'wam'], ['wam', 'ccw'], ['wam', 'cti'], ['cti', 'ccw'], ['wam', 'dms'], ['ccw', 'rescue'], ['vdp', 'phone'], ['ccw', 'sms'], ['sms', 'phone']];
   const CASECOL = { A: '#ff4d5e', B: '#ffb02e', C: '#3fd0c9' };
   const BLUE = '#5aa2ff';
 
@@ -57,20 +69,57 @@
     <g id="zones"></g><g id="links"></g><g id="nodes"></g><g id="cards"></g><g id="pk"></g><g id="chips"></g><g id="hud"></g><g id="foot"></g>`;
   const g = (id) => svg.querySelector('#' + id);
 
-  // zones
-  [['cust', 40, '고객', 400], ['plat', 490, 'Toyota · TSP 플랫폼', 920], ['ops', 1450, '운영 · 대응', 430]].forEach(([k, x, label, w]) => {
-    el('rect', { x, y: 150, width: w, height: 700, rx: 26, fill: 'rgba(120,160,220,0.035)', stroke: 'rgba(140,180,240,0.12)', 'stroke-width': 2 }, g('zones'));
-    const t = el('text', { x: x + 26, y: 194, fill: '#7f93b0', 'font-size': 26, 'font-weight': 700, 'letter-spacing': 1 }, g('zones'));
-    t.textContent = label;
+  // zones, and the support center group (CCW + CTI) inside the response zone
+  ZONES.forEach((z) => {
+    el('rect', { x: z.x, y: 150, width: z.w, height: 712, rx: 26, fill: 'rgba(120,160,220,0.035)', stroke: 'rgba(140,180,240,0.12)', 'stroke-width': 2 }, g('zones'));
+    el('rect', { x: z.x + 24, y: 172, width: 6, height: 30, rx: 3, fill: z.col }, g('zones'));
+    const t = el('text', { x: z.x + 42, y: 197, fill: '#dfe7f3', 'font-size': 27, 'font-weight': 800 }, g('zones'));
+    t.textContent = z.t;
+    if (z.tag) {
+      const tg = el('g', { transform: `translate(${z.x + 54 + z.t.length * 25},174)` }, g('zones'));
+      el('rect', { width: z.tag.length * 15 + 24, height: 32, rx: 9, fill: z.col, 'fill-opacity': 0.16, stroke: z.col, 'stroke-opacity': 0.6 }, tg);
+      el('text', { x: 12, y: 23, fill: z.col, 'font-size': 21, 'font-weight': 800, class: 'num' }, tg).textContent = z.tag;
+    }
   });
+  el('rect', { x: 1355, y: 222, width: 505, height: 260, rx: 20, fill: 'rgba(61,220,132,0.05)', stroke: 'rgba(61,220,132,0.4)', 'stroke-width': 2, 'stroke-dasharray': '8 7' }, g('zones'));
+  el('text', { x: 1378, y: 256, fill: '#8ff0b3', 'font-size': 22, 'font-weight': 800 }, g('zones')).textContent = 'e-Care 고객지원실';
 
+  /* links run edge to edge as S-curves: sideways between columns, up/down
+   * within one. SMS → phone dips under the bottom row so it clears OPW. */
+  const UNDER = { 'phone|sms': 905 };     // key: the two ids sorted; the first is the left box
+  const OVER = { 'vdp|wam': 214 };        // top edge to top edge, over the boxes between
+  const RIGHT = { 'ccw|rescue': 1838, 'ccw|dms': 1838, 'cti|rescue': 1838 };   // around the right of the column
   const path = (a, b) => {
-    const A = N[a], B = N[b];
+    const key = [a, b].sort().join('|');
+    const flip = a > b;                         // draw one curve per pair, walk it either way
+    const [p, q] = flip ? [b, a] : [a, b];
+    const A = N[p], B = N[q], sa = size(A), sb = size(B);
     const dx = B.x - A.x, dy = B.y - A.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const bend = (a < b ? 1 : -1) * Math.min(80, len * 0.16);
-    const mx = (A.x + B.x) / 2 - (dy / len) * bend, my = (A.y + B.y) / 2 + (dx / len) * bend;
-    return { d: `M${A.x},${A.y} Q${mx},${my} ${B.x},${B.y}`, A, B, mx, my };
+    let P0, P1, P2, P3;
+    if (OVER[key] != null) {
+      const hi = OVER[key];
+      P0 = [A.x, A.y - sa.h / 2]; P1 = [A.x, hi]; P2 = [B.x, hi]; P3 = [B.x, B.y - sb.h / 2];
+    } else if (RIGHT[key] != null) {
+      const xr = RIGHT[key];
+      P0 = [A.x + sa.w / 2, A.y]; P1 = [xr, A.y]; P2 = [xr, B.y]; P3 = [B.x + sb.w / 2, B.y];
+    } else if (UNDER[key] != null) {
+      // A is the left box (its right edge), B the box above the dip (its bottom)
+      const lo = UNDER[key];
+      P0 = [A.x + sa.w / 2, A.y]; P1 = [A.x + sa.w / 2 + 200, lo]; P2 = [B.x, lo]; P3 = [B.x, B.y + sb.h / 2];
+    } else if (Math.abs(dx) > Math.abs(dy) * 0.8) {
+      const sg = Math.sign(dx);
+      const x1 = A.x + sg * sa.w / 2, x2 = B.x - sg * sb.w / 2;
+      const k = Math.max(60, Math.abs(x2 - x1) * 0.45);
+      P0 = [x1, A.y]; P1 = [x1 + sg * k, A.y]; P2 = [x2 - sg * k, B.y]; P3 = [x2, B.y];
+    } else {
+      const sg = Math.sign(dy) || 1;
+      const y1 = A.y + sg * sa.h / 2, y2 = B.y - sg * sb.h / 2;
+      const k = Math.max(40, Math.abs(y2 - y1) * 0.45);
+      P0 = [A.x, y1]; P1 = [A.x, y1 + sg * k]; P2 = [B.x, y2 - sg * k]; P3 = [B.x, y2];
+    }
+    if (flip) [P0, P1, P2, P3] = [P3, P2, P1, P0];
+    const mx = (P0[0] + 3 * P1[0] + 3 * P2[0] + P3[0]) / 8, my = (P0[1] + 3 * P1[1] + 3 * P2[1] + P3[1]) / 8;
+    return { d: `M${P0[0]},${P0[1]} C${P1[0]},${P1[1]} ${P2[0]},${P2[1]} ${P3[0]},${P3[1]}`, mx, my };
   };
   const linkEls = {};
   LINKS.forEach(([a, b]) => {
@@ -78,16 +127,18 @@
     linkEls[a + b] = linkEls[b + a] = el('path', { d: p.d, fill: 'none', stroke: 'rgba(120,160,220,0.16)', 'stroke-width': 3, 'stroke-dasharray': '2 10', 'stroke-linecap': 'round' }, g('links'));
   });
 
-  // nodes
+  // nodes: easy name, project name, a colour bar for the zone
   const nodeEls = {};
   for (const k in N) {
     const n = N[k];
-    const w = n.small ? 190 : W, h = n.small ? 84 : H;
+    const { w, h } = size(n);
+    const small = h < H;
     const grp = el('g', { transform: `translate(${n.x - w / 2},${n.y - h / 2})` }, g('nodes'));
     const halo = el('rect', { x: -12, y: -12, width: w + 24, height: h + 24, rx: 30, fill: BLUE, opacity: 0, filter: 'url(#soft)' }, grp);
-    el('rect', { width: w, height: h, rx: 20, fill: 'url(#nodeBg)', stroke: 'rgba(150,190,255,0.35)', 'stroke-width': 2 }, grp);
-    const t = el('text', { x: 24, y: n.small ? 40 : 46, fill: '#eef3fb', 'font-size': n.small ? 30 : 36, 'font-weight': 800 }, grp); t.textContent = n.t;
-    const s = el('text', { x: 24, y: n.small ? 68 : 82, fill: '#8fa4c2', 'font-size': 21, 'font-weight': 600 }, grp); s.textContent = n.s;
+    el('rect', { width: w, height: h, rx: 18, fill: 'url(#nodeBg)', stroke: 'rgba(150,190,255,0.3)', 'stroke-width': 2 }, grp);
+    el('rect', { x: 0, y: 14, width: 6, height: h - 28, rx: 3, fill: ZCOL[n.zone] }, grp);
+    const t = el('text', { x: 26, y: small ? 40 : 47, fill: '#eef3fb', 'font-size': small ? 27 : 32, 'font-weight': 800 }, grp); t.textContent = n.t;
+    const s2 = el('text', { x: 26, y: small ? 70 : 82, fill: ZCOL[n.zone], 'font-size': 21, 'font-weight': 700, class: 'num' }, grp); s2.textContent = n.s;
     const badge = el('g', { opacity: 0 }, grp);
     el('rect', { x: w - 30, y: -16, width: 46, height: 32, rx: 16, fill: '#24406a', stroke: '#0a1220', 'stroke-width': 3 }, badge);
     const bt = el('text', { x: w - 7, y: 7, fill: '#cfe1ff', 'font-size': 19, 'font-weight': 700, 'text-anchor': 'middle', class: 'num' }, badge);
@@ -101,7 +152,7 @@
     const t = el('text', { x: 22, y: 38, fill: '#7f93b0', 'font-size': 21, 'font-weight': 700 }, grp); t.textContent = title;
     return grp;
   };
-  const caseCard = card(760, 420, 290, 300, 'Case 판정 · WNG master');
+  const caseCard = card(700, 382, 290, 300, '경고 등급 · WNG master');
   const cc = {
     code: el('text', { x: 22, y: 104, fill: '#eef3fb', 'font-size': 54, 'font-weight': 800, class: 'num' }, caseCard),
     name: el('text', { x: 22, y: 146, fill: '#c9d6ea', 'font-size': 26, 'font-weight': 700 }, caseCard),
@@ -111,7 +162,7 @@
     owner: el('text', { x: 22, y: 254, fill: '#9fb6d6', 'font-size': 22, 'font-weight': 600 }, caseCard),
     src: el('text', { x: 22, y: 284, fill: '#5f7392', 'font-size': 17, 'font-weight': 600 }, caseCard),
   };
-  const slaCard = card(1068, 420, 300, 300, '워크플로우 · SLA');
+  const slaCard = card(1005, 382, 290, 300, '처리 기한 · SLA');
   const sc = {
     group: el('text', { x: 22, y: 76, fill: '#9fb6d6', 'font-size': 21, 'font-weight': 600, class: 'num' }, slaCard),
     ringBg: el('circle', { cx: 92, cy: 178, r: 62, fill: 'none', stroke: '#1e2b40', 'stroke-width': 14 }, slaCard),
@@ -187,20 +238,24 @@
   }
   // label chips: placed along the message's path where they cover no system
   // box and no other label
-  const boxes = () => Object.keys(N).map((k) => { const n = N[k]; const w = (n.small ? 190 : W) + 16, h = (n.small ? 84 : H) + 16; return { x: n.x - w / 2, y: n.y - h / 2, w, h }; })
-    .concat([{ x: 752, y: 412, w: 306, h: 316 }, { x: 1060, y: 412, w: 316, h: 316 }]);
+  const boxes = () => Object.keys(N).map((k) => { const n = N[k]; const { w: w0, h: h0 } = size(n); const w = w0 + 16, h = h0 + 16; return { x: n.x - w / 2, y: n.y - h / 2, w, h }; })
+    .concat([{ x: 692, y: 374, w: 306, h: 316 }, { x: 997, y: 374, w: 306, h: 316 }, { x: 1370, y: 230, w: 260, h: 36 }])
+    .concat(ZONES.map((z) => ({ x: z.x, y: 160, w: z.w, h: 52 })));        // zone titles
   const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const MAX_CHIPS = 4;        // in a burst only the newest labels stay readable
   function chip(f, x, y, col, ms, p, spots) {
+    const live = chips.filter((c) => !c.out);
+    live.slice(0, Math.max(0, live.length - MAX_CHIPS + 1)).forEach((c) => { c.out = performance.now(); });
     const grp = el('g', { opacity: 0 }, g('chips'));
     const txt = `${f.api} · ${f.label}`;
     const t = el('text', { x: 0, y: 0, fill: '#fff', 'font-size': 23, 'font-weight': 700, 'text-anchor': 'middle' }, grp);
-    t.textContent = txt.length > 46 ? txt.slice(0, 45) + '…' : txt;
+    t.textContent = txt.length > 38 ? txt.slice(0, 37) + '…' : txt;
     const bb = t.getBBox();
     const r = el('rect', { x: bb.x - 16, y: bb.y - 9, width: bb.width + 32, height: bb.height + 18, rx: 14, fill: 'rgba(6,12,22,0.94)', stroke: col, 'stroke-width': 2.5 }, grp);
     grp.insertBefore(r, t);
     const w = bb.width + 32, h = bb.height + 18;
     const now = performance.now();
-    const taken = boxes().concat(chips.map((c) => c.box));
+    const taken = boxes().concat(chips.filter((c) => !c.out).map((c) => c.box));
     const cands = [];
     const pts = p ? [0.5, 0.38, 0.62, 0.28, 0.72].map((k) => p.tail.getPointAtLength(p.L * k)) : spots || [{ x, y }];
     for (const dy of [0, -40, 40, -84, 84, -128, 128]) for (const pt of pts) cands.push({ x: pt.x, y: pt.y + dy });
@@ -247,7 +302,7 @@
     cc.badge.setAttribute('fill', w.case === 'A' ? '#fff' : '#111');
     cc.kind.textContent = K.kind;
     cc.owner.textContent = `→ ${K.owner}`;
-    cc.src.textContent = w.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master for e-Care v7';
+    cc.src.textContent = w.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master v8.2';
   }
 
   function skipMs(c) {
@@ -257,13 +312,13 @@
     const c = primary();
     const circ = 2 * Math.PI * 62;
     if (!c) {
-      sc.group.textContent = 'workflowId —'; sc.left.textContent = '—'; sc.l1.textContent = ''; sc.v1.textContent = ''; sc.l2.textContent = ''; sc.v2.textContent = ''; sc.foot.textContent = '';
+      sc.group.textContent = '그룹 ID —'; sc.left.textContent = '—'; sc.l1.textContent = ''; sc.v1.textContent = ''; sc.l2.textContent = ''; sc.v2.textContent = ''; sc.foot.textContent = '';
       sc.ring.setAttribute('stroke-dashoffset', circ);
       return;
     }
     const w = c.wng || { case: 'A' };
     const K = E.CASE[w.case];
-    sc.group.textContent = `workflowId ${(c.group || '').slice(0, 13)}…`;
+    sc.group.textContent = `그룹 ID ${(c.group || '').slice(0, 13)}…`;
     sc.ring.setAttribute('stroke', CASECOL[w.case]);
     if (w.case === 'A') {
       const contacted = c.contact > 0;
@@ -276,14 +331,14 @@
         sc.left.textContent = left >= 0 ? E.mmss(left) : `+${E.mmss(-left)}`;
         sc.ring.setAttribute('stroke-dashoffset', circ * Math.min(1, Math.max(0, 1 - left / K.sla)));
       }
-      sc.l1.textContent = '콜센터 컨택'; sc.v1.textContent = E.CONTACT[c.contact];
-      sc.l2.textContent = '딜러 상태'; sc.v2.textContent = c.dms >= 0 ? E.DMS[c.dms] : '-';
-      sc.foot.textContent = contacted ? (c.call && c.call.dir === 'in' ? '고객 인바운드 · 상담 진행' : '25분 자동 아웃바운드 · 상담 진행') : '인바운드 대기 · 25분 후 자동 아웃바운드';
+      sc.l1.textContent = '지원실 연락'; sc.v1.textContent = E.CONTACT[c.contact];
+      sc.l2.textContent = '서비스센터'; sc.v2.textContent = c.dms >= 0 ? E.DMS[c.dms] : '-';
+      sc.foot.textContent = contacted ? (c.call && c.call.dir === 'in' ? '고객 인바운드 · 상담 진행' : '25분 경과 · 상담원 발신') : '25분 내 고객 연락 대기';
     } else {
       sc.left.textContent = K.slaText;
       sc.ring.setAttribute('stroke-dashoffset', circ * 0.04);
-      sc.l1.textContent = '대응'; sc.v1.textContent = '딜러 직접';
-      sc.l2.textContent = '딜러 상태'; sc.v2.textContent = c.dms >= 0 ? E.DMS[c.dms] : '-';
+      sc.l1.textContent = '대응'; sc.v1.textContent = '서비스센터 직접';
+      sc.l2.textContent = '서비스센터'; sc.v2.textContent = c.dms >= 0 ? E.DMS[c.dms] : '-';
       sc.foot.textContent = '상담원 미대응 · 서비스센터 SLA';
     }
     const t = new Date(Date.now() + (snap.skip || 0) * 60000);
@@ -341,8 +396,9 @@
     for (let i = chips.length - 1; i >= 0; i--) {
       const c = chips[i];
       const a = (now - c.t0) / c.ms;
-      c.grp.setAttribute('opacity', a < 0.08 ? a / 0.08 : a > 0.8 ? Math.max(0, (1 - a) / 0.2) : 1);
-      if (a >= 1) { c.grp.remove(); chips.splice(i, 1); }
+      const out = c.out ? Math.max(0, 1 - (now - c.out) / 300) : 1;     // pushed out by newer labels
+      c.grp.setAttribute('opacity', (a < 0.08 ? a / 0.08 : a > 0.8 ? Math.max(0, (1 - a) / 0.2) : 1) * out);
+      if (a >= 1 || out <= 0) { c.grp.remove(); chips.splice(i, 1); }
     }
     for (const k in nodeEls) {
       const gl = glow[k], n = nodeEls[k];

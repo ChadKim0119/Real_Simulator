@@ -15,7 +15,7 @@ const { execFileSync } = require('child_process');
 const BASE = process.argv[2] || 'http://127.0.0.1:8787';
 const OUT = path.join(__dirname, '..', 'assets', 'test', 'stills');
 
-// [after pressing "next" this many times, wait ms, then capture id/title/what]
+// [press "next" this many times (each once the panel is idle), wait ms, then capture id/title/what]
 const PLAN = [
   [1, 2500, 'opening', '3면 오프닝', '세 화면에 이어지는 파노라마 타이틀'],
   [1, 6500, 'ignition', '시동 · 웰컴', '계기판 세리머니, 데이터 흐름 대기'],
@@ -27,14 +27,14 @@ const PLAN = [
   [0, 34000, 'dispatch', '통화 종료 · 긴급출동', '긴급출동 요청, 통화 종료'],
   [1, 3500, 'memo', '상담 완료 · 이관', '상담 메모 → 서비스센터 (WAM-MEMO-001)'],
   [0, 10000, 'dms', '서비스센터 진행 상태', 'DMS-SVC-002 정비 상태 회신'],
-  [1, 8000, 'warning2', '2막 · 다시 경고', '고객 미연락 상황'],
+  [1, 2500, null],
+  [1, 4000, 'warning2', '2막 · 다시 경고', '고객 미연락 상황'],
   [1, 3000, 'sla25', '25분 경과', '25분 경과 연출 · 상담원 자동 배정 팝업'],
   [1, 5000, 'outbound', '상담원 전화 걸기', '고객 휴대전화 수신'],
   [0, 12000, 'outcall', '아웃바운드 통화', '휴대전화 통화 · 자막'],
   [0, 26000, 'outend', '아웃바운드 종료', '긴급출동 · 통화 종료'],
   [1, 3000, 'memo2', '2막 완료 · 이관', ''],
   [1, 6000, 'caseB', 'Case B 비교', '에어백 경고 · 서비스센터 직행'],
-  [1, 500, null],
   [1, 5000, 'ignoff', '시동 끄기', ''],
   [1, 4000, 'closing', '3면 클로징', 'KPI · 타임라인 · 연동 시스템'],
 ];
@@ -43,10 +43,10 @@ const PLAN = [
   fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const st = await (await b.newContext({ viewport: { width: 5760, height: 1080 } })).newPage();
-  await st.goto(`${BASE}/stage.html?screen=all`);
+  await st.goto(`${BASE}/stage.html?screen=all`, { waitUntil: 'domcontentloaded' });
   await st.waitForTimeout(3000);
   const rc = await (await b.newContext({ viewport: { width: 1180, height: 900 } })).newPage();
-  await rc.goto(`${BASE}/control.html`);
+  await rc.goto(`${BASE}/control.html`, { waitUntil: 'domcontentloaded' });
   await rc.waitForTimeout(1500);
   await rc.click('[data-sc="show"]');
   // start clean
@@ -55,7 +55,12 @@ const PLAN = [
   const index = [];
   let n = 0;
   for (const [presses, wait, id, title, what] of PLAN) {
-    for (let i = 0; i < presses; i++) { await rc.click('#next'); await rc.waitForTimeout(150); }
+    for (let i = 0; i < presses; i++) {
+      // "next" while a step still waits only ends the wait: let the step finish first
+      await rc.waitForFunction(() => !document.querySelector('#next').textContent.includes('건너뛰고'), null, { timeout: 180000 });
+      await rc.click('#next');
+      await rc.waitForTimeout(150);
+    }
     await rc.waitForTimeout(wait);
     if (!id) continue;
     n++;
