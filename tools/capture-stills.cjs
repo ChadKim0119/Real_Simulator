@@ -1,35 +1,30 @@
 #!/usr/bin/env node
 /* Captures still frames of the demo wall for the monitor test mode
  * (test.html). Runs the control panel's full presentation through the relay
- * on wall.html at the ratio given (default layout, no labels) and saves every
- * panel per step.
+ * on wall.html (2560x1080, default layout, no labels) and saves every panel
+ * per step.
  *
  *   node tools/relay.mjs &
- *   NODE_PATH=$(npm root -g) node tools/capture-stills.cjs 21 [http://127.0.0.1:8787]
- *   NODE_PATH=$(npm root -g) node tools/capture-stills.cjs 63
+ *   NODE_PATH=$(npm root -g) node tools/capture-stills.cjs [http://127.0.0.1:8787]
  *
- * Output: assets/test/stills/<21|63>/<nn>_<panel>.jpg and index.json */
+ * Output: assets/test/stills/<nn>_<panel>.jpg and index.json */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const RATIO = process.argv[2] === '63' ? 63 : 21;
-const BASE = process.argv[3] || 'http://127.0.0.1:8787';
-const OUT = path.join(__dirname, '..', 'assets', 'test', 'stills', String(RATIO));
-// default layouts, the same as js/walldef.js
-const W = { 21: 2560, 63: 7560 }[RATIO];
-const LAYOUT = {
-  21: { cockpit: [0, 0, 860, 472], hu: [860, 0, 860, 472], talk: [1720, 0, 840, 472], flow: [0, 472, 1280, 608], ccw: [1280, 472, 1280, 608] },
-  63: { cockpit: [0, 0, 1680, 1080], hu: [1680, 0, 1440, 1080], flow: [3120, 0, 1800, 1080], ccw: [4920, 0, 1800, 1080], talk: [6720, 0, 840, 1080] },
-}[RATIO];
+const BASE = process.argv[2] || 'http://127.0.0.1:8787';
+const OUT = path.join(__dirname, '..', 'assets', 'test', 'stills');
+// the default layout of js/walldef.js (cx 1480, ly 610, ry 610, gutter 10)
+const W = 2560;
+const LAYOUT = { car: [0, 0, 1475, 605], talk: [0, 615, 1475, 465], flow: [1485, 0, 1075, 605], ccw: [1485, 615, 1075, 465] };
 
 // [press "next" this many times (each once the panel is idle), wait ms, then capture id/title/what]
 const PLAN = [
-  [1, 2500, 'opening', '3면 오프닝', '세 화면에 이어지는 파노라마 타이틀'],
+  [1, 2500, 'opening', '오프닝', '화면 전체 타이틀'],
   [1, 6500, 'ignition', '시동 · 웰컴', '계기판 세리머니, 데이터 흐름 대기'],
   [1, 6000, 'driving', '주행', '주행 중 계기판'],
-  [1, 3500, 'warning', '경고 · HU 팝업', 'Case A 판정, HU “고객 지원실로 연결하시겠습니까?”, 패킷 흐름'],
+  [1, 3500, 'warning', '경고 · HU 팝업', '계기판 경고 → 시선이 HU로, “고객 지원실로 연결하시겠습니까?”'],
   [1, 3000, 'incoming', 'HU 전화연결 → 인바운드', '상담원 화면 “전화가 왔습니다” 팝업'],
   [1, 9000, 'call', '상담 통화', '통화 화면 · 자막 · 차량 진단 정보'],
   [0, 30000, 'pullover', '통화 중 갓길 정차', '고객이 정차했다고 말하는 시점'],
@@ -45,16 +40,16 @@ const PLAN = [
   [1, 3000, 'memo2', '2막 완료 · 이관', ''],
   [1, 6000, 'caseB', 'Case B 비교', '에어백 경고 · 서비스센터 직행'],
   [1, 5000, 'ignoff', '시동 끄기', ''],
-  [1, 4000, 'closing', '3면 클로징', 'KPI · 타임라인 · 연동 시스템'],
+  [1, 4000, 'closing', '클로징', 'KPI · 연동 시스템'],
 ];
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const wctx = await b.newContext({ viewport: { width: W, height: 1080 } });
-  await wctx.addInitScript(() => { localStorage.removeItem('wall-layout-21'); localStorage.removeItem('wall-layout-63'); localStorage.setItem('wall-labels', 'false'); });
+  await wctx.addInitScript(() => { try { localStorage.removeItem('wall-layout-v3'); localStorage.setItem('wall-labels', 'false'); } catch (e) { /* blank frames */ } });
   const st = await wctx.newPage();
-  await st.goto(`${BASE}/wall.html?ratio=${RATIO}`, { waitUntil: 'domcontentloaded' });
+  await st.goto(`${BASE}/wall.html`, { waitUntil: 'domcontentloaded' });
   await st.waitForTimeout(3000);
   const rc = await (await b.newContext({ viewport: { width: 1180, height: 900 } })).newPage();
   await rc.goto(`${BASE}/control.html`, { waitUntil: 'domcontentloaded' });
@@ -86,6 +81,6 @@ const PLAN = [
     index.push({ key, id, title, what, step: (await rc.textContent('#now b')).trim() });
     console.log(key, id, title);
   }
-  fs.writeFileSync(path.join(OUT, '..', 'index.json'), JSON.stringify(index, null, 1));
+  fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index, null, 1));
   await b.close();
 })();

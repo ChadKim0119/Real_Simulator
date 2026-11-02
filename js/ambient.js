@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const W = 1672, H = 941, Q = 1 / 8;
+  const W = 2300, H = 941, Q = 1 / 8;
   const SCREEN = { x: 585, y: 189, w: 455, h: 170 };
 
   const hash = (n, k) => {

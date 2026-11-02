@@ -2,11 +2,14 @@
 (function () {
   'use strict';
 
-  const IMG_W = 1672, IMG_H = 941;
+  const IMG_W = 2300, IMG_H = 941;          // the photo, extended on the passenger side to show the whole centre display
   const EXT_TOP = 0;
   const FULL_TOP = 0;
   const WHEEL_SHIFT = 812.75 - 825.8;   // display centre minus wheel hub centre (photo px)
   const CLUSTER_VIEW = { cx: 812, cy: 270, w: 490, h: 330 };
+  // the centre display: its picture area (photo px) and the view that frames it with the climate bar
+  const HU_SCREEN = { x: 1222, y: 132, w: 419, h: 214, design: [1640, 840] };
+  const HU_VIEW = { cx: 1432, cy: 292, w: 560, h: 360 };
   // 10-speed automatic: engine rpm per km/h in each gear
   const GEAR_FACTOR = [0, 142, 90, 64, 48, 38, 31, 26, 21, 17.5, 15];
   const IDLE = 650;
@@ -70,9 +73,13 @@
 
   /* ---------------- camera ---------------- */
   const now = () => performance.now() / 1000;
-  const cam = { z: 0, from: 0, to: 0, t0: 0, dur: 0, zoomAt: null, outAt: null };
+  // z: cockpit → instrument cluster; h: (that view) → centre display
+  const cam = { z: 0, from: 0, to: 0, t0: 0, dur: 0, zoomAt: null, outAt: null, h: 0, hFrom: 0, hTo: 0, ht0: 0, hdur: 0 };
   function camTo(target, dur) {
     cam.from = cam.z; cam.to = target; cam.t0 = now(); cam.dur = dur;
+  }
+  function huTo(target, dur) {
+    cam.hFrom = cam.h; cam.hTo = target; cam.ht0 = now(); cam.hdur = dur;
   }
 
   let layout = null;
@@ -98,6 +105,7 @@
       area,
       full: { s: sFull, cx: IMG_W / 2, cy: cyFull, vx: vw / 2, vy: docked === 'bottom' ? ah / 2 : vh / 2 },
       zoom: { s: sZoom, cx: CLUSTER_VIEW.cx, cy: CLUSTER_VIEW.cy, vx: (area.x0 + area.x1) / 2, vy: (area.y0 + area.y1) / 2 },
+      hu: { s: Math.min(aw / HU_VIEW.w, ah / HU_VIEW.h), cx: HU_VIEW.cx, cy: HU_VIEW.cy, vx: (area.x0 + area.x1) / 2, vy: (area.y0 + area.y1) / 2 },
     };
   }
 
@@ -108,13 +116,22 @@
       cam.z = cam.from + (cam.to - cam.from) * ease(p);
       if (p >= 1) cam.dur = 0;
     }
+    if (cam.hdur > 0) {
+      const p = clamp((t - cam.ht0) / cam.hdur, 0, 1);
+      cam.h = cam.hFrom + (cam.hTo - cam.hFrom) * ease(p);
+      if (p >= 1) cam.hdur = 0;
+    }
     const z = cam.z, L = layout;
-    const s = Math.exp(Math.log(L.full.s) + (Math.log(L.zoom.s) - Math.log(L.full.s)) * z);
-    const k = (s - L.full.s) / (L.zoom.s - L.full.s || 1);
-    const cx = L.full.cx + (L.zoom.cx - L.full.cx) * k;
-    const cy = L.full.cy + (L.zoom.cy - L.full.cy) * k;
-    const vx = L.full.vx + (L.zoom.vx - L.full.vx) * k;
-    const vy = L.full.vy + (L.zoom.vy - L.full.vy) * k;
+    // log-scale blend between two views; positions follow the scale so the move feels like one dolly
+    const blend = (A, B, w) => {
+      const sc = Math.exp(Math.log(A.s) + (Math.log(B.s) - Math.log(A.s)) * w);
+      const k = Math.abs(B.s - A.s) > 1e-6 ? (sc - A.s) / (B.s - A.s) : w;
+      return { s: sc, cx: A.cx + (B.cx - A.cx) * k, cy: A.cy + (B.cy - A.cy) * k, vx: A.vx + (B.vx - A.vx) * k, vy: A.vy + (B.vy - A.vy) * k };
+    };
+    let V = blend(L.full, L.zoom, z);
+    if (cam.h > 0.0005) V = blend(V, L.hu, cam.h);
+    const { s, cx, cy, vx, vy } = V;
+    if (huShade) huShade.style.opacity = smooth(0.15, 1, cam.h).toFixed(3);
     // body vibration from the road; a touch of engine shake at idle
     const vf = clamp(st.speed / 100, 0, 1.2);
     const idle = st.engine && st.speed < 1 ? 0.12 : 0;
@@ -139,7 +156,7 @@
     const zk = smooth(0.1, 0.72, z);
     wheelCanvas.style.transform = zk > 0.001 ? `translateX(${(WHEEL_SHIFT * zk).toFixed(2)}px)` : '';
     document.body.classList.toggle('zoomed', z > 0.5);
-    focusShade.style.opacity = smooth(0.25, 1, z).toFixed(3);
+    focusShade.style.opacity = (smooth(0.25, 1, z) * (1 - cam.h)).toFixed(3);
 
     // Pick the cluster's pixel density for where the camera is heading, once,
     // when a move starts: re-allocating big canvases mid-zoom stutters on phones.
@@ -455,6 +472,73 @@
   // the customer has pulled over on the shoulder by the time the agent calls
   director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차 · e-Care 상담센터 발신'); } };
   director.hooks.stop = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차 · 비상등'); } };
+
+  /* ---------------- head unit in the centre display (index.html?hu) ----------------
+   * The head unit page is drawn into the display's picture area, under a glass
+   * reflection; the customer's phone comes in over the whole view. The camera
+   * follows the scenario: a warning on the cluster, then the head unit popup,
+   * the call on the head unit, back to the cabin. The control panel can hold a
+   * view (Link 'cam' {view: auto | full | cluster | hu}). */
+  let huShade = null;
+  if (new URLSearchParams(location.search).has('hu')) {
+    const k = Math.min(HU_SCREEN.w / HU_SCREEN.design[0], HU_SCREEN.h / HU_SCREEN.design[1]);
+    const scr = document.createElement('iframe');
+    scr.id = 'huScreen';
+    scr.src = 'hu.html?embed=1';
+    scr.title = '헤드유닛';
+    Object.assign(scr.style, { left: `${HU_SCREEN.x}px`, top: `${HU_SCREEN.y}px`, width: `${HU_SCREEN.design[0]}px`, height: `${HU_SCREEN.design[1]}px`, transform: `scale(${k})` });
+    const glare = document.createElement('div');
+    glare.id = 'huGlass';
+    Object.assign(glare.style, { left: `${HU_SCREEN.x}px`, top: `${HU_SCREEN.y}px`, width: `${HU_SCREEN.w}px`, height: `${HU_SCREEN.h}px` });
+    huShade = document.createElement('div');
+    huShade.id = 'huShade';
+    $('#plate').after(scr, glare);
+    stage.appendChild(huShade);
+    const ov = document.createElement('iframe');
+    ov.id = 'huPhone';
+    ov.src = 'hu.html?overlay=1';
+    ov.title = '고객 휴대전화';
+    document.body.appendChild(ov);
+  }
+  let camHold = 'auto', seenCase = null, huFocus = 0, huEndAt = 0;
+  Link.on('cam', (d) => { camHold = d.view || 'auto'; focusPolicy(true); });
+  function focusPolicy(force) {
+    if (!huShade) return;
+    let want;                                   // 'hu' | 'cluster' | null (vehicle decides)
+    if (camHold !== 'auto') want = camHold === 'full' ? 'full' : camHold;
+    else {
+      const c = director.cases[0];
+      const nowMs = Date.now();
+      if (c && c.id !== seenCase) {
+        seenCase = c.id;
+        if (cam.to < 1) camTo(1, 1.4);          // the lamp comes up on the cluster first
+      }
+      if (c) {
+        const age = nowMs - c.at, call = c.call;
+        const popup = c.contact === 0 && !c.inbound && !c.assign && age < 16000;
+        const inCall = call && call.dir === 'in' && (call.state === 'connected' || nowMs - (call.endedAt || 0) < 4000);
+        if (age < 2800 && c.contact === 0 && !c.inbound) want = 'cluster';
+        else if ((c.inbound && !call) || inCall || popup || (c.wcase !== 'A' && age < 20000)) want = 'hu';
+      }
+    }
+    const h = want === 'hu' ? 1 : 0;
+    if (h !== huFocus || force) {
+      huFocus = h;
+      huTo(h, h ? 2.4 : 2.6);
+      if (h) camTo(0, 2.4);                     // leave the cluster while panning across
+      else huEndAt = now();
+    }
+    if (!h) {
+      const zWant = want === 'cluster' ? 1 : want === 'full' ? 0 : null;
+      if (zWant != null && cam.to !== zWant && !cam.dur) camTo(zWant, zWant ? 1.6 : 2.4);
+      // back from the head unit: the cluster again while driving, the cabin when parked
+      if (zWant == null && huEndAt && now() - huEndAt > 2.6) {
+        huEndAt = 0;
+        camTo(st.mode === 'accel' || st.mode === 'cruise' ? 1 : 0, 2.6);
+      }
+    }
+  }
+  setInterval(() => focusPolicy(false), 250);
   const ccwWindows = {};
   function openScreen(name, url) {
     const w = ccwWindows[name];

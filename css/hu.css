@@ -97,3 +97,40 @@ body.pip #cap { left: 560px; }
 #phone .sms { margin-top: 40px; align-self: stretch; text-align: left; background: #1d2633; border-radius: 26px; padding: 22px 26px; font-size: 26px; line-height: 1.45; color: #e3e9f2; }
 .home .disp { left: 40px; right: 632px; top: 84px; }
 .home .disp ~ .map .turn { top: 190px; }
+
+/* ---------- modes: screen alone (composited into the car) / phone only ---------- */
+body.embed #root { width: 1640px; height: 840px; background: #000; }
+body.embed .label, body.embed #cap, body.embed #phone { display: none; }
+body.embed #hu { left: 0; top: 0; width: 1640px; height: 840px; border: 0; border-radius: 0; box-shadow: none; }
+html:has(body.overlay), body.overlay { background: transparent; }
+body.overlay #root { background: transparent; }
+body.overlay .label, body.overlay #hu, body.overlay #cap { display: none; }
+
+/* ---------- home: music screen ---------- */
+.music { position: absolute; inset: 0; display: flex; }
+.music .rail { flex: none; width: 104px; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; padding: 26px 0; background: linear-gradient(180deg, #eef1f4, #e3e7eb); box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.06); }
+.music .rail i { width: 78px; height: 78px; display: grid; place-items: center; border-radius: 6px; }
+.music .rail svg { width: 40px; height: 40px; fill: #18212c; }
+.music .rail i.on { background: #8b6a4b; }
+.music .rail i.on svg { fill: #fff; }
+.music .sky { position: relative; flex: 1; overflow: hidden; background: url(../assets/hu_sky.webp) 50% 50% / 112% auto no-repeat #2b86d6; animation: drift 70s ease-in-out infinite alternate; }
+@keyframes drift { from { background-position: 42% 40%; } to { background-position: 58% 60%; } }
+.music .ttl { position: absolute; left: 0; right: 0; top: 30%; text-align: center; font: 600 176px/1 "Pretendard", sans-serif; letter-spacing: -0.025em; color: #fff; text-shadow: 0 6px 40px rgba(0, 50, 110, 0.25); }
+.music .wave { position: absolute; left: 50%; top: 64%; transform: translate(-50%, -50%); height: 64px; display: flex; align-items: center; gap: 6px; }
+.music .wave b { display: block; width: 6px; height: 10px; border-radius: 3px; background: #fff; box-shadow: 0 0 10px rgba(255, 255, 255, 0.35); }
+.music .np { position: absolute; left: 0; right: 0; top: 73%; text-align: center; font: 600 24px "Barlow", sans-serif; letter-spacing: 0.18em; color: rgba(255, 255, 255, 0.85); }
+.music .cards { position: absolute; right: 34px; top: 80px; width: 540px; z-index: 3; }
+.music .card { border-radius: 22px; padding: 22px 28px; color: #fff; background: rgba(8, 16, 28, 0.55); border: 1px solid rgba(255, 255, 255, 0.28); backdrop-filter: blur(16px); box-shadow: 0 20px 50px rgba(0, 20, 50, 0.25); }
+.music .card small { display: block; font-size: 22px; font-weight: 700; color: #cfe1ff; }
+.music .card b { display: block; margin-top: 8px; font-size: 34px; font-weight: 800; }
+.music .card span { display: block; margin-top: 4px; font-size: 24px; color: #dfe8f5; }
+.music .card.st { border-color: rgba(61, 220, 132, 0.6); }
+.music .card.st b { color: #b6ffd1; }
+.music .card.warn { border-color: rgba(255, 77, 94, 0.7); background: rgba(40, 6, 12, 0.6); }
+.music .card.warn b { color: #ffb0b8; }
+.music .disp { left: 140px; right: 40px; }
+#hu:has(.music) .bar { left: 104px; background: none; color: #fff; text-shadow: 0 1px 6px rgba(0, 30, 70, 0.5); }
+#hu:has(.music) .bar .ecare { color: #fff; }
+body.overlay #phone { visibility: hidden; transition: transform 0.8s cubic-bezier(.2, .9, .3, 1), visibility 0s 0.8s; }
+body.overlay #phone.on { visibility: visible; transition: transform 0.8s cubic-bezier(.2, .9, .3, 1), visibility 0s; }
+#hu:has(.pop) .music .cards { display: none; }

@@ -40,7 +40,7 @@ html, body {
   position: absolute;
   left: 0;
   top: 0;
-  width: 1672px;
+  width: 2300px;
   height: 941px;
   transform-origin: 0 0;
   will-change: transform;
@@ -50,7 +50,7 @@ html, body {
 body.ready #stage { opacity: 1; }
 
 #stage > * { position: absolute; display: block; }
-#plate, #ambient, #focusShade { left: 0; top: 0; width: 1672px; height: 941px; pointer-events: none; }
+#plate, #ambient, #focusShade { left: 0; top: 0; width: 2300px; height: 941px; pointer-events: none; }
 #exterior { filter: blur(1.4px) saturate(0.95); }
 
 /* the switched-off display: black glass with a faint reflection of the cabin.
@@ -74,7 +74,7 @@ body.ready #stage { opacity: 1; }
 #footShade {
   left: 0;
   top: 600px;
-  width: 1672px;
+  width: 2300px;
   height: 341px;
   pointer-events: none;
   background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.45));
@@ -463,3 +463,15 @@ body.ready #loading { opacity: 0; visibility: hidden; }
 
 /* big-screen stage mode (index.html?stage=1, driven by remote.html) */
 body.stage #showUi, body.stage #toast { display: none !important; }
+
+/* head unit drawn into the centre display (index.html?hu) */
+#huScreen { border: 0; transform-origin: 0 0; background: #000; pointer-events: none; }
+#huGlass { pointer-events: none; mix-blend-mode: screen; border-radius: 3px;
+  background:
+    linear-gradient(117deg, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0.16) 30%, rgba(255, 255, 255, 0.04) 41%, rgba(255, 255, 255, 0) 52%),
+    linear-gradient(117deg, rgba(255, 255, 255, 0) 56%, rgba(255, 255, 255, 0.07) 63%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(ellipse 120% 90% at 50% 0%, rgba(180, 210, 255, 0.10), transparent 60%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 0 14px rgba(0, 0, 0, 0.55); }
+#huShade { left: 0; top: 0; width: 2300px; height: 941px; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse 420px 300px at 1432px 290px, transparent 62%, rgba(0, 0, 0, 0.55) 100%); }
+#huPhone { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; z-index: 5; background: transparent; }

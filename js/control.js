@@ -22,10 +22,9 @@
   /* ---------------- state from the other screens ---------------- */
   let snap = null, veh = null, scene = 'live', say = null;
   // the demo wall (wall.html): ratio, labels, layout editing
-  let wall = { ratio: 21, labels: false, edit: false };
-  try { wall.ratio = JSON.parse(localStorage.getItem('wall-ratio')) || 21; } catch (e) { /* none saved */ }
+  let wall = { labels: false, edit: false }, camView = 'auto';
   Link.on('wall-state', (d) => { Object.assign(wall, d); manualState(); });
-  Link.on('wall', (d) => { if (d.ratio) wall.ratio = d.ratio; if (typeof d.labels === 'boolean') wall.labels = d.labels; manualState(); });
+  Link.on('wall', (d) => { if (typeof d.labels === 'boolean') wall.labels = d.labels; if (typeof d.edit === 'boolean') wall.edit = d.edit; manualState(); });
   Link.on('ecare', (d) => { snap = d; status(); manualState(); });
   Link.on('veh', (d) => { veh = d; });
   Link.on('say', (d) => { say = d.line; status(); });
@@ -220,7 +219,8 @@
     const b = (attr, label, cls) => `<button ${attr} class="${cls || ''}">${label}</button>`;
     $('#manual').innerHTML = `<h2>수동 제어</h2>
       ${g('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join('') + b('data-identify', '화면 확인'))}
-      ${g('시연 화면 (wall)', b('data-ratio="21"', '21:9') + b('data-ratio="63"', '63:9') + b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))}
+      ${g('고객 차량 시선', [['auto', '자동 (시나리오대로)'], ['full', '전체'], ['cluster', '계기판 확대'], ['hu', 'HU 확대']].map(([k, n]) => b(`data-cam="${k}"`, n)).join(''))}
+      ${g('시연 화면 (21:9)', b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))}
       ${g('차량', b('data-a="ign"', '시동 ON/OFF') + b('data-a="drive"', '출발') + b('data-a="stop"', '정지') + b('data-a="clear"', '경고 해제'))}
       ${g('경고등', WARNS.map(([id, n, k]) => b(`data-warn="${id}"`, `${n} <i class="k${k}">${k}</i>`)).join(''))}
       ${g('헤드유닛', b('data-hu="show"', 'HU 팝업 다시') + b('data-hu="press"', 'HU 전화연결'))}
@@ -231,7 +231,7 @@
     manualState();
   }
   function manualState() {
-    document.querySelectorAll('[data-ratio]').forEach((x) => x.classList.toggle('on', +x.dataset.ratio === wall.ratio));
+    document.querySelectorAll('[data-cam]').forEach((x) => x.classList.toggle('on', x.dataset.cam === camView));
     const we = $('[data-wedit]'), wl = $('[data-wlabels]');
     if (we) we.classList.toggle('on', !!wall.edit);
     if (wl) wl.classList.toggle('on', !!wall.labels);
@@ -259,7 +259,7 @@
     else if (d.pick) { const [kind, key] = d.pick.split(':'); send('cmd', 'pick', { kind, key }); }
     else if (d.scene) { send('scene', d.scene); manualState(); }
     else if ('identify' in d) Link.send('stage-identify', {});
-    else if (d.ratio) setWall({ ratio: +d.ratio });
+    else if (d.cam) { camView = d.cam; Link.send('cam', { view: d.cam }); manualState(); }
     else if ('wedit' in d) setWall({ edit: !wall.edit });
     else if ('wlabels' in d) setWall({ labels: !wall.labels });
     else if ('wreset' in d) { if (confirm('현재 비율의 배치를 기본값으로 되돌릴까요?')) Link.send('wall', { reset: true }); }

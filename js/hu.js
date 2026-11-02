@@ -1,8 +1,14 @@
-/* Head unit (MM) of the customer's car, for the auditorium's left screen.
- * Shows the e-Care warning popup from the WNG master texts, the [전화연결]
- * button that places the MM inbound call to the call center, the call and
- * dispatch status; for outbound calls the customer's phone slides in.
- * The presenter's remote presses the button (Link 'hu' {action:'press'}). */
+/* Head unit (MM) of the customer's car.
+ * Home is the music screen; on a warning the e-Care popup from the WNG
+ * master texts with [전화연결], which places the MM inbound call to the call
+ * center; then the call and dispatch status. For outbound calls the
+ * customer's phone slides in. The control panel presses the button
+ * (Link 'hu' {action:'press'}).
+ *
+ *   hu.html              the head unit in its frame with captions (1920x1080)
+ *   hu.html?embed=1      the screen alone (1640x840), composited into the car
+ *                        interior by index.html
+ *   hu.html?overlay=1    only the customer's phone, over the car interior */
 (function () {
   'use strict';
 
@@ -11,10 +17,14 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = (n) => String(n).padStart(2, '0');
   const root = $('#root');
+  const q = new URLSearchParams(location.search);
+  const MODE = q.has('embed') ? 'embed' : q.has('overlay') ? 'overlay' : 'full';
+  document.body.classList.add(MODE);
+  const [BW, BH] = MODE === 'embed' ? [1640, 840] : [1920, 1080];
 
   function fit() {
-    const k = Math.min(innerWidth / 1920, innerHeight / 1080);
-    root.style.transform = `translate(${(innerWidth - 1920 * k) / 2}px, ${(innerHeight - 1080 * k) / 2}px) scale(${k})`;
+    const k = Math.min(innerWidth / BW, innerHeight / BH);
+    root.style.transform = `translate(${(innerWidth - BW * k) / 2}px, ${(innerHeight - BH * k) / 2}px) scale(${k})`;
   }
   addEventListener('resize', fit);
   fit();
@@ -29,6 +39,7 @@
   Link.on('say', (d) => { caption = { who: d.line.who, text: d.line.text, until: Date.now() + (d.line.dur || 4) * 1000 + 2500 }; });
   const show = () => { const c = current(); if (c) { reopen[c.id] = Date.now(); render(true); } };
   Link.on('hu', (d) => {
+    if (MODE === 'overlay') return;           // the screen instance handles the press
     if (d.action === 'show') show();
     if (d.action === 'press') press();
   });
@@ -87,7 +98,7 @@
     if (s.v === 'mini') body += `<div class="mini"><i></i>${esc(c.wng ? c.wng.name : c.warn.title)} 경고 · e-Care 연결 가능</div>`;
     if (s.v === 'calling') body = callScreen(c, false);
     if (s.v === 'incall') body = callScreen(c, true);
-    hu.innerHTML = bar + body;
+    hu.innerHTML = MODE === 'overlay' ? '' : bar + body;
     hu.classList.toggle('dim', !!s.phone);
     hu.querySelectorAll('canvas[data-ic]').forEach((cv) => {
       const g = cv.getContext('2d');
@@ -98,8 +109,18 @@
     tick();
   }
 
+  /* home: the music screen (side rail, sky, track title, playing waveform)
+   * with the e-Care state as a glass card over it */
+  const RAIL = [
+    ['home', '<path d="M12 3 3 10.5V21h6.5v-6h5v6H21V10.5z"/>'],
+    ['nav', '<path d="M21 3 3 10.6l7.6 2.8L13.4 21z"/>'],
+    ['music', '<path d="M9 17.5A2.5 2.5 0 1 1 6.5 15H9V5l11-2v12a2.5 2.5 0 1 1-2.5-2.5H20V7.4L11 9v8.5z"/>'],
+    ['phone', '<path d="M6.6 10.8a15.1 15.1 0 006.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 013 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>'],
+    ['apps', '<path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/>'],
+    ['set', '<path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.4-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4L10.7 6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.4 2.5-1a7.4 7.4 0 0 0 1.7 1l.3 2.7h4l.3-2.7a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/>'],
+  ];
+  const WAVE = 64;
   function home(c) {
-    let card = `<div class="card"><small>미디어</small><b>NEON</b><span>A2O LITE</span></div>`;
     let st = '';
     if (c && c.wcase === 'A' && c.contact > 0) {
       const parts = [E.CONTACT[c.contact], c.dispatch >= 0 ? `긴급출동 ${E.DISPATCH[c.dispatch]}` : '', c.dms >= 0 ? `${c.dealer} ${E.DMS[c.dms]}` : ''].filter(Boolean);
@@ -107,13 +128,32 @@
     } else if (c && c.wcase !== 'A' && c.dms >= 0) {
       st = `<div class="card st"><small>e-Care · 서비스센터</small><b>${esc(c.dealer)} ${E.DMS[c.dms]}</b><span>서비스센터에서 연락드립니다</span></div>`;
     } else if (c && c.contact === 0) {
-      st = `<div class="card warn"><small>차량 경고</small><b>${esc(c.wng ? c.wng.name : c.warn.title)}</b><span>${c.wcase === 'A' ? '주행 불가 · 콜센터 연결 가능' : '점검 필요'}</span></div>`;
+      st = `<div class="card warn"><small>차량 경고</small><b>${esc(c.wng ? c.wng.name : c.warn.title)}</b><span>${c.wcase === 'A' ? '주행 불가 · 고객 지원실 연결 가능' : '점검 필요'}</span></div>`;
     }
     const disp = c && c.dispatch >= 0 && c.dispatch < 3 ? `<div class="disp">🚚 <b>긴급출동 ${E.DISPATCH[c.dispatch]}</b> · ${c.dispatch === 0 ? '출동 차량 배정 중' : c.dispatch === 1 ? '도착 예정 12분' : '현장 도착 · 견인 준비'}</div>` : '';
-    return `<div class="scr home">${disp}<div class="map"><svg viewBox="0 0 1180 690"><path d="M120 690 C 300 520, 360 420, 560 360 S 860 250, 1180 140" stroke="#2f6fe0" stroke-width="18" fill="none" stroke-linecap="round" opacity="0.85"/><path d="M0 300 L1180 330 M420 0 L520 690 M820 0 L760 690" stroke="#1d2a3c" stroke-width="10"/><circle cx="560" cy="360" r="20" fill="#fff"/><circle cx="560" cy="360" r="11" fill="#2f6fe0"/></svg>
-      <div class="turn"><b>↗ 2.3 km</b><span>456번 지방도 · 직진</span></div></div>
-      <div class="side">${st}${card}<div class="card"><small>주행</small><b class="num" data-speed>0 km/h</b><span>GX 550 · 123가4567</span></div></div></div>`;
+    return `<div class="scr music">
+      <nav class="rail">${RAIL.map(([k, d]) => `<i class="${k === 'nav' ? 'on' : ''}"><svg viewBox="0 0 24 24">${d}</svg></i>`).join('')}</nav>
+      <div class="sky"><div class="ttl">essential;</div><div class="wave">${'<b></b>'.repeat(WAVE)}</div><div class="np">NEON · A2O LITE</div></div>
+      ${disp}${st ? `<div class="cards">${st}</div>` : ''}</div>`;
   }
+  // the playing waveform: a bright cluster of bars travels along a dotted line
+  let waveT0 = performance.now();
+  function wave(now) {
+    const bars = document.querySelectorAll('.wave b');
+    if (bars.length) {
+      const head = ((now - waveT0) / 1000 / 90) % 1 * WAVE;            // a 90 s track
+      bars.forEach((b, i) => {
+        const d = i - head;
+        const near = Math.exp(-(d * d) / 18);
+        const beat = 0.55 + 0.45 * Math.abs(Math.sin(now / 170 + i * 1.7) * Math.sin(now / 410 + i * 0.6));
+        const h = 10 + near * 46 * beat;
+        b.style.height = `${h.toFixed(1)}px`;
+        b.style.opacity = i < head ? 1 : 0.75;
+      });
+    }
+    requestAnimationFrame(wave);
+  }
+  requestAnimationFrame(wave);
 
   function popup(c) {
     const w = c.wng || { name: c.warn.title, case: 'A' };

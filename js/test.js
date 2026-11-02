@@ -1,4 +1,4 @@
-/* Monitor test mode for the demo wall (test.html), one 21:9 or 63:9 display.
+/* Monitor test mode for the demo wall (test.html), one 21:9 display.
  *
  *   test.html             console: wall preview from stills in the wall's own
  *                         layout, display size and per-panel readability,
@@ -7,68 +7,69 @@
  *                         test pattern with the panel outlines, stills,
  *                         readability ladder, black. Follows the console.
  *
- * The ratio is shared with wall.html and control.html (Link 'wall'). */
+ * The layout is the wall's own (js/walldef.js), as edited on wall.html. */
 (function () {
   'use strict';
 
   const $ = (s, el) => (el || document).querySelector(s);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const { H, RATIO, PANELS, layoutOf } = window.WallDef;
+  const { H, PANELS } = window.WallDef;
+  const layoutOf = () => window.WallDef.rects(window.WallDef.load());
   const OUT = new URLSearchParams(location.search).has('out');
   const app = $('#app');
 
   /* ---------------- shared state ---------------- */
-  const DEF = { mode: 'stills', step: 0, labels: true, ratio: 21, m: { 21: 5.0, 63: 14.0 }, dist: 18 };
+  const DEF = { mode: 'stills', step: 0, labels: true, m: 5.0, dist: 18 };
   let S = load();
   function load() {
     let v = null;
     try { v = JSON.parse(localStorage.getItem('test-state-v2')); } catch (e) { /* none */ }
     const s = Object.assign(JSON.parse(JSON.stringify(DEF)), v || {});
-    try { s.ratio = JSON.parse(localStorage.getItem('wall-ratio')) || s.ratio; } catch (e) { /* none */ }
+    if (typeof s.m !== 'number') s.m = DEF.m;
     return s;
   }
   function save() { try { localStorage.setItem('test-state-v2', JSON.stringify(S)); } catch (e) { /* private */ } }
   function set(patch) {
-    const ratioChanged = patch.ratio && patch.ratio !== S.ratio;
     Object.assign(S, patch);
     save();
     Link.send('test', S);
-    if (ratioChanged) { try { localStorage.setItem('wall-ratio', JSON.stringify(S.ratio)); } catch (e) { /* private */ } Link.send('wall', { ratio: S.ratio }); }
     render();
   }
   Link.on('test', (d) => { S = d; save(); render(); });
   Link.on('test-hello', () => { if (!OUT) Link.send('test', S); });
-  Link.on('wall', (d) => { if (d.ratio && d.ratio !== S.ratio) { S.ratio = d.ratio; save(); render(); } if (d.layout || d.reset) setTimeout(render, 100); });
+  Link.on('wall', (d) => { if (d.layout || d.reset) setTimeout(render, 100); });
 
   let STILLS = [];
   fetch('assets/test/stills/index.json').then((r) => r.json()).then((d) => { STILLS = d; render(); }).catch(() => {});
-  const still = (k) => { const s = STILLS[S.step]; return s ? `assets/test/stills/${S.ratio}/${s.key}_${k}.jpg` : ''; };
-  const W = () => RATIO[S.ratio].w;
+  const still = (k) => { const s = STILLS[S.step]; return s ? `assets/test/stills/${s.key}_${k}.jpg` : ''; };
+  const W = () => window.WallDef.W;
 
   /* ---------------- physical size and readability ---------------- */
   // Character height by visual angle: about 10 arc-minutes is readable with effort, 20 is comfortable.
   const need = () => S.dist * Math.tan((10 / 60) * Math.PI / 180);
   const good = () => S.dist * Math.tan((20 / 60) * Math.PI / 180);
   function phys() {
-    const w = S.m[S.ratio], h = w * H / W();
+    const w = S.m, h = w * H / W();
     return { w, h, inch: Math.sqrt(w * w + h * h) / 0.0254, px: w / W() };
   }
   // text that matters on each panel, in the page's own design pixels
+  // car: sizes in the photo's pixels at the overview; zoomed views enlarge them
   const TEXT = {
-    cockpit: [['속도 숫자', 90], ['계기 보조 글자', 22]],
-    hu: [['통화 자막', 52], ['경고 팝업 문구', 34]],
+    car: [['계기판 속도 (확대 시)', 120], ['HU 팝업 문구 (HU 확대 시)', 34]],
     flow: [['상자 이름', 32], ['통화 자막', 34], ['로그 · 패킷 라벨', 22]],
     ccw: [['팝업 제목', 18], ['화면 본문', 13], ['표 글자', 11]],
     talk: [['대화 말풍선', 22], ['보조 글자', 14]],
   };
+  // zoom of the car panel's camera for a row (cluster ≈ 3.4x the overview, the HU screen ≈ 0.26 x 4.1)
+  const CAR_ZOOM = [3.4 * 0.42, 0.255 * 4.1];
   function readability() {
-    const L = layoutOf(S.ratio), p = phys();
+    const L = layoutOf(), p = phys();
     return Object.keys(PANELS).map((k) => {
       const [, , w, h] = L[k];
       const d = PANELS[k].design;
       const scale = d ? Math.min(w / d[0], h / d[1]) : 1;
-      const rows = TEXT[k].map(([what, px]) => {
-        const cm = px * scale * p.px * 100;
+      const rows = TEXT[k].map(([what, px], i) => {
+        const cm = px * scale * (k === 'car' ? CAR_ZOOM[i] : 1) * p.px * 100;
         const v = cm / 100 >= good() ? 'ok' : cm / 100 >= need() ? 'mid' : 'bad';
         return { what, px, cm, v };
       });
@@ -79,7 +80,7 @@
   /* ---------------- the wall: stills, pattern, ladder ---------------- */
   // draws the display's content into box (a W x 1080 canvas scaled to it)
   function wall(box, opts) {
-    const L = layoutOf(S.ratio);
+    const L = layoutOf();
     box.innerHTML = `<div class="cv" style="width:${W()}px"></div>`;
     const cv = box.firstChild;
     // fit the canvas into the box (the output window letterboxes a display of another ratio)
@@ -135,7 +136,7 @@
     // label
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = '#fff'; g.font = '800 110px Barlow, Pretendard, sans-serif';
-    g.fillText(`${RATIO[S.ratio].name} WALL`, Wc / 2, H * 0.42);
+    g.fillText('21:9 WALL', Wc / 2, H * 0.42);
     g.font = '600 36px Barlow, Pretendard, sans-serif'; g.fillStyle = '#cfd6e2';
     if (p.out) {
       const dpr = devicePixelRatio || 1, sw = Math.round(innerWidth * dpr), sh = Math.round(innerHeight * dpr);
@@ -171,7 +172,7 @@
   /* ---------------- output window ---------------- */
   let outKey = '';
   function renderOut(force) {
-    const key = JSON.stringify([S.mode, S.step, S.labels, S.ratio, S.m, S.dist, STILLS.length, layoutOf(S.ratio)]);
+    const key = JSON.stringify([S.mode, S.step, S.labels, S.m, S.dist, STILLS.length, layoutOf()]);
     if (!force && key === outKey) return;
     outKey = key;
     document.body.className = 'out';
@@ -208,13 +209,13 @@
   }
 
   const GUIDE = `
-    <div class="g"><b>연결</b><p>맥 → C to HDMI 1개 → 21:9 또는 63:9 디스플레이(LED 컨트롤러). 맥에 외부 디스플레이 1대로 잡히면 됩니다. 아래 ③에서 <em>디스플레이 감지</em>로 해상도와 비율을 확인하세요. 21:9는 보통 2560×1080 · 3440×1440, 63:9는 컨트롤러 설정에 따라 예: 7560×1080 · 5760×822.</p></div>
+    <div class="g"><b>연결</b><p>맥 → C to HDMI 1개 → 21:9 디스플레이. 맥에 외부 디스플레이 1대로 잡히면 됩니다. 아래 ③에서 <em>디스플레이 감지</em>로 해상도와 비율을 확인하세요. 21:9는 보통 2560×1080 · 3440×1440. <em>1920×1080 같은 16:9로 나가면 디스플레이가 가로로 늘려서 글자가 넓적해집니다</em> — 반드시 21:9 해상도를 고르세요.</p></div>
     <div class="g"><b>맥 설정</b><p>시스템 설정 › 디스플레이: <em>확장</em>(미러링 아님), 해상도 “기본값” 또는 디스플레이 고유 해상도, 새로 고침 60Hz. 소리 출력 = HDMI 또는 현장 음향. 방해금지 · 화면보호기 · 잠자기 끄기, 충전기 연결.</p></div>
     <div class="g"><b>크롬</b><p>시연 화면(<code>wall.html</code>)을 외부 디스플레이에서 <em>F</em>로 전체화면. 소리가 클릭 없이 나오게 하려면 크롬을 <code>--autoplay-policy=no-user-gesture-required</code> 옵션으로 실행. 컨트롤 패널은 맥 화면이나 태블릿에서.</p></div>
-    <div class="g"><b>비율이 다를 때</b><p>디스플레이 비율이 21:9 · 63:9와 조금 다르면 위아래나 좌우에 검은 여백이 생깁니다. 배치 편집(<code>wall.html</code>에서 E)으로 패널을 옮기고 크기를 바꿀 수 있습니다.</p></div>`;
+    <div class="g"><b>비율이 다를 때</b><p>디스플레이 비율이 21:9와 조금 다르면 위아래나 좌우에 검은 여백이 생깁니다. 배치 편집(<code>wall.html</code>에서 E): 경계선을 끌면 옆 패널이 함께 줄고, 패널을 끌어 자리를 바꿉니다.</p></div>`;
   const CHECKS = [
     ['연결 · 신호', ['맥이 인식하는 해상도 · 비율 기록', '패턴의 원이 동그랗다 (늘어남 없음)', '네 모서리 · 노란 점선 · 패널 테두리가 다 보임', '흰 막대가 왼쪽 끝에서 오른쪽 끝까지 끊김 없이 지나감', '색 막대 · 회색 단계 구분됨']],
-    ['구성 · 가독성', ['21:9 / 63:9 중 사용할 비율 결정', '패널 배치 확정 (필요하면 배치 편집)', '맨 뒷줄에서 HU · 흐름 자막 읽힘', '맨 뒷줄에서 흐름 상자 이름 읽힘', '상담원 화면(CCW)에서 보여 줄 부분이 보임', '조명 아래 밝기 · 반사']],
+    ['구성 · 가독성', ['패널 배치 확정 (필요하면 배치 편집)', '맨 뒷줄에서 HU · 흐름 자막 읽힘', '맨 뒷줄에서 흐름 상자 이름 읽힘', '상담원 화면(CCW)에서 보여 줄 부분이 보임', '조명 아래 밝기 · 반사']],
     ['소리 · 진행', ['왼쪽 · 오른쪽 톤 위치 맞음', '상담원 · 고객 음성 크기 적당', '컨트롤 패널 연결 (같은 PC 또는 릴레이)', '① 인바운드 시나리오 끝까지', '② 아웃바운드 시나리오 끝까지']],
   ];
 
@@ -227,21 +228,20 @@
     const scr = screens ? screens.map((s, i) => `<tr><td>${i + 1}${s.isPrimary ? ' · 기본' : ''}${s.isInternal ? ' · 내장' : ''}</td><td>${esc(s.label || '')}</td><td>${s.width}×${s.height}</td><td>${s.devicePixelRatio}</td><td>${(s.width / s.height).toFixed(3)} (${nearest(s.width / s.height)})</td>
       <td><button data-open="test:${i}">테스트 출력</button><button data-open="wall:${i}">시연 화면</button></td></tr>`).join('') : '';
     app.innerHTML = `
-    <header><b>모니터 테스트 모드</b><span>시연 화면 (21:9 · 63:9) 사전 점검</span><em id="lk">${Link.transport === 'lan' ? '● LAN 릴레이' : '● 이 PC'}</em></header>
+    <header><b>모니터 테스트 모드</b><span>시연 화면 (21:9) 사전 점검</span><em id="lk">${Link.transport === 'lan' ? '● LAN 릴레이' : '● 이 PC'}</em></header>
     <main>
-      <section class="card wide"><h2>① 시연 화면 미리보기 <small>${RATIO[S.ratio].name} · 시연 화면의 현재 배치 · 장면 스틸</small></h2>
+      <section class="card wide"><h2>① 시연 화면 미리보기 <small>21:9 · 시연 화면의 현재 배치 · 장면 스틸</small></h2>
         <div class="wallwrap"><div class="prev" style="aspect-ratio:${W()}/${H}"></div></div>
         <div class="bar">
-          <div class="seg">${[['21', '21:9'], ['63', '63:9']].map(([r, n]) => `<button data-ratio="${r}" class="${S.ratio === +r ? 'on' : ''}">${n}</button>`).join('')}</div>
           <div class="seg">${[['pattern', '1 패턴'], ['stills', '2 스틸'], ['read', '3 가독성'], ['black', '0 검정']].map(([m, n]) => `<button data-mode="${m}" class="${S.mode === m ? 'on' : ''}">${n}</button>`).join('')}</div>
           <div class="seg"><button data-step="-1">◀</button><span class="stp"><b>${S.step + 1}/${STILLS.length || 0} ${esc(st.title)}</b><small>${esc(st.what || '')}</small></span><button data-step="1">▶</button></div>
           <div class="seg"><button data-labels class="${S.labels ? 'on' : ''}">라벨</button></div>
         </div>
-        <div class="steps">${STILLS.map((s, i) => `<button data-go="${i}" class="${i === S.step ? 'on' : ''}"><img src="assets/test/stills/${S.ratio}/${s.key}_flow.jpg" alt=""><span>${i + 1}. ${esc(s.title)}</span></button>`).join('')}</div>
+        <div class="steps">${STILLS.map((s, i) => `<button data-go="${i}" class="${i === S.step ? 'on' : ''}"><img src="assets/test/stills/${s.key}_car.jpg" alt=""><span>${i + 1}. ${esc(s.title)}</span></button>`).join('')}</div>
       </section>
 
       <section class="card"><h2>② 디스플레이 크기 · 가독성 <small>실측해서 입력</small></h2>
-        <div class="vrow"><b>가로 폭</b><label><input data-m type="number" step="0.1" value="${S.m[S.ratio]}"> m</label><b>맨 뒷줄</b><label><input data-dist type="number" step="1" value="${S.dist}"> m</label></div>
+        <div class="vrow"><b>가로 폭</b><label><input data-m type="number" step="0.1" value="${S.m}"> m</label><b>맨 뒷줄</b><label><input data-dist type="number" step="1" value="${S.dist}"> m</label></div>
         <p class="sz">${p.w.toFixed(1)} × ${p.h.toFixed(2)} m · 대각 <b>${Math.round(p.inch)}″</b> · 캔버스 1px = ${(p.px * 1000).toFixed(2)}mm</p>
         <p class="note">맨 뒷줄 ${S.dist}m 기준 글자 높이: 최소 ${(need() * 100).toFixed(1)}cm, 편하게 ${(good() * 100).toFixed(1)}cm</p>
         <table><tr><th>패널</th><th>크기</th><th>확대</th><th>주요 글자 → 화면 위 높이</th></tr>
@@ -288,7 +288,6 @@
       if (!b) return;
       const d = b.dataset;
       if (d.mode) set({ mode: d.mode });
-      else if (d.ratio) set({ ratio: +d.ratio });
       else if (d.step) set({ step: Math.max(0, Math.min(STILLS.length - 1, S.step + +d.step)) });
       else if (d.go) set({ step: +d.go, mode: S.mode === 'read' ? 'read' : 'stills' });
       else if ('labels' in d) set({ labels: !S.labels });
@@ -296,7 +295,7 @@
       else if (d.open) {
         const [what, i] = d.open.split(':');
         const s = i != null && screens ? screens[+i] : null;
-        if (what === 'test') openOn('test.html?out=1', 'test-out', s); else openOn(`wall.html?ratio=${S.ratio}`, 'wall', s);
+        if (what === 'test') openOn('test.html?out=1', 'test-out', s); else openOn('wall.html', 'wall', s);
       } else if (d.tone) tone(+d.tone);
       else if ('voice' in d) new Audio('assets/audio/ecare_v4_02_agent.mp3').play();
       else if (d.ck) { const [k, v] = d.ck.split(':'); const c = Object.assign({}, S.checks); c[k] = c[k] === v ? '' : v; set({ checks: c }); }
@@ -305,15 +304,15 @@
     });
     app.addEventListener('change', (e) => {
       const d = e.target.dataset, v = e.target.value;
-      if ('m' in d) { const m = Object.assign({}, S.m); m[S.ratio] = +v || 1; set({ m }); }
+      if ('m' in d) set({ m: +v || 1 });
       else if ('dist' in d) set({ dist: +v || 1 });
       else if ('notes' in d) set({ notes: v });
     });
   }
   function copy() {
     const p = phys();
-    const lines = [`[모니터 테스트] ${new Date().toLocaleString('ko-KR')}`, `비율 ${RATIO[S.ratio].name} · ${p.w.toFixed(1)}×${p.h.toFixed(2)}m (${Math.round(p.inch)}″) · 맨 뒷줄 ${S.dist}m`];
-    const L = layoutOf(S.ratio);
+    const lines = [`[모니터 테스트] ${new Date().toLocaleString('ko-KR')}`, `21:9 · ${p.w.toFixed(1)}×${p.h.toFixed(2)}m (${Math.round(p.inch)}″) · 맨 뒷줄 ${S.dist}m`];
+    const L = layoutOf();
     lines.push(`배치: ${Object.keys(PANELS).map((k) => `${PANELS[k].t} ${L[k].join(',')}`).join(' / ')}`);
     readability().forEach((r) => lines.push(`  ${PANELS[r.k].t}: ${r.rows.map((x) => `${x.what} ${x.cm.toFixed(1)}cm${x.v === 'ok' ? '✓' : x.v === 'mid' ? '△' : '✗'}`).join(', ')}`));
     if (screens) lines.push(`디스플레이: ${screens.map((s, i) => `${i + 1}) ${s.label || ''} ${s.width}×${s.height}@${s.devicePixelRatio}`).join(', ')}`);

@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const TOP = 0, HEIGHT = 240, WIDTH = 1672;      // windshield band and the side glass
+  const TOP = 0, HEIGHT = 240, WIDTH = 2300;      // windshield band and the side glass
   const Q = 0.36;
   const F = 540;            // focal length, stage px
   const CAM_H = 1.3;        // eye height, m

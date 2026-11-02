@@ -1,29 +1,40 @@
-/* Demo wall definition (21:9 = 2560x1080, the usual ultrawide signal; 63:9 = 7560x1080) shared by wall.html and the monitor test mode:
- * panels, canvas sizes and default layouts (canvas pixels, height 1080).
- *  21:9 — top row the customer side and the conversation, bottom row the two
- *         detailed screens (flow 16:9, CCW 2:1) at the larger size;
- *  63:9 — one row in story order: customer → systems → support center.
- * design: the size each page is drawn for, to estimate text size on screen. */
+/* Demo wall definition shared by wall.html, the control panel and the monitor
+ * test mode: a 2560x1080 (21:9) canvas tiled into four panels.
+ *
+ * The layout is two columns split at cx; each column has two rows split at
+ * ly (left) and ry (right); slots say which panel sits where. Moving a split
+ * grows one panel and shrinks its neighbour, so panels never overlap.
+ * ideal: the panel content's own ratio, used to snap the splits.
+ * design: the size a page is drawn for, to estimate text size on screen. */
 (function () {
   'use strict';
-  const H = 1080;
-  const RATIO = { 21: { w: 2560, name: '21:9' }, 63: { w: 7560, name: '63:9' } };
+  const W = 2560, H = 1080, GAP = 10;
   const PANELS = {
-    cockpit: { src: 'index.html?stage=1', t: '고객 차량 · 계기판', design: [1920, 1080] },
-    hu: { src: 'hu.html', t: '헤드유닛 (HU)', design: [1920, 1080] },
-    flow: { src: 'flow.html', t: '데이터 흐름', design: [1920, 1080] },
-    talk: { src: 'ccw.html?view=transcript&stage=1', t: '상담 대화', design: null },
-    ccw: { src: 'ccw.html?view=app&stage=1', t: 'e-Care 고객지원실 (CCW)', design: [1920, 960] },
+    car: { src: 'index.html?stage=1&hu=1', t: '고객 차량 · 계기판 · 헤드유닛', ideal: 2300 / 941, design: [2300, 941] },
+    flow: { src: 'flow.html', t: '데이터 흐름', ideal: 16 / 9, design: [1920, 1080] },
+    ccw: { src: 'ccw.html?view=app&stage=1', t: 'e-Care 고객지원실 (CCW)', ideal: 2, design: [1920, 960] },
+    talk: { src: 'ccw.html?view=transcript&stage=1', t: '상담 대화', ideal: null, design: null },
   };
-  const DEFAULTS = {
-    21: { cockpit: [0, 0, 860, 472], hu: [860, 0, 860, 472], talk: [1720, 0, 840, 472], flow: [0, 472, 1280, 608], ccw: [1280, 472, 1280, 608] },
-    63: { cockpit: [0, 0, 1680, 1080], hu: [1680, 0, 1440, 1080], flow: [3120, 0, 1800, 1080], ccw: [4920, 0, 1800, 1080], talk: [6720, 0, 840, 1080] },
-  };
-  /** the layout saved in this browser for a ratio, over the defaults */
-  function layoutOf(r) {
-    let saved = {};
-    try { saved = JSON.parse(localStorage.getItem(`wall-layout-${r}`)) || {}; } catch (e) { /* none */ }
-    return Object.assign({}, DEFAULTS[r], saved);
+  /* default: the car (wide) with the conversation under it on the left — the
+   * customer's side; the data flow (16:9) over the support center on the right */
+  const DEFAULT = { cx: 1480, ly: 610, ry: 610, slots: { lt: 'car', lb: 'talk', rt: 'flow', rb: 'ccw' } };
+  const KEY = 'wall-layout-v3';
+
+  function load() {
+    try {
+      const v = JSON.parse(localStorage.getItem(KEY));
+      if (v && v.slots && Object.values(v.slots).sort().join() === Object.keys(PANELS).sort().join()) return v;
+    } catch (e) { /* none saved */ }
+    return JSON.parse(JSON.stringify(DEFAULT));
   }
-  window.WallDef = { H, RATIO, PANELS, DEFAULTS, layoutOf };
+  function save(L) { try { localStorage.setItem(KEY, JSON.stringify(L)); } catch (e) { /* private mode */ } }
+  /** panel -> [x, y, w, h] on the canvas, gutters taken out */
+  function rects(L) {
+    const g = GAP / 2;
+    const cell = { lt: [0, 0, L.cx - g, L.ly - g], lb: [0, L.ly + g, L.cx - g, H - L.ly - g], rt: [L.cx + g, 0, W - L.cx - g, L.ry - g], rb: [L.cx + g, L.ry + g, W - L.cx - g, H - L.ry - g] };
+    const out = {};
+    for (const s in L.slots) out[L.slots[s]] = cell[s].map(Math.round);
+    return out;
+  }
+  window.WallDef = { W, H, GAP, PANELS, DEFAULT, load, save, rects };
 })();
