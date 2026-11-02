@@ -86,14 +86,19 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   const ips = Object.values(networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
-  console.log(`e-Care demo relay on port ${PORT}`);
+  console.log(`e-Care 시연 릴레이 · 포트 ${PORT} — 같은 네트워크의 모든 PC · 아이패드에서 아래 주소로 여세요`);
   for (const ip of ips.length ? ips : ['localhost']) {
-    console.log(`  vehicle     http://${ip}:${PORT}/`);
-    console.log(`  call center http://${ip}:${PORT}/ccw.html   (agent screen only: /ccw.html?view=app)`);
-    console.log(`  transcript  http://${ip}:${PORT}/ccw.html?view=transcript`);
-    console.log(`  data flow   http://${ip}:${PORT}/flow.html`);
-    console.log(`  stage       http://${ip}:${PORT}/stage.html?screen=left | center | right   (rehearsal: ?screen=all)`);
-    console.log(`  control     http://${ip}:${PORT}/control.html   (customer head unit on its own screen: /stage.html?screen=hu)`);
-    console.log(`  monitor test http://${ip}:${PORT}/test.html`);
+    const u = (path) => `http://${ip}:${PORT}/${path}`;
+    console.log('');
+    console.log(`  시연 화면 (4분할 · 차량 포함)   ${u('wall.html')}`);
+    console.log(`  컨트롤 패널 (아이패드 가능)     ${u('control.html')}`);
+    console.log(`  데이터 흐름 (단독 화면)         ${u('flow.html')}`);
+    console.log(`  상담원 화면 CCW (단독)          ${u('ccw.html?view=app')}`);
+    console.log(`  상담 대화 (아이패드 가능)       ${u('ccw.html?view=transcript')}`);
+    console.log(`  고객 차량 단독 (wall 대신)      ${u('index.html?stage=1&hu=1')}`);
+    console.log(`  모니터 테스트                   ${u('test.html')}`);
   }
+  console.log('');
+  console.log('  ※ 차량 시뮬레이터(wall.html 또는 index.html)는 전체 기기 중 한 곳에서만 엽니다.');
+  console.log('  ※ localhost · Vercel 주소로 연 창은 다른 기기와 동기화되지 않습니다. 위 IP 주소로 여세요.');
 });
