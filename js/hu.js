@@ -125,12 +125,12 @@
   const WAVE = 64;
   function home(c) {
     let st = '';
+    // the head unit shows only what the customer is told: no dispatch details and no
+    // internal workflow states (상담 완료, 이관 완료, DMS status)
     if (c && c.wcase === 'A' && c.contact > 0) {
-      // the head unit shows no emergency dispatch information
-      const parts = [E.CONTACT[c.contact], c.dms >= 0 ? `${c.dealer} ${E.DMS[c.dms]}` : ''].filter(Boolean);
-      st = `<div class="card st"><small>e-Care</small><b>${parts.join(' · ')}</b><span>상담센터 연결 완료</span></div>`;
+      st = '';
     } else if (c && c.wcase !== 'A' && c.dms >= 0) {
-      st = `<div class="card st"><small>e-Care · 서비스센터</small><b>${esc(c.dealer)} ${E.DMS[c.dms]}</b><span>서비스센터에서 연락드립니다</span></div>`;
+      st = `<div class="card st"><small>e-Care · 서비스센터</small><b>${esc(c.dealer)}</b><span>서비스센터에서 연락드립니다</span></div>`;
     } else if (c && c.contact === 0) {
       st = `<div class="card warn"><small>차량 경고</small><b>${esc(c.wng ? c.wng.name : c.warn.title)}</b><span>${c.wcase === 'A' ? '주행 불가 · 고객 지원실 연결 가능' : '점검 필요'}</span></div>`;
     }

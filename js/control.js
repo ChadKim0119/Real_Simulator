@@ -62,7 +62,7 @@
       if (kind === 'wait') await wait(a);
       else if (kind === 'ign') { if (!veh || (veh.ign === 'on') !== a) { send('act', 'ign'); await wait(a ? 6500 : 4000); } }
       else if (kind === 'reset') {
-        send('act', 'clear'); send('act', 'careReset'); send('cmd', 'noAnswer', { on: false });
+        Link.send('hush', {}); send('act', 'clear'); send('act', 'careReset'); send('cmd', 'noAnswer', { on: false });
         await wait(700);
       } else send(kind, a, b);
     }
@@ -262,7 +262,7 @@
     if (!t || t.disabled) return;
     const d = t.dataset;
     if (t.id === 'next') go(cur + 1);
-    else if (t.id === 'prev') { cur = Math.max(-1, cur - 1); steps(); }
+    else if (t.id === 'prev') { Link.send('hush', {}); cur = Math.max(-1, cur - 1); steps(); }
     else if (t.id === 'auto') { auto = !auto; steps(); if (auto && !busy) go(cur + 1); }
     else if (d.sc) pick(d.sc);
     else if (d.step) go(+d.step);
@@ -279,7 +279,7 @@
     else if (d.hu) send('hu', d.hu);
     else if (d.c) send('cmd', d.c, d.c === 'closeGeneral' ? {} : undefined);
     else if ('noans' in d) send('cmd', 'noAnswer', { on: !(snap && snap.noAnswer) });
-    else if ('reset' in d) { if (confirm('차량 경고 · e-Care 시나리오를 초기화할까요?')) { run([['reset']]); cur = -1; auto = false; camView = 'auto'; Link.send('cam', { view: 'auto' }); steps(); manualState(); } }
+    else if ('reset' in d) { if (confirm('차량 경고 · e-Care 시나리오를 초기화할까요?')) { Link.send('hush', {}); run([['reset']]); cur = -1; auto = false; camView = 'auto'; Link.send('cam', { view: 'auto' }); steps(); manualState(); } }
   });
   addEventListener('keydown', (e) => {
     if (e.target.matches('input,textarea')) return;

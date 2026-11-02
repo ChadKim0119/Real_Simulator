@@ -478,3 +478,5 @@ body.stage #showUi, body.stage #toast { display: none !important; }
 /* the driver's hand over the head unit (alpha video) */
 #huHand { position: absolute; left: 0; top: 0; z-index: 3; transform-origin: 0 0; pointer-events: none; display: none; }
 #huHand.on { display: block; }
+/* climate band of the real 14" unit, high resolution, under the head unit screen */
+#huBand { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 1; pointer-events: none; user-select: none; }

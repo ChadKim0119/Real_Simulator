@@ -62,7 +62,20 @@
   Link.on('ecare', (d) => { snap = d; render(); });
   Link.on('veh', (d) => { veh = d; lastVeh = Date.now(); });
   Link.on('ccw-open-case', () => { if (VIEW !== 'transcript' && cam.to < 0.5) camTo(1, 2600); render(true); });
-  Link.on('say', (d) => { if (VIEW !== 'transcript') speak(d.line); });
+  // the control panel went back a step or reset: stop the voice, and stay quiet for
+  // the rest of that call (a new call, line 0, speaks again)
+  let hushed = null;
+  Link.on('hush', () => {
+    Object.values(audios).forEach((a) => { try { a.pause(); a.currentTime = 0; } catch (e) { /* not loaded */ } });
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    hushed = true;
+  });
+  Link.on('say', (d) => {
+    if (VIEW === 'transcript') return;
+    if (hushed && d.index > 0) return;
+    hushed = null;
+    speak(d.line);
+  });
   Link.on('ccw-noise', (d) => setNoise(d.on == null ? !noise.on : d.on));
   Link.on('@transport', () => conn());
   Link.send('hello', { screen: VIEW === 'transcript' ? 'transcript' : 'ccw' });

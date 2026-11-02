@@ -104,13 +104,22 @@ body.embed #root { width: 1920px; height: 622px; background: #000; }
 body.embed .label, body.embed #cap, body.embed #phone { display: none; }
 body.embed #hu { left: 0; top: 0; width: 1920px; height: 622px; border: 0; border-radius: 0; box-shadow: none; }
 /* the wide, short screen: a flatter popup and call screen */
-body.embed .pop { width: 1480px; padding: 26px 46px 22px; top: 54%; }
-body.embed .pop .hd canvas { width: 84px; height: 84px; }
-body.embed .pop .hd b { font-size: 44px; }
-body.embed .pop p { margin-top: 14px; font-size: 30px; line-height: 1.38; }
-body.embed .pop .btns { margin-top: 18px; }
-body.embed .pop button { height: 84px; font-size: 36px; }
-body.embed .pop .foot { margin-top: 12px; font-size: 21px; }
+/* the 14" screen: a compact popup like the car's own (about half the width), its
+   button row fixed where the driver's hand (hand_call.webm) touches [전화연결] */
+body.embed .pop { top: auto; bottom: 114px; width: 1040px; transform: translateX(-50%); padding: 24px 40px 28px; border-radius: 22px; background: rgba(24, 27, 34, 0.97); border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06); animation-name: popinB; }
+body.embed .pop.b { border-color: rgba(255, 255, 255, 0.1); }
+@keyframes popinB { from { transform: translate(-50%, 4%) scale(0.97); opacity: 0; } }
+body.embed .pop .hd { gap: 18px; }
+body.embed .pop .hd canvas { width: 62px; height: 62px; }
+body.embed .pop .hd > div { display: flex; align-items: center; gap: 16px; }
+body.embed .pop .hd b { font-size: 38px; font-weight: 700; }
+body.embed .pop .hd span { margin-top: 0; font-size: 20px; padding: 4px 12px; border-radius: 8px; }
+body.embed .pop p { margin-top: 14px; font-size: 27px; line-height: 1.42; color: #d3d9e2; }
+body.embed .pop .btns { margin-top: 20px; gap: 18px; }
+body.embed .pop button { flex: 1; height: 80px; border-radius: 14px; font-size: 31px; font-weight: 700; background: #2c323d; }
+body.embed .pop button.call { flex: 1; background: #1f9d58; }
+body.embed .pop button.call svg { width: 36px; height: 36px; }
+body.embed .pop .foot { display: none; }
 body.embed .callscr { padding: 60px 120px 30px; }
 body.embed .callscr .ctl { grid-template-columns: repeat(3, 130px); gap: 18px 44px; }
 body.embed .callscr .ctl i { width: 130px; height: 130px; margin-bottom: 8px; }
@@ -153,3 +162,5 @@ body.overlay .label, body.overlay #hu, body.overlay #cap { display: none; }
 body.overlay #phone { visibility: hidden; transition: transform 0.8s cubic-bezier(.2, .9, .3, 1), visibility 0s 0.8s; }
 body.overlay #phone.on { visibility: visible; transition: transform 0.8s cubic-bezier(.2, .9, .3, 1), visibility 0s; }
 #hu:has(.pop) .music .cards { display: none; }
+/* behind a popup the home screen steps back, as the car's own screen does */
+#hu:has(.pop) .music .sky > *, #hu:has(.pop) .music .rail { opacity: 0.35; transition: opacity 0.3s; }

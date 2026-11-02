@@ -11,6 +11,9 @@
   // (the 14-inch display: a wide picture area over the climate bar and the knobs)
   const HU_SCREEN = { x: 1191, y: 117, w: 512, h: 166, design: [1920, 622] };
   const HU_VIEW = { cx: 1447, cy: 262, w: 620, h: 350 };
+  // the climate band under the screen, from a photo of the real 14" unit: a separate
+  // high-resolution layer (hu_band.webp, BAND.k pixels per plate pixel) so it stays sharp
+  const BAND = { x: 1186, y: 280, k: 3.6, src: 'assets/hu_band.webp' };
   const HAND_CONTACT = 1.35, HAND_AR = 1680 / 720;   // hand_call.webm: fingertip on the button at this second; aspect of the view it was shot on
   // 10-speed automatic: engine rpm per km/h in each gear
   const GEAR_FACTOR = [0, 142, 90, 64, 48, 38, 31, 26, 21, 17.5, 15];
@@ -137,8 +140,12 @@
     // body vibration from the road; a touch of engine shake at idle
     const vf = clamp(st.speed / 100, 0, 1.2);
     const idle = st.engine && st.speed < 1 ? 0.12 : 0;
-    const shakeX = (Math.sin(t * 31.7) * 0.5 + Math.sin(t * 17.3) * 0.5) * (0.35 * vf + idle);
-    const shakeY = (Math.sin(t * 23.1) * 0.6 + Math.sin(t * 41.9) * 0.4) * (0.45 * vf + idle) + Math.sin(t * 1.7) * 0.6 * vf;
+    // close up on a screen (cluster or head unit) the shake would make its text shimmer:
+    // it fades out there, and a still camera sits on whole pixels
+    const calm = 1 - smooth(0.05, 0.6, Math.max(z, cam.h));
+    let shakeX = (Math.sin(t * 31.7) * 0.5 + Math.sin(t * 17.3) * 0.5) * (0.35 * vf + idle) * calm;
+    let shakeY = ((Math.sin(t * 23.1) * 0.6 + Math.sin(t * 41.9) * 0.4) * (0.45 * vf + idle) + Math.sin(t * 1.7) * 0.6 * vf) * calm;
+    const still = !cam.dur && !cam.hdur;
     // never reveal the edge of the photo when it is large enough to fill the view
     const vw = window.innerWidth, vh = window.innerHeight;
     let tx = vx - cx * s, ty = vy - cy * s;
@@ -148,15 +155,26 @@
     tx = clamp(tx, Math.min(bx0, 0), Math.max(bx0, 0));
     if (IMG_H * s >= vh) ty = clamp(ty, vh - IMG_H * s, 0);
     else ty = clamp(ty, 0, Math.max(0, L.area.y1 - IMG_H * s));   // short picture: no gap at the top
+    if (still) { tx = Math.round(tx); ty = Math.round(ty); shakeX = Math.round(shakeX); shakeY = Math.round(shakeY); }
     stage.style.transform = `translate3d(${(tx + shakeX).toFixed(2)}px, ${(ty + shakeY).toFixed(2)}px, 0) scale(${s.toFixed(5)})`;
     // the head unit sits outside the stage layer (which is rasterized once, at one scale),
     // so it stays sharp when the camera closes in: it follows the same transform here
     if (huLayer) {
       const hk = s * huLayer.k;
-      const t3 = `translate3d(${(tx + shakeX + HU_SCREEN.x * s).toFixed(2)}px, ${(ty + shakeY + HU_SCREEN.y * s).toFixed(2)}px, 0)`;
-      huLayer.scr.style.transform = `${t3} scale(${hk.toFixed(5)})`;
-      huLayer.glass.style.transform = `${t3} scale(${s.toFixed(5)})`;
-      huLayer.scr.style.filter = z > 0.05 ? `brightness(${(1 - 0.55 * smooth(0.25, 1, z) * (1 - cam.h)).toFixed(3)})` : '';
+      let hx = tx + shakeX + HU_SCREEN.x * s, hy = ty + shakeY + HU_SCREEN.y * s;
+      if (still) { hx = Math.round(hx); hy = Math.round(hy); }
+      const t3 = `translate3d(${hx.toFixed(2)}px, ${hy.toFixed(2)}px, 0)`;
+      const tr = `${t3} scale(${hk.toFixed(5)})`;
+      if (tr !== huLayer.lastTr) {
+        huLayer.lastTr = tr;
+        huLayer.scr.style.transform = tr;
+        huLayer.glass.style.transform = `${t3} scale(${s.toFixed(5)})`;
+        let bx = tx + shakeX + BAND.x * s, by = ty + shakeY + BAND.y * s;
+        if (still) { bx = Math.round(bx); by = Math.round(by); }
+        huLayer.band.style.transform = `translate3d(${bx.toFixed(2)}px, ${by.toFixed(2)}px, 0) scale(${(s / BAND.k).toFixed(5)})`;
+      }
+      const fl = z > 0.05 ? `brightness(${(1 - 0.55 * smooth(0.25, 1, z) * (1 - cam.h)).toFixed(2)})` : '';
+      if (fl !== huLayer.lastFl) { huLayer.lastFl = fl; huLayer.scr.style.filter = fl; }
       if (huLayer.hand) huLayer.hand(tx + shakeX, ty + shakeY, s);
     }
 
@@ -504,9 +522,13 @@
     Object.assign(glare.style, { width: `${HU_SCREEN.w}px`, height: `${HU_SCREEN.h}px` });
     huShade = document.createElement('div');
     huShade.id = 'huShade';
-    stage.after(scr, glare);
+    const band = document.createElement('img');
+    band.id = 'huBand';
+    band.src = BAND.src;
+    band.alt = '';
+    stage.after(band, scr, glare);
     stage.appendChild(huShade);
-    huLayer = { scr, glass: glare, k };
+    huLayer = { scr, glass: glare, band, k };
     const ov = document.createElement('iframe');
     ov.id = 'huPhone';
     ov.src = 'hu.html?overlay=1';
