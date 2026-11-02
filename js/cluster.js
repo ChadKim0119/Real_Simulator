@@ -1137,6 +1137,28 @@
         if (st.redActive.has(w.id)) { if (blink) SimIcons.drawIcon(ctx, w.id, AMBER_X[i], LAMP_Y, 24, RED, RED_GLOW); }
         else if (all || st.amberActive.has(w.id)) SimIcons.drawIcon(ctx, w.id, AMBER_X[i], LAMP_Y, 24, AMBER, AMBER_GLOW);
       });
+      // turn signals at both ends of the lamp row: both blink with the hazard lights
+      if (all || st.hazOn) {
+        ctx.save();
+        ctx.fillStyle = GREEN;
+        ctx.shadowColor = GREEN_GLOW;
+        ctx.shadowBlur = 14;
+        // either side of the temperature · clock row, clear of the steering wheel rim
+        const y = 166;
+        [[482, -1], [910, 1]].forEach(([x, d]) => {
+          ctx.beginPath();
+          ctx.moveTo(x + d * 13, y);
+          ctx.lineTo(x + d * 1, y - 11);
+          ctx.lineTo(x + d * 1, y - 5);
+          ctx.lineTo(x - d * 12, y - 5);
+          ctx.lineTo(x - d * 12, y + 5);
+          ctx.lineTo(x + d * 1, y + 5);
+          ctx.lineTo(x + d * 1, y + 11);
+          ctx.closePath();
+          ctx.fill();
+        });
+        ctx.restore();
+      }
       if (all || st.cruise) SimIcons.drawIcon(ctx, 'acc', 266, 262, 24, GREEN, GREEN_GLOW);
       if (all || st.cruise) SimIcons.drawIcon(ctx, 'cruise', 266, 296, 22, GREEN, GREEN_GLOW);
     }

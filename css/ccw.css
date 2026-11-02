@@ -471,3 +471,6 @@ body.stage #hud { display: none; }
 .tr-scripts h3 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .tr-scripts h3 .inuse { font-size: 12px; color: #7fe7a8; }
 .tr-scripts h3 .usebtn { border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); color: #dfe6ee; font: 600 12px "Pretendard", sans-serif; padding: 5px 10px; border-radius: 7px; cursor: pointer; }
+/* the conversation panel: only the tabs and the conversation */
+.tr-wrap.solo { grid-template-columns: 1fr; }
+.tr-wrap.solo .tr-list { max-width: 1400px; width: 100%; margin: 0 auto; }

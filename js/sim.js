@@ -52,7 +52,7 @@
     speed: 0, accel: 0, gear: 'P', gearNum: 1, shiftT: 0,
     mode: 'park', holdT: 0, cruise: false, setSpeed: 80, limit: 80, eco: false,
     odoMeters: 0, odo: 4236.2, range: 455, fuel: 0.62, outside: 18, coolant: 40,
-    redActive: new Set(), amberActive: new Set(), popup: null, clock: '7:17', ampm: 'AM',
+    redActive: new Set(), amberActive: new Set(), popup: null, hazard: false, hazOn: false, hazT0: 0, clock: '7:17', ampm: 'AM',
     modeTitle: 'DRIVE MODE', modes: ['ECO', 'NORMAL', 'COMFORT', 'SPORT S', 'SPORT S+'], modeIndex: 1,
     music: { title: 'NEON', artist: 'A2O LITE', single: 'Debut Single · 2026', len: 208, pos: 0 },
     wheel: 0, yawErr: 0, laneOffset: 0, pitch: 0, bump: 0, pendingDrive: false,
@@ -501,7 +501,30 @@
   const director = new ECare.Director(() => st);
   // the customer has pulled over on the shoulder by the time the agent calls
   director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차 · e-Care 상담센터 발신'); } };
-  director.hooks.stop = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차 · 비상등'); } };
+  director.hooks.stop = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차'); } };
+  // hazard lights: on when the call says the customer switched them on (director), or from
+  // the control panel; both turn arrows on the cluster, the console button and the relay tick
+  const HAZ_BTN = { x: 1452, y: 491, w: 40, h: 48 };
+  const hazBtn = document.createElement('div');
+  hazBtn.id = 'hazBtn';
+  Object.assign(hazBtn.style, { left: `${HAZ_BTN.x}px`, top: `${HAZ_BTN.y}px`, width: `${HAZ_BTN.w}px`, height: `${HAZ_BTN.h}px` });
+  hazBtn.innerHTML = '<svg viewBox="0 0 40 48"><path d="M20 15.5 L29.5 32 H10.5 Z M20 20.6 L25.3 29.8 H14.7 Z" fill-rule="evenodd"/></svg>';
+  stage.appendChild(hazBtn);
+  function setHazard(on) {
+    on = !!on;
+    if (on === st.hazard) return;
+    st.hazard = on;
+    st.hazT0 = now();
+    if (on) { toast('비상등 점등'); hazLookUntil = Date.now() + 4200; }
+  }
+  director.hooks.hazard = (c, on) => setHazard(on);
+  function hazardTick(t) {
+    const lit = st.hazard && ((t - st.hazT0) % 0.76) < 0.4;
+    if (lit === st.hazOn) return;
+    st.hazOn = lit;
+    hazBtn.classList.toggle('on', lit);
+    try { audio.click(); } catch (e) { /* audio locked */ }
+  }
 
   /* ---------------- head unit in the centre display (index.html?hu) ----------------
    * The head unit page is drawn into the display's picture area, under a glass
@@ -584,13 +607,14 @@
       setTimeout(() => { if (busy) { vid.pause(); done(); } }, 15000);
     });
   }
-  let camHold = 'auto', seenCase = null, huFocus = 0, huEndAt = 0;
+  let camHold = 'auto', seenCase = null, huFocus = 0, huEndAt = 0, hazLookUntil = 0;
   Link.on('cam', (d) => { camHold = d.view || 'auto'; focusPolicy(true); });
   function focusPolicy(force) {
     if (!huShade) return;
     let want;                                   // 'hu' | 'cluster' | null (vehicle decides)
     if (handHold) want = 'hu';
     else if (camHold !== 'auto') want = camHold === 'full' ? 'full' : camHold;
+    else if (Date.now() < hazLookUntil) want = 'full';     // the flashers just came on: show the cabin
     else {
       const c = director.cases[0];
       const nowMs = Date.now();
@@ -664,7 +688,7 @@
   setInterval(() => Link.send('veh', {
     ign: st.ign, speed: st.speed, gear: st.gear, gearNum: st.gearNum, rpm: st.rpm, odoMeters: st.odoMeters, odo: st.odo,
     fuel: st.fuel, range: st.range, red: [...st.redActive], amber: [...st.amberActive], wheel: st.wheel, mode: st.mode,
-    clock: st.clock, coolant: st.coolant, outside: st.outside,
+    clock: st.clock, coolant: st.coolant, outside: st.outside, hazard: st.hazard,
   }), 250);
   let careT = 0;
   function updateCare(dt) {
@@ -695,6 +719,7 @@
     red: () => warn('red'),
     amber: () => warn('amber'),
     clear: clearWarnings,
+    hazard: () => setHazard(!st.hazard),
     mode: cycleMode,
     view: () => {
       cam.zoomAt = null;
@@ -791,6 +816,7 @@
       camTo(0, 3.5);
     }
     if (st.popup && t - st.popup.t0 > st.popup.dur) st.popup = null;
+    hazardTick(t);
 
     applyCamera(t, dt);
     wheel.render(st.wheel);

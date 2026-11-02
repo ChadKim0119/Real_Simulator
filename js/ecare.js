@@ -131,6 +131,19 @@
   const DMS = ['컨택대기', '컨택', '예약', '입고', '정비', '정비완료', '고객인도', '종결'];
   const DMS_CODE = ['CONTACT_REQUIRED', 'CONTACTED', 'RESERVED', 'RECEIVED', 'REPAIR_STARTED', 'REPAIR_DONE', 'DELIVERED', 'CLOSED'];
 
+  /** Has the customer just turned the hazard lights on? The lines can be edited on the
+   * transcript screen, so this reads the words: the customer says it (비상등 … 켰어요),
+   * or answers the agent's "비상등을 켜고 … 정차하셨는지" by pulling over (stop line).
+   * A line can also say so outright with hazard: true. */
+  function hazardOn(script, i) {
+    const l = script[i];
+    if (!l) return false;
+    if (l.hazard) return true;
+    if (l.who !== 'customer') return false;
+    if (/비상등|깜빡이|비상 ?깜빡/.test(l.text) && !/(안|못) ?켜|어디|어떻게/.test(l.text)) return true;
+    const prev = script[i - 1];
+    return !!(l.stop && prev && prev.who === 'agent' && /비상등/.test(prev.text));
+  }
   const pad = (n) => String(n).padStart(2, '0');
   const hm = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
   const ymd = (t, sep = '-') => { const d = new Date(t); return [d.getFullYear(), pad(d.getMonth() + 1), pad(d.getDate())].join(sep); };
@@ -151,6 +164,7 @@
     }
 
     reset(silent) {
+      if (!silent && this.hooks.hazard) this.hooks.hazard(null, false);
       this.cases = [];
       this.seq = 41;
       this.active = null;
@@ -511,6 +525,7 @@
       this.publish();
       Link.send('say', { caseId: c.id, line: script[i], index: i });
       if (script[i].stop && this.hooks.stop) this.hooks.stop(c);
+      if (this.hooks.hazard && hazardOn(script, i)) this.hooks.hazard(c, true);
       this.after(script[i].dur * 1000 + 700, () => { if (c.call === call) this.nextLine(c, i + 1, script); });
     }
 

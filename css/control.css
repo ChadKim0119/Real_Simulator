@@ -8,7 +8,7 @@ header b { font-size: 18px; }
 #link { color: #7fe7a8; }
 #veh { color: var(--mut); }
 #toast { margin-left: auto; color: #ffd28a; }
-main { display: grid; grid-template-columns: minmax(250px, 300px) minmax(380px, 1fr) minmax(320px, 420px); gap: 14px; padding: 14px 20px 30px; align-items: start; }
+main { display: grid; grid-template-columns: minmax(230px, 280px) minmax(330px, 1fr) minmax(440px, 520px); gap: 14px; padding: 14px 20px 30px; align-items: start; }
 @media (max-width: 1100px) { main { grid-template-columns: 1fr 1fr; } .side { grid-column: 1 / -1; } }
 @media (max-width: 720px) { main { grid-template-columns: 1fr; } }
 .col { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; min-width: 0; }
@@ -74,3 +74,13 @@ h3 { margin: 14px 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700;
 #dock hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
 main { padding-right: 116px !important; }
 .note { font-size: 12px; color: var(--mut); margin: 10px 0 0; }
+
+/* manual controls: group name beside its buttons, compact, one screen without scrolling */
+#manual h2 { margin-bottom: 6px; }
+#manual .mg { display: grid; grid-template-columns: 62px 1fr; gap: 8px; align-items: start; padding: 6px 0; border-top: 1px solid var(--line); }
+#manual .mg:first-of-type { border-top: 0; }
+#manual .mg h3 { margin: 8px 0 0; font-size: 12px; }
+#manual .row { gap: 5px; }
+#manual .row button, #manual .row a { padding: 7px 9px; font-size: 12.5px; white-space: nowrap; }
+#manual .row.nw { flex-wrap: nowrap; }
+#manual .row.nw button { flex: 1 1 auto; padding: 7px 6px; }

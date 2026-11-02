@@ -66,3 +66,4 @@ body.all #strip { transform: none; }
 
 #tag { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 800 12vh "Barlow", sans-serif; color: rgba(255, 255, 255, 0.85); text-shadow: 0 0 4vh #000; display: none; z-index: 9; pointer-events: none; }
 #tag.on { display: block; }
+.op .w.keep { text-transform: none; }   /* e-Care is always written e-Care */

@@ -26,7 +26,7 @@
   Link.on('wall-state', (d) => { Object.assign(wall, d); manualState(); });
   Link.on('wall', (d) => { if (d.mode) wall.mode = d.mode; if (typeof d.labels === 'boolean') wall.labels = d.labels; if (typeof d.edit === 'boolean') wall.edit = d.edit; manualState(); });
   Link.on('ecare', (d) => { snap = d; status(); manualState(); });
-  Link.on('veh', (d) => { veh = d; });
+  Link.on('veh', (d) => { const hz = !!(veh && veh.hazard); veh = d; if (!!d.hazard !== hz) manualState(); });
   Link.on('say', (d) => { say = d.line; status(); });
   Link.on('toast', (d) => { const t = $('#toast'); t.textContent = d.msg; clearTimeout(t.tid); t.tid = setTimeout(() => { t.textContent = ''; }, 5000); });
   Link.on('stage-hello', () => Link.send('stage', { scene }));
@@ -205,18 +205,9 @@
   }
 
   /* ---------------- status ---------------- */
-  function status() {
-    const c = active();
-    const call = c && c.call ? { dialing: '발신 중', connected: '통화 중', ended: '통화 종료', failed: '연결 실패' }[c.call.state] : '';
-    const g = snap && snap.general;
-    const flows = ((snap && snap.flows) || []).filter((f) => !f.type).slice(-4).reverse();
-    $('#status').innerHTML = `<h2>현재 상태</h2>
-      <div class="st">${c ? `<b>${esc(c.wng ? `${c.wng.code} ${c.wng.name}` : c.warn.title)} · Case ${esc(c.wcase || '')}</b>
-        <span>${[E.CONTACT[c.contact], call, c.inbound && !c.call ? '수신 대기' : '', c.dispatch >= 0 ? `출동 ${E.DISPATCH[c.dispatch]}` : '', c.dms >= 0 ? `딜러 ${E.DMS[c.dms]}` : '', c.sms ? 'SMS 발송' : ''].filter(Boolean).join(' · ')}</span>`
-        : g ? `<b>일반 전화</b><span>${{ ringing: '수신 중', connected: '통화 중', ended: '후처리' }[g.state] || g.state}</span>` : '<b>대기</b><span>경고 없음</span>'}</div>
-      ${say ? `<div class="say"><small>${say.who === 'agent' ? '상담원' : '고객'}</small>${esc(say.text)}</div>` : ''}
-      <div class="fl">${flows.map((f) => `<div><em>${esc(f.api)}</em>${esc(f.label)}</div>`).join('')}</div>`;
-  }
+  // the presenter reads the state on the wall itself: no status box here, the room
+  // goes to the manual controls (fits the screen without scrolling)
+  function status() {}
   setInterval(() => {
     $('#veh').textContent = veh ? `차량 ${veh.ign === 'on' ? '시동 ON' : '시동 OFF'} · ${Math.round(veh.speed)} km/h` : '차량 시뮬레이터 대기';
   }, 500);
@@ -224,19 +215,18 @@
   /* ---------------- manual ---------------- */
   const WARNS = [['brake', '브레이크', 'A'], ['engine', '엔진', 'A'], ['coolant', '냉각수', 'A'], ['oil', '오일 압력', 'A'], ['airbag', '에어백', 'B'], ['door', '도어락', 'B'], ['brakepad', '브레이크 패드', 'C']];
   function manual() {
-    const g = (title, body) => `<h3>${title}</h3><div class="row">${body}</div>`;
+    const g = (title, body, cls) => `<div class="mg"><h3>${title}</h3><div class="row ${cls || ''}">${body}</div></div>`;
     const b = (attr, label, cls) => `<button ${attr} class="${cls || ''}">${label}</button>`;
     $('#manual').innerHTML = `<h2>수동 제어</h2>
       ${g('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join('') + b('data-identify', '화면 확인'))}
-      ${g('시연 화면', b('data-wmode="21"', '21:9 모드') + b('data-wmode="169"', '16:9 모드') + b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))}
-      ${g('차량', b('data-a="ign"', '시동 ON/OFF') + b('data-a="drive"', '출발') + b('data-a="stop"', '정지') + b('data-a="clear"', '경고 해제'))}
+      ${g('시연 화면', b('data-wmode="21"', '21:9 모드') + b('data-wmode="169"', '16:9 모드') + b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'), 'nw')}
+      ${g('차량', b('data-a="ign"', '시동 ON/OFF') + b('data-a="drive"', '출발') + b('data-a="stop"', '정지') + b('data-a="hazard"', '비상등') + b('data-a="clear"', '경고 해제'))}
       ${g('경고등', WARNS.map(([id, n, k]) => b(`data-warn="${id}"`, `${n} <i class="k${k}">${k}</i>`)).join(''))}
       ${g('헤드유닛', b('data-hu="show"', 'HU 팝업 다시') + b('data-hu="press"', 'HU 전화연결'))}
       ${g('상담센터', b('data-a="sla25"', '25분 경과') + b('data-c="ack"', '상담원 받기') + b('data-a="accept"', '상담원 전화 걸기') + b('data-c="redial"', '재연결') + b('data-c="hangup"', '통화 종료') + b('data-a="dispatch"', '긴급출동') + b('data-a="complete"', '완료 · 이관'))}
       ${g('일반 전화', b('data-a="inbound"', '고객 전화 (경고 없을 때)') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))}
       ${g('설정', b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음'))}
-      <p class="note">초기화 · 시선 이동은 오른쪽 끝 고정 막대에 있습니다.</p>
-      ${g('화면 열기', ['wall.html:시연 화면', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))}`;
+      ${g('화면', ['wall.html:시연 화면', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))}`;
     manualState();
   }
   function manualState() {
@@ -247,6 +237,8 @@
     if (wl) wl.classList.toggle('on', !!wall.labels);
     document.querySelectorAll('[data-scene]').forEach((x) => x.classList.toggle('on', x.dataset.scene === scene));
     document.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('on', x.dataset.pick === `in:${(snap && snap.pick && snap.pick.in) || 'in'}`));
+    const hz = $('[data-a="hazard"]');
+    if (hz) hz.classList.toggle('on', !!(veh && veh.hazard));
     const na = $('[data-noans]');
     if (na) na.classList.toggle('on', !!(snap && snap.noAnswer));
   }

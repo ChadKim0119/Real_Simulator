@@ -135,7 +135,7 @@
       strip.innerHTML = `<div class="op"><div class="bg"></div><div class="grid"></div><div class="sweep"></div><div class="line"></div>
         <div class="col c0"><div class="w">Welcome to</div></div>
         <div class="col c1"><div class="k">TOYOTA · LEXUS CONNECT</div><div class="w">Global South</div><div class="s">개발 진척 보고회</div></div>
-        <div class="col c2"><div class="w">e-Care</div><div class="s">경고 · 상담 · 출동 · 딜러</div></div></div>`;
+        <div class="col c2"><div class="w keep">e-Care</div><div class="s">경고 · 상담 · 출동 · 딜러</div></div></div>`;
       pano.classList.add('on');
     } else if (scene === 'closing') {
       strip.innerHTML = closing();

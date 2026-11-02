@@ -480,3 +480,9 @@ body.stage #showUi, body.stage #toast { display: none !important; }
 #huHand.on { display: block; }
 /* climate band of the real 14" unit, high resolution, under the head unit screen */
 #huBand { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 1; pointer-events: none; user-select: none; }
+/* the hazard button on the centre console: its red triangle lights with the flashers */
+#hazBtn { position: absolute; pointer-events: none; }
+#hazBtn svg { width: 100%; height: 100%; display: block; }
+#hazBtn path { fill: #ff2b1c; opacity: 0; filter: drop-shadow(0 0 3px rgba(255, 60, 30, 0.95)) drop-shadow(0 0 9px rgba(255, 40, 20, 0.7)); }
+#hazBtn.on path { opacity: 1; }
+#hazBtn.on { background: radial-gradient(ellipse 60% 55% at 50% 52%, rgba(255, 60, 30, 0.28), transparent 70%); }

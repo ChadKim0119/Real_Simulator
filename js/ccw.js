@@ -782,12 +782,11 @@
     const f = document.activeElement;
     if (!force && f && tr.contains(f) && f.matches('textarea')) return;
     trKey = key;
-    const head = `<header class="trh"><span class="tag">E-CARE · 상담 대화</span><b>${v ? esc(v.title) : '상담 대기'}</b>
-      <nav class="trtabs"><button data-trtab="live" class="${trTab === 'live' ? 'on' : ''}">실시간 대화</button><button data-trtab="script" class="${trTab === 'script' ? 'on' : ''}">대화 스크립트</button></nav>
-      <span class="st" data-trst></span></header>`;
+    // only the two views: the live conversation and the scripts (no customer, case or call data)
+    const head = `<header class="trh"><nav class="trtabs"><button data-trtab="live" class="${trTab === 'live' ? 'on' : ''}">실시간 대화</button><button data-trtab="script" class="${trTab === 'script' ? 'on' : ''}">대화 스크립트</button></nav></header>`;
     let body;
     if (trTab === 'script') body = scriptsView();
-    else if (!v) body = `<div class="tr-empty">진행 중인 상담이 없습니다.<br>차량에서 긴급 경고가 발생하거나 고객이 전화하면 대화가 여기에 실시간으로 표시됩니다.<br><small>대화 스크립트 탭에서 다음 통화의 대사를 미리 고칠 수 있습니다.</small></div>`;
+    else if (!v || !v.lines.some((l) => !l.deleted)) body = `<div class="tr-empty">통화가 시작되면 대화가 여기에 실시간으로 표시됩니다.</div>`;
     else body = liveView(v);
     const prev = $('.tr-list', tr);
     const keep = prev && (trSel >= 0 || trEdit >= 0) ? prev.scrollTop : null;
@@ -798,29 +797,17 @@
     tickTranscript();
   }
   function liveView(v) {
-    const c = v.c;
     const conv = v.general ? `G${v.call.at}` : v.id;
     if (conv !== trConv) { trConv = conv; trSeen = new Set(); }
     const fresh = (k) => { if (trSeen.has(k)) return ''; trSeen.add(k); return ' new'; };
-    const items = v.lines.map((l, i) => ({ t: l.t, l, i })).filter((x) => !x.l.deleted)
-      .concat(trSys ? v.log.filter((e) => e.kind === 'call' || e.kind === 'alert').map((e) => ({ t: e.t, e })) : [])
-      .sort((a, b) => a.t - b.t);
-    const chips = c ? [['상담', E.CONTACT[c.contact]], ['긴급 출동', c.dispatch >= 0 ? E.DISPATCH[c.dispatch] : '-'], ['서비스센터', c.dms >= 0 ? E.DMS[c.dms] : '-']] : [['상담', v.call.state === 'ended' ? '후처리' : '통화']];
-    const side = `<aside class="tr-side">
-      <div class="card"><small>고객</small><b>${E.CUSTOMER.name}</b><span>${E.CUSTOMER.phone}</span></div>
-      <div class="card"><small>차량</small><b>${E.VEHICLE.plate}</b><span>${E.VEHICLE.model} / ${E.VEHICLE.year} · ${E.VEHICLE.brand}</span></div>
-      ${c ? `<div class="card red"><small>경고</small><b>${esc(c.warn.title)}</b><span>${c.kind === 'emergency' ? '주행 불가' : '주행 가능'} · ${c.warn.dtc}</span></div>` : '<div class="card"><small>문의</small><b>일반 전화</b><span>경고 케이스 없음</span></div>'}
-      <div class="card"><small>처리 상태</small>${chips.map(([k, x]) => `<div class="kv2"><span>${k}</span><em>${x}</em></div>`).join('')}</div>
-      <label class="sw ${trSys ? 'on' : ''}" data-trsys><i></i>시스템 이벤트 표시</label>
-      <p class="hint">대화를 탭하면 <b>편집</b> · <b>삭제</b>할 수 있습니다. 모든 화면에 바로 반영됩니다.</p></aside>`;
-    const bubbles = items.map(({ l, e, i }) => {
-      if (e) return `<div class="tb sys${fresh('e' + e.t + e.text)}"><div class="msg">${E.hm(e.t).slice(0, 5)} · ${esc(e.text)}</div></div>`;
+    const items = v.lines.map((l, i) => ({ t: l.t, l, i })).filter((x) => !x.l.deleted);
+    const bubbles = items.map(({ l, i }) => {
       const who = l.who === 'agent' ? 'e-Care 상담원' : `${E.CUSTOMER.name} 고객`;
       if (i === trEdit) return `<div class="tb ${l.who} editing"><span class="who">${who}</span><textarea data-edit="${i}" rows="3">${esc(l.text)}</textarea><div class="acts on"><button data-save-line="${i}" class="pri">저장</button><button data-cancel>취소</button></div></div>`;
-      return `<div class="tb ${l.who} ${i === trSel ? 'picked' : ''}${fresh('l' + i)}" data-line="${i}"><span class="who">${who} · ${E.hm(l.t).slice(0, 5)}${l.edited ? ' · 수정됨' : ''}</span><div class="msg">${esc(l.text)}</div>
+      return `<div class="tb ${l.who} ${i === trSel ? 'picked' : ''}${fresh('l' + i)}" data-line="${i}"><span class="who">${who}</span><div class="msg">${esc(l.text)}</div>
         <div class="acts"><button data-edit-line="${i}">✎ 편집</button><button data-del-line="${i}" class="del">삭제</button></div></div>`;
     }).join('');
-    return `<div class="tr-wrap">${side}<div class="tr-list">${bubbles || '<div class="tr-empty">통화 연결 중…</div>'}</div></div>`;
+    return `<div class="tr-wrap solo"><div class="tr-list">${bubbles}</div></div>`;
   }
   // which conversation set each call type plays (only types with several sets)
   function pickBar() {
