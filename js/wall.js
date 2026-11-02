@@ -1,46 +1,57 @@
-/* One-screen demo wall (wall.html) for a 21:9 display (2560x1080): the car
- * (cockpit with the head unit in the centre display), the data flow, the
- * conversation and the support center (CCW) as four tiled panels.
+/* One-screen demo wall (wall.html): the car (cockpit with the head unit in
+ * the centre display), the data flow, the conversation and the support center
+ * (CCW) as four tiled panels, for a 21:9 (2560x1080) or 16:9 (1920x1080)
+ * display. The mode is chosen on a first screen (or ?mode=21 / ?mode=169),
+ * and can be changed from the top bar or the control panel.
  *
  *   E  edit layout: drag a split to resize (neighbours give way, splits snap
  *      to each panel's own ratio), drag a panel onto another to swap, R reset
- *   L  labels   F  full screen
+ *   M  screen mode   L  labels   F  full screen
  *
  * The car panel runs the vehicle and the e-Care director, so open one wall
- * per show. The layout is kept in this browser and sent to other screens. */
+ * per show. Layouts are kept per mode in this browser and sent to other screens. */
 (function () {
   'use strict';
 
   const $ = (s, el) => (el || document).querySelector(s);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const { W, H, PANELS, DEFAULT } = window.WallDef;
+  const D = window.WallDef;
+  const { H, PANELS, MODES } = D;
   const SNAP = 10, MAGNET = 28, MIN = 220;
   const store = {
     get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
   };
-  let L = window.WallDef.load();
+  let mode = D.mode();
+  let W = MODES[mode || '21'].W;
+  let L = D.load(mode || '21');
   let labels = store.get('wall-labels', false);
   let edit = false;
 
   /* ---------------- panels ---------------- */
   const canvas = $('#canvas'), host = $('#panels');
-  canvas.style.width = `${W}px`;
   const frames = {};
   for (const k in PANELS) {
     const p = document.createElement('div');
     p.className = 'panel';
     p.dataset.k = k;
-    p.innerHTML = `<iframe src="${PANELS[k].src}" title="${esc(PANELS[k].t)}" allow="autoplay; fullscreen"></iframe>
-      <span class="tag">${esc(PANELS[k].t)}</span><div class="grab"><b>${esc(PANELS[k].t)}</b><small></small><em>끌어서 다른 패널과 자리 바꾸기</em></div>`;
+    p.innerHTML = `<span class="tag">${esc(PANELS[k].t)}</span><div class="grab"><b>${esc(PANELS[k].t)}</b><small></small><em>끌어서 다른 패널과 자리 바꾸기</em></div>`;
     host.appendChild(p);
     frames[k] = p;
   }
-  // split handles (edit mode)
-  const splits = { cx: 'v', ly: 'h', ry: 'h' };
-  for (const k in splits) {
+  // the pages load once a mode is chosen (the car page runs the director)
+  function loadPages() {
+    for (const k in frames) {
+      if ($('iframe', frames[k])) continue;
+      const f = document.createElement('iframe');
+      f.src = PANELS[k].src; f.title = PANELS[k].t; f.allow = 'autoplay; fullscreen';
+      frames[k].prepend(f);
+    }
+  }
+  // split handles (edit mode): the outer split and one inner split per part
+  for (const k of ['o', 'i0', 'i1']) {
     const d = document.createElement('div');
-    d.className = `split ${splits[k]}`;
+    d.className = 'split';
     d.dataset.s = k;
     d.innerHTML = '<i></i><span class="badge"></span>';
     host.appendChild(d);
@@ -48,13 +59,15 @@
 
   let scale = 1;
   function fit() {
+    canvas.style.width = `${W}px`;
     scale = Math.min(innerWidth / W, innerHeight / H);
     canvas.style.transform = `translate(${(innerWidth - W * scale) / 2}px, ${(innerHeight - H * scale) / 2}px) scale(${scale})`;
     ratioNotice();
   }
   const ratioText = (w, h) => `${(w / h).toFixed(2)}:1`;
+  const cols = () => L.dir === 'cols';
   function place() {
-    const R = window.WallDef.rects(L);
+    const R = D.rects(L, mode || '21');
     for (const k in frames) {
       const [x, y, w, h] = R[k];
       Object.assign(frames[k].style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
@@ -62,10 +75,11 @@
       const ok = !ideal || Math.abs(w / h - ideal) / ideal < 0.04;
       $('small', frames[k]).innerHTML = `${w} × ${h} · ${ratioText(w, h)}${ideal ? ` <span class="${ok ? 'ok' : 'off'}">권장 ${ratioText(ideal, 1)} ${ok ? '✓' : ''}</span>` : ''}`;
     }
-    const s = host.querySelectorAll('.split');
-    Object.assign(s[0].style, { left: `${L.cx - 9}px`, top: '0px', width: '18px', height: `${H}px` });
-    Object.assign(s[1].style, { left: '0px', top: `${L.ly - 9}px`, width: `${L.cx}px`, height: '18px' });
-    Object.assign(s[2].style, { left: `${L.cx}px`, top: `${L.ry - 9}px`, width: `${W - L.cx}px`, height: '18px' });
+    const [o, a, b] = host.querySelectorAll('.split');
+    const V = (el, x, y, h) => { el.className = 'split v'; Object.assign(el.style, { left: `${x - 9}px`, top: `${y}px`, width: '18px', height: `${h}px` }); };
+    const Hh = (el, x, y, w) => { el.className = 'split h'; Object.assign(el.style, { left: `${x}px`, top: `${y - 9}px`, width: `${w}px`, height: '18px' }); };
+    if (cols()) { V(o, L.o, 0, H); Hh(a, 0, L.i0, L.o); Hh(b, L.o, L.i1, W - L.o); }
+    else { Hh(o, 0, L.o, W); V(a, L.i0, 0, L.o); V(b, L.i1, L.o, H - L.o); }
   }
   function render() {
     fit();
@@ -74,49 +88,80 @@
     document.body.classList.toggle('edit', edit);
     $('[data-edit]').classList.toggle('on', edit);
     $('[data-labels]').classList.toggle('on', labels);
-    $('#hint').textContent = edit ? '경계선을 끌어 크기 조절 (옆 패널이 함께 줄어듦 · 권장 비율에 자석처럼 붙음) · 패널을 끌어 자리 바꾸기 · R 기본 배치 · E 끝내기' : '21:9 · E 배치 편집 · L 라벨 · F 전체화면';
+    $('[data-mode]').textContent = `화면 ${MODES[mode || '21'].name}`;
+    $('#hint').textContent = edit ? '경계선을 끌어 크기 조절 (옆 패널이 함께 줄어듦 · 권장 비율에 자석처럼 붙음) · 패널을 끌어 자리 바꾸기 · R 기본 배치 · E 끝내기' : `${MODES[mode || '21'].name} · M 화면 모드 · E 배치 편집 · L 라벨 · F 전체화면`;
   }
   addEventListener('resize', fit);
 
-  /* If the Mac sends a 16:9 picture to a 21:9 display, the display stretches it
-   * sideways and every letter looks wide. Say so when the window fills the
-   * screen at another ratio. */
+  /* If the Mac sends a picture of another ratio than the chosen mode (a 16:9
+   * picture on a 21:9 display gets stretched sideways), say so when the
+   * window fills the screen. */
+  let noticeHidden = false;
   function ratioNotice() {
+    const n = $('#notice');
     const full = document.fullscreenElement || (Math.abs(innerWidth - screen.width) < 4 && Math.abs(innerHeight - screen.height) < 60);
     const r = screen.width / screen.height;
-    const off = full && Math.abs(r - W / H) / (W / H) > 0.04 && !noticeHidden;
-    const n = $('#notice');
-    n.classList.toggle('on', off);
-    if (off) n.innerHTML = `<b>출력 비율이 21:9가 아닙니다</b> · 지금 ${screen.width}×${screen.height} (${r.toFixed(2)}:1). 디스플레이가 이 화면을 가로로 늘리면 글자가 넓적하게 보입니다 — 맥 <em>시스템 설정 › 디스플레이</em>에서 해상도를 <em>2560×1080</em>(또는 디스플레이 고유 21:9 해상도)으로 선택하세요. 16:9 모니터로 리허설 중이면 위아래 여백은 정상입니다 <em>(클릭하면 닫힘)</em>.`;
+    const off = mode && full && Math.abs(r - W / H) / (W / H) > 0.04 && !noticeHidden;
+    n.classList.toggle('on', !!off);
+    if (off) n.innerHTML = `<b>화면 모드(${MODES[mode].name})와 출력 비율이 다릅니다</b> · 지금 ${screen.width}×${screen.height} (${r.toFixed(2)}:1). 위아래나 좌우에 여백이 생깁니다. ${Math.abs(r - 16 / 9) < 0.05 ? '이 출력에는 <em>16:9 모드</em>가 맞습니다' : Math.abs(r - 2560 / 1080) < 0.1 ? '이 출력에는 <em>21:9 모드</em>가 맞습니다' : ''}${mode === '21' && Math.abs(r - 16 / 9) < 0.05 ? ' — 21:9 디스플레이라면 맥 <em>시스템 설정 › 디스플레이</em>에서 2560×1080을 고르세요 (16:9로 나가면 디스플레이가 가로로 늘려 글자가 넓적해집니다)' : ''}. <em>M</em> 화면 모드 · 클릭하면 닫힘`;
   }
   document.addEventListener('fullscreenchange', fit);
-  // rehearsing on a 16:9 monitor: a click on the notice hides it for this session
-  let noticeHidden = false;
   $('#notice').addEventListener('click', () => { noticeHidden = true; ratioNotice(); });
 
   function commit(quiet) {
-    window.WallDef.save(L);
+    D.save(mode, L);
     place();
-    if (!quiet) Link.send('wall', { layout: L });
+    if (!quiet) Link.send('wall', { mode, layout: L });
   }
 
+  /* ---------------- screen mode ---------------- */
+  function setMode(m, quiet) {
+    if (!MODES[m]) return;
+    const changed = m !== mode;
+    mode = m;
+    D.setMode(m);
+    W = MODES[m].W;
+    L = D.load(m);
+    $('#modes').classList.remove('on');
+    loadPages();
+    render();
+    if (!quiet && changed) Link.send('wall', { mode: m });
+  }
+  // the first screen: pick 21:9 or 16:9 (a miniature of each layout, the detected screen)
+  function modeScreen() {
+    const r = screen.width / screen.height;
+    const best = Math.abs(r - 16 / 9) < 0.05 ? '169' : r > 2.2 ? '21' : null;
+    const mini = (m) => {
+      const R = D.rects(D.load(m), m), w = MODES[m].W;
+      return `<div class="mini" style="aspect-ratio:${w}/${H}">${Object.keys(R).map((k) => { const [x, y, ww, hh] = R[k]; return `<i style="left:${x / w * 100}%;top:${y / H * 100}%;width:${ww / w * 100}%;height:${hh / H * 100}%"><span>${esc(PANELS[k].t)}</span></i>`; }).join('')}</div>`;
+    };
+    const el = $('#modes');
+    el.innerHTML = `<div class="box"><h1>시연 화면 모드</h1><p>이 화면(${screen.width}×${screen.height} · ${r.toFixed(2)}:1)에 맞는 모드를 고르세요. 나중에 위쪽 막대나 컨트롤 패널, <b>M</b> 키로 바꿀 수 있습니다.</p>
+      <div class="opts">${['21', '169'].map((m) => `<button data-pick="${m}" class="${m === best ? 'best' : ''} ${m === mode ? 'cur' : ''}">${mini(m)}<b>${MODES[m].name}</b><span>${MODES[m].desc}</span>${m === best ? '<em>이 화면에 맞음</em>' : ''}</button>`).join('')}</div></div>`;
+    el.classList.add('on');
+  }
+  $('#modes').addEventListener('click', (e) => { const b = e.target.closest('[data-pick]'); if (b) setMode(b.dataset.pick); });
+
   /* ---------------- editing: splits ---------------- */
-  // positions of a split where one of the panels next to it reaches its own ratio
+  // positions of a split where a panel next to it reaches its own ratio (found
+  // numerically for any layout), and the line of the other part's inner split
   function magnets(k) {
-    const S = L.slots, r = (slot) => PANELS[S[slot]].ideal;
+    const lo = MIN, hi = (k === 'o' ? (cols() ? W : H) : (cols() ? H : W)) - MIN;
+    const ratios = (v) => { const T = Object.assign({}, L, { [k]: v }); const R = D.rects(T, mode); return Object.keys(R).map((p) => [p, R[p][2] / R[p][3]]); };
     const out = [];
-    const add = (v, slot) => { const id = r(slot); if (id) out.push({ v, label: `${PANELS[S[slot]].t} ${ratioText(id, 1)}` }); };
-    if (k === 'cx') {
-      if (r('lt')) add(r('lt') * L.ly, 'lt');
-      if (r('lb')) add(r('lb') * (H - L.ly), 'lb');
-      if (r('rt')) add(W - r('rt') * L.ry, 'rt');
-      if (r('rb')) add(W - r('rb') * (H - L.ry), 'rb');
-    } else {
-      const left = k === 'ly', w = left ? L.cx : W - L.cx, top = left ? 'lt' : 'rt', bot = left ? 'lb' : 'rb';
-      if (r(top)) add(w / r(top), top);
-      if (r(bot)) add(H - w / r(bot), bot);
-      out.push({ v: left ? L.ry : L.ly, label: '다른 쪽 행과 정렬' });
+    let prev = ratios(lo);
+    for (let v = lo + 4; v <= hi; v += 4) {
+      const cur = ratios(v);
+      cur.forEach(([p, r], i) => {
+        const id = PANELS[p].ideal;
+        if (!id) return;
+        const a = prev[i][1] - id, b = r - id;
+        if (a === b || Math.sign(a) === Math.sign(b)) return;
+        out.push({ v: v - 4 + 4 * (a / (a - b)), label: `${PANELS[p].t} ${ratioText(id, 1)}` });
+      });
+      prev = cur;
     }
+    if (k !== 'o') out.push({ v: k === 'i0' ? L.i1 : L.i0, label: '다른 줄과 정렬' });
     return out;
   }
   let drag = null;
@@ -128,7 +173,7 @@
     e.preventDefault();
     const el = sp || p;
     el.setPointerCapture(e.pointerId);
-    drag = sp ? { split: sp.dataset.s, el: sp } : { panel: p.dataset.k, el: p, x: e.clientX, y: e.clientY };
+    drag = sp ? { split: sp.dataset.s, el: sp, mags: magnets(sp.dataset.s) } : { panel: p.dataset.k, el: p, x: e.clientX, y: e.clientY };
     if (p) p.classList.add('lift');
   });
   host.addEventListener('pointermove', (e) => {
@@ -137,19 +182,21 @@
     const cx = (e.clientX - r.left) / scale, cy = (e.clientY - r.top) / scale;
     if (drag.split) {
       const k = drag.split;
-      const lo = MIN, hi = (k === 'cx' ? W : H) - MIN;
-      let v = Math.max(lo, Math.min(hi, Math.round((k === 'cx' ? cx : cy) / SNAP) * SNAP));
+      const horiz = k === 'o' ? cols() : !cols();           // the split moves along x
+      const lo = MIN, hi = (horiz ? W : H) - MIN;
+      let v = Math.max(lo, Math.min(hi, Math.round((horiz ? cx : cy) / SNAP) * SNAP));
       let hit = null;
-      for (const m of magnets(k)) if (Math.abs(m.v - v) < MAGNET && m.v >= lo && m.v <= hi && (!hit || Math.abs(m.v - v) < Math.abs(hit.v - v))) hit = m;
+      for (const m of drag.mags) if (Math.abs(m.v - v) < MAGNET && m.v >= lo && m.v <= hi && (!hit || Math.abs(m.v - v) < Math.abs(hit.v - v))) hit = m;
       if (hit) v = Math.round(hit.v);
       L[k] = v;
       const b = $('.badge', drag.el);
       b.textContent = hit ? `⦿ ${hit.label}` : '';
       drag.el.classList.toggle('snapped', !!hit);
       place();
+      drag.el.classList.toggle('snapped', !!hit);
     } else {
       // swapping: highlight the panel under the pointer
-      const R = window.WallDef.rects(L);
+      const R = D.rects(L, mode);
       let over = null;
       for (const k in R) { const [x, y, w, h] = R[k]; if (k !== drag.panel && cx >= x && cx <= x + w && cy >= y && cy <= y + h) over = k; }
       for (const k in frames) frames[k].classList.toggle('target', k === over);
@@ -173,15 +220,16 @@
     commit();
   });
 
-  function reset() { L = JSON.parse(JSON.stringify(DEFAULT)); commit(); }
+  function reset() { L = JSON.parse(JSON.stringify(MODES[mode].layout)); commit(); }
 
   /* ---------------- controls ---------------- */
   document.addEventListener('click', (e) => {
     const b = e.target.closest('#bar button');
     if (!b) return;
-    if ('edit' in b.dataset) { edit = !edit; render(); Link.send('wall-state', { edit, labels }); }
-    else if ('labels' in b.dataset) { labels = !labels; store.set('wall-labels', labels); render(); Link.send('wall-state', { edit, labels }); }
+    if ('edit' in b.dataset) { edit = !edit; render(); Link.send('wall-state', { edit, labels, mode }); }
+    else if ('labels' in b.dataset) { labels = !labels; store.set('wall-labels', labels); render(); Link.send('wall-state', { edit, labels, mode }); }
     else if ('reset' in b.dataset) reset();
+    else if ('mode' in b.dataset) modeScreen();
     else if ('fs' in b.dataset) fullscreen();
   });
   const fullscreen = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {});
@@ -189,6 +237,7 @@
     if (e.code === 'KeyE') { edit = !edit; render(); }
     if (e.code === 'KeyL') { labels = !labels; store.set('wall-labels', labels); render(); }
     if (e.code === 'KeyF') fullscreen();
+    if (e.code === 'KeyM') modeScreen();
     if (e.code === 'KeyR' && edit) reset();
   });
   let barT = 0;
@@ -196,13 +245,14 @@
 
   // the control panel (or another wall) changes layout, labels, editing
   Link.on('wall', (d) => {
-    if (d.layout) { L = d.layout; window.WallDef.save(L); place(); }
+    if (d.mode && d.mode !== mode) setMode(d.mode, true);
+    if (d.layout && (!d.mode || d.mode === mode)) { L = d.layout; D.save(mode, L); place(); }
     if (d.reset) reset();
     if (typeof d.labels === 'boolean') { labels = d.labels; store.set('wall-labels', labels); render(); }
     if (typeof d.edit === 'boolean') { edit = d.edit; render(); }
   });
-  Link.on('wall-hello', () => Link.send('wall-state', { labels, edit }));
-  Link.send('wall-state', { labels, edit });
+  Link.on('wall-hello', () => Link.send('wall-state', { labels, edit, mode }));
+  Link.send('wall-state', { labels, edit, mode });
 
   /* ---------------- scenes: opening / closing over the whole wall ---------------- */
   let snap = null, scene = 'live';
@@ -238,4 +288,5 @@
 
   render();
   sceneRender();
+  if (mode) loadPages(); else modeScreen();
 })();

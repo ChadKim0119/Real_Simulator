@@ -14,7 +14,8 @@
   const $ = (s, el) => (el || document).querySelector(s);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const { H, PANELS } = window.WallDef;
-  const layoutOf = () => window.WallDef.rects(window.WallDef.load());
+  const wmode = () => window.WallDef.mode() || '21';
+  const layoutOf = () => window.WallDef.rects(window.WallDef.load(wmode()), wmode());
   const OUT = new URLSearchParams(location.search).has('out');
   const app = $('#app');
 
@@ -37,12 +38,12 @@
   }
   Link.on('test', (d) => { S = d; save(); render(); });
   Link.on('test-hello', () => { if (!OUT) Link.send('test', S); });
-  Link.on('wall', (d) => { if (d.layout || d.reset) setTimeout(render, 100); });
+  Link.on('wall', (d) => { if (d.layout || d.reset || d.mode) setTimeout(render, 100); });
 
   let STILLS = [];
   fetch('assets/test/stills/index.json').then((r) => r.json()).then((d) => { STILLS = d; render(); }).catch(() => {});
   const still = (k) => { const s = STILLS[S.step]; return s ? `assets/test/stills/${s.key}_${k}.jpg` : ''; };
-  const W = () => window.WallDef.W;
+  const W = () => window.WallDef.MODES[wmode()].W;
 
   /* ---------------- physical size and readability ---------------- */
   // Character height by visual angle: about 10 arc-minutes is readable with effort, 20 is comfortable.
@@ -136,7 +137,7 @@
     // label
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = '#fff'; g.font = '800 110px Barlow, Pretendard, sans-serif';
-    g.fillText('21:9 WALL', Wc / 2, H * 0.42);
+    g.fillText(`${window.WallDef.MODES[wmode()].name} WALL`, Wc / 2, H * 0.42);
     g.font = '600 36px Barlow, Pretendard, sans-serif'; g.fillStyle = '#cfd6e2';
     if (p.out) {
       const dpr = devicePixelRatio || 1, sw = Math.round(innerWidth * dpr), sh = Math.round(innerHeight * dpr);
@@ -228,9 +229,9 @@
     const scr = screens ? screens.map((s, i) => `<tr><td>${i + 1}${s.isPrimary ? ' · 기본' : ''}${s.isInternal ? ' · 내장' : ''}</td><td>${esc(s.label || '')}</td><td>${s.width}×${s.height}</td><td>${s.devicePixelRatio}</td><td>${(s.width / s.height).toFixed(3)} (${nearest(s.width / s.height)})</td>
       <td><button data-open="test:${i}">테스트 출력</button><button data-open="wall:${i}">시연 화면</button></td></tr>`).join('') : '';
     app.innerHTML = `
-    <header><b>모니터 테스트 모드</b><span>시연 화면 (21:9) 사전 점검</span><em id="lk">${Link.transport === 'lan' ? '● LAN 릴레이' : '● 이 PC'}</em></header>
+    <header><b>모니터 테스트 모드</b><span>시연 화면 (21:9 · 16:9) 사전 점검</span><em id="lk">${Link.transport === 'lan' ? '● LAN 릴레이' : '● 이 PC'}</em></header>
     <main>
-      <section class="card wide"><h2>① 시연 화면 미리보기 <small>21:9 · 시연 화면의 현재 배치 · 장면 스틸</small></h2>
+      <section class="card wide"><h2>① 시연 화면 미리보기 <small>${window.WallDef.MODES[wmode()].name} · 시연 화면의 현재 배치 · 장면 스틸</small></h2>
         <div class="wallwrap"><div class="prev" style="aspect-ratio:${W()}/${H}"></div></div>
         <div class="bar">
           <div class="seg">${[['pattern', '1 패턴'], ['stills', '2 스틸'], ['read', '3 가독성'], ['black', '0 검정']].map(([m, n]) => `<button data-mode="${m}" class="${S.mode === m ? 'on' : ''}">${n}</button>`).join('')}</div>
