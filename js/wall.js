@@ -84,12 +84,15 @@
   function ratioNotice() {
     const full = document.fullscreenElement || (Math.abs(innerWidth - screen.width) < 4 && Math.abs(innerHeight - screen.height) < 60);
     const r = screen.width / screen.height;
-    const off = full && Math.abs(r - W / H) / (W / H) > 0.04;
+    const off = full && Math.abs(r - W / H) / (W / H) > 0.04 && !noticeHidden;
     const n = $('#notice');
     n.classList.toggle('on', off);
-    if (off) n.innerHTML = `<b>출력 비율이 21:9가 아닙니다</b> · 지금 ${screen.width}×${screen.height} (${r.toFixed(2)}:1). 디스플레이가 이 화면을 가로로 늘리면 글자가 넓적하게 보입니다 — 맥 <em>시스템 설정 › 디스플레이</em>에서 해상도를 <em>2560×1080</em>(또는 디스플레이 고유 21:9 해상도)으로 선택하세요.`;
+    if (off) n.innerHTML = `<b>출력 비율이 21:9가 아닙니다</b> · 지금 ${screen.width}×${screen.height} (${r.toFixed(2)}:1). 디스플레이가 이 화면을 가로로 늘리면 글자가 넓적하게 보입니다 — 맥 <em>시스템 설정 › 디스플레이</em>에서 해상도를 <em>2560×1080</em>(또는 디스플레이 고유 21:9 해상도)으로 선택하세요. 16:9 모니터로 리허설 중이면 위아래 여백은 정상입니다 <em>(클릭하면 닫힘)</em>.`;
   }
   document.addEventListener('fullscreenchange', fit);
+  // rehearsing on a 16:9 monitor: a click on the notice hides it for this session
+  let noticeHidden = false;
+  $('#notice').addEventListener('click', () => { noticeHidden = true; ratioNotice(); });
 
   function commit(quiet) {
     window.WallDef.save(L);

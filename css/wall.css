@@ -28,7 +28,7 @@ body.edit .split { display: block; }
 .split .badge { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); white-space: nowrap; padding: 6px 14px; border-radius: 10px; background: #0b1a12; border: 2px solid #3ddc84; color: #8ff0b3; font: 700 22px "Pretendard", sans-serif; }
 .split .badge:empty { display: none; }
 
-#notice { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: 92vw; padding: 10px 16px; border-radius: 12px; background: rgba(60, 30, 0, 0.94); border: 1px solid #ffb02e; color: #ffe2b0; font-size: 14px; line-height: 1.5; display: none; z-index: 11; }
+#notice { cursor: pointer; position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: 92vw; padding: 10px 16px; border-radius: 12px; background: rgba(60, 30, 0, 0.94); border: 1px solid #ffb02e; color: #ffe2b0; font-size: 14px; line-height: 1.5; display: none; z-index: 11; }
 #notice.on { display: block; }
 #notice em { font-style: normal; color: #fff; font-weight: 700; }
 
