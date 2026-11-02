@@ -25,20 +25,42 @@
     (handlers['*'] || []).forEach((fn) => { try { fn(msg.data, msg); } catch (e) { console.error(e); } });
   }
 
-  if (bc) bc.onmessage = (e) => deliver(e.data);
+  /* LAN relay (only when this page is served by tools/relay.mjs). A browser
+   * opens one relay connection, held by a leader tab chosen with a Web Lock:
+   * Chrome allows six connections per host, and the stage windows with their
+   * iframes would otherwise use them all up and stall. The leader bridges the
+   * relay and the BroadcastChannel; when it closes, another tab takes over. */
+  let leader = false;
+  const post = (msg) => fetch('/__relay/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(msg) }).catch(() => {});
+  if (bc) bc.onmessage = (e) => {
+    const fresh = e.data && !seen.has(e.data.id);
+    deliver(e.data);
+    if (leader && fresh) post(e.data);
+  };
   // fallback for browsers without BroadcastChannel
   window.addEventListener('storage', (e) => {
     if (e.key === CHANNEL && e.newValue) { try { deliver(JSON.parse(e.newValue)); } catch (err) { /* ignore */ } }
   });
 
-  // LAN relay: only when this page is served by tools/relay.mjs
+  function lead() {
+    leader = true;
+    const es = new EventSource('/__relay/events');
+    es.onmessage = (e) => {
+      let msg;
+      try { msg = JSON.parse(e.data); } catch (err) { return; }
+      if (!msg || seen.has(msg.id)) return;
+      deliver(msg);
+      if (bc) bc.postMessage(msg);
+    };
+  }
   fetch('/__relay/ping', { cache: 'no-store' }).then((r) => {
     if (!r.ok) return;
     relay = true;
-    const es = new EventSource('/__relay/events');
-    es.onmessage = (e) => { try { deliver(JSON.parse(e.data)); } catch (err) { /* ignore */ } };
     Link.transport = 'lan';
     (handlers['@transport'] || []).forEach((fn) => fn('lan'));
+    // without BroadcastChannel or Web Locks every page keeps its own connection
+    if (bc && navigator.locks) navigator.locks.request('gs-relay-leader', () => new Promise(() => lead()));
+    else lead();
   }).catch(() => {});
 
   const Link = {
@@ -50,7 +72,7 @@
       seen.add(msg.id);
       if (bc) bc.postMessage(msg);
       else { try { localStorage.setItem(CHANNEL, JSON.stringify(msg)); } catch (e) { /* ignore */ } }
-      if (relay) fetch('/__relay/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(msg) }).catch(() => {});
+      if (relay && (leader || !bc || !navigator.locks)) post(msg);
     },
   };
   window.Link = Link;

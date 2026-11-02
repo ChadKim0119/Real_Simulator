@@ -259,7 +259,7 @@
         <h3>소리</h3>
         <div class="row"><button data-tone="-1">◀ 왼쪽 톤</button><button data-tone="0">가운데 톤</button><button data-tone="1">오른쪽 톤 ▶</button><button data-voice>상담원 음성 샘플</button></div>
         <h3>바로가기</h3>
-        <div class="row"><a href="stage.html?screen=all" target="_blank">3면 미리보기</a><a href="remote.html" target="_blank">리모컨</a><a href="hu.html" target="_blank">HU</a><a href="flow.html" target="_blank">데이터 흐름</a><a href="ccw.html" target="_blank">상담센터</a></div>
+        <div class="row"><a href="stage.html?screen=all" target="_blank">3면 미리보기</a><a href="control.html" target="_blank">컨트롤 패널</a><a href="hu.html" target="_blank">HU</a><a href="flow.html" target="_blank">데이터 흐름</a><a href="ccw.html" target="_blank">상담센터</a></div>
       </section>
 
       <section class="card"><h2>④ 연결 시나리오 <small>M5 MacBook Air · 외부 2대</small></h2>${GUIDE}</section>

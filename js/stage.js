@@ -9,15 +9,15 @@
   const $ = (s) => document.querySelector(s);
   const params = new URLSearchParams(location.search);
   const SCREEN = params.get('screen') || 'all';
-  const IDX = { left: 0, center: 1, right: 2 }[SCREEN];
-  const SRC = { left: 'index.html?stage=1', center: 'flow.html', right: 'ccw.html?stage=1' };
-  const NAME = { left: '왼쪽 · 고객', center: '가운데 · 데이터 흐름', right: '오른쪽 · 운영' };
+  // hu: the head unit on its own physical screen (customer side, two screens)
+  const IDX = { left: 0, hu: 0, center: 1, right: 2 }[SCREEN];
+  const SRC = { left: 'index.html?stage=1', hu: 'hu.html', center: 'flow.html', right: 'ccw.html?stage=1' };
+  const NAME = { left: '왼쪽 · 고객 (계기판)', hu: '고객 · 헤드유닛', center: '가운데 · 데이터 흐름', right: '오른쪽 · 운영' };
 
   document.title = `Stage · ${NAME[SCREEN] || '3면 미리보기'}`;
   if (SCREEN === 'all') document.body.classList.add('all');
   else document.documentElement.style.setProperty('--idx', IDX);
 
-  // content panes; the left screen holds the cockpit and the head unit
   const frame = (src, title) => {
     const f = document.createElement('iframe');
     f.src = src;
@@ -25,34 +25,59 @@
     f.allow = 'autoplay; fullscreen';
     return f;
   };
-  let left = null;
-  (SCREEN === 'all' ? ['left', 'center', 'right'] : [SCREEN]).forEach((k) => {
-    if (k !== 'left') { $('#panes').appendChild(frame(SRC[k], NAME[k])); return; }
-    left = document.createElement('div');
-    left.className = 'left drive';
-    left.append(frame(SRC.left, '계기판'), frame('hu.html', '헤드유닛'));
-    $('#panes').appendChild(left);
+  // the left screen holds the cockpit (it runs the vehicle and the e-Care
+  // director) and the head unit; the hu screen holds a head unit of its own
+  let left = null, huPane = null;
+  (SCREEN === 'all' ? ['left', 'hu', 'center', 'right'] : [SCREEN]).forEach((k) => {
+    if (k === 'left') {
+      left = document.createElement('div');
+      left.className = 'left drive';
+      left.append(frame(SRC.left, '계기판'), frame('hu.html', '헤드유닛'));
+      $('#panes').appendChild(left);
+    } else if (k === 'hu') {
+      huPane = document.createElement('div');
+      huPane.className = 'hu-pane';
+      huPane.append(frame(SRC.hu, NAME.hu));
+      huPane.insertAdjacentHTML('beforeend', '<div class="standby">고객 화면 1개 모드<br><small>헤드유닛은 왼쪽 화면에 함께 표시 중</small></div>');
+      $('#panes').appendChild(huPane);
+    } else $('#panes').appendChild(frame(SRC[k], NAME[k]));
   });
 
-  /* Left screen layout: 'drive' shows the cockpit; 'hu' shows the head unit
-   * with the cockpit as a picture-in-picture. 'auto' follows the e-Care case:
-   * the head unit comes up with a warning and stays until the case is closed. */
-  let leftMode = 'auto';
+  /* Customer side, set from the control panel (Link 'stage-cust'):
+   *  screens 1: the left screen shows the cockpit and the head unit together,
+   *    layout auto (head unit with the cockpit as picture-in-picture while a
+   *    case is open), split (side by side), drive (cockpit) or hu (head unit);
+   *  screens 2: the left screen shows the cockpit, the hu screen the head unit. */
+  let cust = { screens: 1, layout: 'auto' };
+  try { Object.assign(cust, JSON.parse(localStorage.getItem('stage-cust')) || {}); } catch (e) { /* none saved */ }
   let snap = null;
   function layout() {
-    if (!left) return;
-    let hu = leftMode === 'hu';
-    if (leftMode === 'auto' && snap) {
+    const two = cust.screens === 2;
+    let mode = two ? 'drive' : cust.layout;
+    if (mode === 'auto') {
       const now = Date.now();
-      hu = snap.cases.some((c) => (c.wcase === 'A' && !(c.sheet && c.sheet.saved && now - c.sheet.saved > 15000)) || (c.wcase !== 'A' && now - c.at < 20000));
+      const open = snap && snap.cases.some((c) => (c.wcase === 'A' && !(c.sheet && c.sheet.saved && now - c.sheet.saved > 15000)) || (c.wcase !== 'A' && now - c.at < 20000));
+      mode = open ? 'hu' : 'drive';
     }
-    left.classList.toggle('hu', hu);
-    left.classList.toggle('drive', !hu);
-    const doc = left.lastChild.contentDocument;
-    if (doc && doc.body) doc.body.classList.toggle('pip', hu);
+    if (left) {
+      left.className = `left ${mode}`;
+      const doc = left.lastChild.contentDocument;
+      if (doc && doc.body) doc.body.classList.toggle('pip', mode === 'hu');
+    }
+    if (huPane) {
+      huPane.classList.toggle('standby-on', !two);
+      if (SCREEN === 'all') huPane.style.display = two ? '' : 'none';
+    }
   }
-  Link.on('stage-left', (d) => { leftMode = d.mode || 'auto'; layout(); });
+  Link.on('stage-cust', (d) => {
+    cust = { screens: d.screens === 2 ? 2 : 1, layout: d.layout || 'auto' };
+    try { localStorage.setItem('stage-cust', JSON.stringify(cust)); } catch (e) { /* private mode */ }
+    layout();
+  });
+  // older remotes: left screen mode only
+  Link.on('stage-left', (d) => { cust.layout = d.mode || 'auto'; layout(); });
   setInterval(layout, 1000);
+  layout();
 
   let scene = 'live';
   Link.on('ecare', (d) => { snap = d; layout(); if (scene === 'closing') render(); });

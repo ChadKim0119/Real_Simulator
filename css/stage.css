@@ -16,6 +16,14 @@ body.all #panes > * + * { border-left: 3px solid #000; }
 #panes .left iframe:last-child { left: 0; top: 0; width: 100%; height: 100%; opacity: 0; z-index: 0; }
 #panes .left.hu iframe:first-child { left: 2.4%; top: 74%; width: 24%; height: 24%; z-index: 2; border-radius: calc(var(--sh) * 0.012); box-shadow: 0 0 0 2px #2a2f38, 0 calc(var(--sh) * 0.02) calc(var(--sh) * 0.05) rgba(0, 0, 0, 0.8); }
 #panes .left.hu iframe:last-child { opacity: 1; z-index: 1; }
+#panes .left.split iframe:first-child { width: 50%; }
+#panes .left.split iframe:last-child { left: 50%; width: 50%; opacity: 1; }
+/* head unit on its own screen; a standby card when the customer side uses one screen */
+#panes .hu-pane { position: relative; overflow: hidden; }
+#panes .hu-pane iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+#panes .hu-pane .standby { position: absolute; inset: 0; display: none; place-content: center; text-align: center; background: #000; color: #4a5566; font: 700 calc(var(--sh) * 0.05) "Pretendard", sans-serif; }
+#panes .hu-pane .standby small { font-size: 0.55em; font-weight: 500; }
+#panes .hu-pane.standby-on .standby { display: grid; }
 
 /* panorama: a strip three screens wide; each screen shows its third */
 #pano { position: fixed; inset: 0; overflow: hidden; opacity: 0; pointer-events: none; transition: opacity 1.2s ease; z-index: 5; background: #02040a; }

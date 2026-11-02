@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* Captures still frames of the auditorium demo for the monitor test mode
- * (test.html). Runs the presenter's run sheet through the relay and saves
+ * (test.html). Runs the control panel's full presentation through the relay and saves
  * each of the three screens at 1920x1080 per step.
  *
  *   node tools/relay.mjs &
@@ -46,8 +46,9 @@ const PLAN = [
   await st.goto(`${BASE}/stage.html?screen=all`);
   await st.waitForTimeout(3000);
   const rc = await (await b.newContext({ viewport: { width: 1180, height: 900 } })).newPage();
-  await rc.goto(`${BASE}/remote.html`);
+  await rc.goto(`${BASE}/control.html`);
   await rc.waitForTimeout(1500);
+  await rc.click('[data-sc="show"]');
   // start clean
   await rc.evaluate(() => { Link.send('act', { name: 'clear', args: {} }); Link.send('act', { name: 'careReset', args: {} }); });
   await rc.waitForTimeout(1500);
@@ -65,7 +66,7 @@ const PLAN = [
       execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', png, '-q:v', '4', path.join(OUT, `${key}_${k}.jpg`)]);
       fs.unlinkSync(png);
     }
-    index.push({ key, id, title, what, step: (await rc.textContent('#nowTitle')).trim() });
+    index.push({ key, id, title, what, step: (await rc.textContent('#now b')).trim() });
     console.log(key, id, title);
   }
   fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index, null, 1));

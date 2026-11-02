@@ -312,6 +312,8 @@
     inbound(c) {
       const busy = this.cases.find((x) => x.call && (x.call.state === 'connected' || x.call.state === 'dialing')) || (this.general && this.general.state !== 'ended');
       if (busy) return 'busy';
+      // the same press from another head unit window (left screen and HU screen)
+      if (c && c.inbound && !c.call) return 'case';
       if (c && c.kind === 'emergency' && c.contact === 0 && !c.inbound) {
         const idle = this.agents.find((a) => a.state === '대기') || this.me();
         c.inbound = { at: Date.now(), agent: idle.id };
