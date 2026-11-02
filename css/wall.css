@@ -1,9 +1,11 @@
 /* one-screen demo wall: a 21:9 (2560x1080) or 16:9 (1920x1080) canvas of four tiled panels, scaled to the window */
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: #000; font-family: "Pretendard", "Noto Sans KR", sans-serif; color: #fff; cursor: none; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; background: #000; font-family: "Pretendard", "Noto Sans KR", sans-serif; color: #fff; cursor: none; }
 body.cur, body.edit { cursor: default; }
-#canvas { position: absolute; left: 0; top: 0; height: 1080px; transform-origin: 0 0; background: #05070c; }
+/* fixed: a 2560px canvas in normal flow makes phone browsers widen the page (and the
+   first screen ends up off to the side) */
+#canvas { position: fixed; left: 0; top: 0; height: 1080px; transform-origin: 0 0; background: #05070c; }
 #panels { position: absolute; inset: 0; }
 .panel { position: absolute; overflow: hidden; background: #000; border-radius: 10px; box-shadow: 0 0 0 2px #2b3a52, 0 0 0 3px #05070c, 0 10px 30px rgba(0, 0, 0, 0.6); transition: box-shadow 0.2s; }
 .panel iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
@@ -73,3 +75,12 @@ body.cur #bar, body.edit #bar { opacity: 1; pointer-events: auto; }
 #modes .mini { position: relative; width: 100%; background: #05070c; border-radius: 8px; outline: 1px solid #22314a; }
 #modes .mini i { position: absolute; box-sizing: border-box; border: 2px solid #05070c; background: linear-gradient(160deg, #1d3354, #122036); border-radius: 6px; display: grid; place-items: center; font-style: normal; overflow: hidden; }
 #modes .mini i span { font-size: clamp(9px, 0.85vw, 12px); color: #cfe1ff; padding: 0 4px; text-align: center; }
+
+/* a phone held upright: the wall is wide, ask to turn it */
+#rotate { position: fixed; inset: auto 12px 12px 12px; z-index: 30; display: none; padding: 10px 14px; border-radius: 12px; background: rgba(8, 14, 26, 0.92); border: 1px solid #2b3a52; color: #cfe1ff; font-size: 14px; text-align: center; }
+@media (orientation: portrait) and (max-width: 700px) { body:not(.modes-open) #rotate { display: block; } }
+@media (max-width: 700px) {
+  #modes .opts { grid-template-columns: 1fr; gap: 14px; }
+  #modes button { padding: 14px; }
+  #bar { max-width: calc(100vw - 16px); flex-wrap: wrap; justify-content: center; }
+}

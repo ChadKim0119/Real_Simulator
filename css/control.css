@@ -1,48 +1,59 @@
-/* demo control panel: scenarios | current step | status + manual */
-:root { color-scheme: dark; --bg: #070a10; --card: #0e141e; --line: #1e2938; --tx: #e6ebf2; --mut: #8b97a9; --blue: #4f8cff; --ok: #3ddc84; }
+/* demo control panel
+ * hierarchy: 1) the scenario step (now · previous / next / auto) and the fixed dock
+ * (camera, reset) — used all the time; 2) the scenario list; 3) manual controls in
+ * three tabs, each split into small chunks. Works from a phone to a desktop. */
+:root { color-scheme: dark; --bg: #070a10; --card: #0e141e; --line: #1e2938; --tx: #e6ebf2; --mut: #8b97a9; --blue: #4f8cff; --ok: #3ddc84; --dock: 96px; }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--tx); font-family: "Pretendard", "Noto Sans KR", sans-serif; }
+html, body { margin: 0; background: var(--bg); color: var(--tx); font-family: "Pretendard", "Noto Sans KR", sans-serif; -webkit-text-size-adjust: 100%; }
 button, a { font: inherit; color: inherit; }
-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 18px; padding: 12px 20px; background: rgba(7, 10, 16, 0.94); border-bottom: 1px solid var(--line); font-size: 13.5px; }
-header b { font-size: 18px; }
-#link { color: #7fe7a8; }
-#veh { color: var(--mut); }
+/* Korean breaks between words, never inside one ("이 / 전") */
+button, a, h2, h3, p, small, b, span { word-break: keep-all; overflow-wrap: break-word; }
+
+header { position: sticky; top: 0; z-index: 4; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 10px 20px; padding-right: calc(var(--dock) + 30px); background: rgba(7, 10, 16, 0.95); border-bottom: 1px solid var(--line); font-size: 13.5px; }
+header b { font-size: 18px; white-space: nowrap; }
+#link { color: #7fe7a8; white-space: nowrap; }
+#veh { color: var(--mut); white-space: nowrap; }
 #toast { margin-left: auto; color: #ffd28a; }
-main { display: grid; grid-template-columns: minmax(230px, 280px) minmax(330px, 1fr) minmax(440px, 520px); gap: 14px; padding: 14px 20px 30px; align-items: start; }
-@media (max-width: 1100px) { main { grid-template-columns: 1fr 1fr; } .side { grid-column: 1 / -1; } }
-@media (max-width: 720px) { main { grid-template-columns: 1fr; } }
+
+main { display: grid; gap: 14px; padding: 14px 20px 30px; padding-right: calc(var(--dock) + 30px); align-items: start;
+  grid-template-columns: minmax(230px, 280px) minmax(320px, 1fr) minmax(420px, 520px); grid-template-areas: "scen run side"; }
+.run { grid-area: run; } .scen { grid-area: scen; } .side { grid-area: side; }
 .col { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; min-width: 0; }
 h2 { margin: 0 0 10px; font-size: 15px; color: #cfd6e2; }
-h3 { margin: 14px 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700; }
+h3 { margin: 0 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700; }
 
-/* scenarios */
-.sc { display: grid; grid-template-columns: 34px 1fr; gap: 2px 10px; width: 100%; text-align: left; padding: 11px 12px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--line); background: #0b111a; cursor: pointer; }
-.sc i { grid-row: span 2; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font: 700 15px "Barlow", sans-serif; font-style: normal; background: #18212f; }
-.sc b { font-size: 14.5px; }
-.sc small { font-size: 12px; color: var(--mut); }
-.sc.on { border-color: var(--blue); background: #10213d; }
-.sc.on i { background: var(--blue); color: #fff; }
-.sets button { display: block; width: 100%; text-align: left; margin-bottom: 6px; }
-
-/* current step */
-#now .hd { padding: 6px 4px 14px; }
+/* ---------- 1. current step ---------- */
+#now .hd { padding: 4px 4px 12px; }
 #now small { color: #7fb1ff; font-size: 13px; font-weight: 700; }
-#now b { display: block; margin-top: 6px; font-size: 24px; }
-#now p { margin: 10px 0 0; font-size: 16px; line-height: 1.6; color: #cfd6e2; }
+#now .hd > b { display: block; margin-top: 6px; font-size: clamp(19px, 2.2vw, 24px); }
+#now p { margin: 8px 0 0; font-size: 15.5px; line-height: 1.6; color: #cfd6e2; }
 #now .wait { display: inline-block; margin-top: 10px; font-style: normal; font-size: 13px; color: #ffd28a; background: rgba(255, 176, 46, 0.1); padding: 5px 10px; border-radius: 8px; }
-#now .btns { display: grid; grid-template-columns: 1fr 2.4fr 1.4fr; gap: 10px; }
-#now .btns button { height: 72px; font-size: 16px; font-weight: 800; border-radius: 14px; }
-#steps { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+#now .btns { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; }
+#now .btns button { min-height: 68px; padding: 8px 14px; font-size: 16px; font-weight: 800; border-radius: 14px; white-space: nowrap; }
+#now #next { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; min-width: 0; overflow: hidden; }
+#now #next b { font-size: 17px; }
+#now #next small { max-width: 100%; color: rgba(255, 255, 255, 0.85); font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#steps { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
 #steps .grp { margin: 10px 0 2px; font-size: 12px; color: var(--mut); font-weight: 700; }
-#steps button { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0b111a; cursor: pointer; font-size: 14px; }
+#steps button { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0b111a; cursor: pointer; font-size: 14px; line-height: 1.35; }
 #steps button i { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 12px "Barlow", sans-serif; font-style: normal; background: #18212f; }
-#steps button small { margin-left: auto; font-size: 11px; color: #ffd28a; }
+#steps button small { flex: none; margin-left: auto; font-size: 11px; color: #ffd28a; }
 #steps button.done { color: var(--mut); }
 #steps button.done i { background: #14432b; color: #8ff0b3; }
 #steps button.cur { border-color: var(--blue); background: #10213d; }
 #steps button.cur i { background: var(--blue); color: #fff; }
 
-/* buttons */
+/* ---------- 2. scenarios ---------- */
+.sc { display: grid; grid-template-columns: 34px 1fr; gap: 2px 10px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--line); background: #0b111a; cursor: pointer; line-height: 1.35; }
+.sc i { grid-row: span 2; align-self: center; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font: 700 15px "Barlow", sans-serif; font-style: normal; background: #18212f; }
+.sc b { font-size: 14.5px; }
+.sc small { font-size: 12px; color: var(--mut); }
+.sc.on { border-color: var(--blue); background: #10213d; }
+.sc.on i { background: var(--blue); color: #fff; }
+.sets { margin-top: 10px; }
+.sets button { display: block; width: 100%; text-align: left; margin-bottom: 6px; line-height: 1.4; }
+
+/* ---------- buttons ---------- */
 .col button, .col a { border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); padding: 8px 11px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; }
 .col button:hover, .col a:hover { border-color: var(--blue); }
 .col button.on { background: #173a6b; border-color: var(--blue); color: #fff; }
@@ -50,37 +61,60 @@ h3 { margin: 14px 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700;
 .col button.warn { border-color: rgba(255, 93, 108, 0.5); color: #ff9aa4; }
 .col button:disabled { opacity: 0.4; cursor: default; }
 .row { display: flex; flex-wrap: wrap; gap: 6px; }
-.row.lay { margin-top: 6px; }
-.row button i { font-style: normal; font-size: 10.5px; font-weight: 800; padding: 1px 5px; border-radius: 4px; margin-left: 4px; }
 .kA { background: #ff4d5e; color: #fff; } .kB { background: #ffb02e; color: #1a1205; } .kC { background: #3fd0c9; color: #04201e; }
 
-/* status */
-#status { margin-bottom: 14px; }
-.st { padding: 10px 12px; border-radius: 10px; background: #0b111a; border: 1px solid var(--line); }
-.st b { display: block; font-size: 15px; }
-.st span { display: block; margin-top: 4px; font-size: 13px; color: #9fc6ff; }
-.say { margin-top: 8px; padding: 9px 12px; border-radius: 10px; background: #0b1626; font-size: 13.5px; line-height: 1.5; }
-.say small { display: block; font-size: 11.5px; color: #7fb1ff; font-weight: 700; }
-.fl { margin-top: 8px; font-size: 12px; color: var(--mut); }
-.fl div { padding: 3px 0; border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fl em { font-style: normal; color: #ff8a94; font-weight: 700; margin-right: 6px; }
+/* ---------- 3. manual controls: tabs of small chunks ---------- */
+#manual .mh { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+#manual .mh h2 { margin: 0; }
+#manual .tabs { display: flex; padding: 3px; gap: 3px; border-radius: 11px; background: #0a0f17; border: 1px solid var(--line); }
+#manual .tabs button { border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; white-space: nowrap; color: var(--mut); }
+#manual .tabs button.on { background: #1b2a42; color: #fff; }
+#manual .ck { padding: 10px 0; border-top: 1px solid var(--line); }
+#manual .ck:first-child { border-top: 0; padding-top: 2px; }
+#manual .ck h3 { display: flex; align-items: baseline; gap: 8px; }
+#manual .ck h3 small { font-size: 11px; font-weight: 600; color: #5d6b80; }
+#manual .row button, #manual .row a { padding: 9px 12px; font-size: 13px; white-space: nowrap; }
+#manual .lampset { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
+#manual .lampset + .lampset { margin-top: 6px; }
+#manual .lampset > span { flex: none; font-size: 11px; font-weight: 800; padding: 3px 7px; border-radius: 6px; white-space: nowrap; }
+#manual .lampset > span:not(:first-child) { margin-left: 8px; }
+#manual button.lamp.kA, #manual button.lamp.kB, #manual button.lamp.kC { background: rgba(255, 255, 255, 0.05); color: inherit; }
+#manual button.lamp { border-left-width: 4px; }
+#manual button.lamp.kA { border-left-color: #ff4d5e; } #manual button.lamp.kB { border-left-color: #ffb02e; } #manual button.lamp.kC { border-left-color: #3fd0c9; }
 
-/* fixed on the right: reset and the car camera, always in reach */
-#dock { position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 5; width: 96px; display: flex; flex-direction: column; gap: 8px; padding: 14px 10px; border-radius: 16px 0 0 16px; background: rgba(10, 16, 26, 0.96); border: 1px solid var(--line); border-right: 0; box-shadow: -10px 0 30px rgba(0, 0, 0, 0.4); }
+/* ---------- fixed dock: camera and reset, always in reach ---------- */
+#dock { position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 5; width: var(--dock); display: flex; flex-direction: column; gap: 8px; padding: 14px 10px; border-radius: 16px 0 0 16px; background: rgba(10, 16, 26, 0.96); border: 1px solid var(--line); border-right: 0; box-shadow: -10px 0 30px rgba(0, 0, 0, 0.4); }
 #dock b { font-size: 12px; color: var(--mut); text-align: center; }
-#dock button { border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); color: inherit; font: 700 13px/1.25 "Pretendard", sans-serif; padding: 12px 4px; border-radius: 10px; cursor: pointer; }
+#dock button { border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); color: inherit; font: 700 13px/1.25 "Pretendard", sans-serif; padding: 12px 4px; border-radius: 10px; cursor: pointer; word-break: keep-all; }
+#dock button span { display: block; }
 #dock button.on { background: #173a6b; border-color: var(--blue); color: #fff; }
 #dock button.warn { border-color: rgba(255, 93, 108, 0.6); color: #ff9aa4; padding: 16px 4px; }
 #dock hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
-main { padding-right: 116px !important; }
-.note { font-size: 12px; color: var(--mut); margin: 10px 0 0; }
 
-/* manual controls: group name beside its buttons, compact, one screen without scrolling */
-#manual h2 { margin-bottom: 6px; }
-#manual .mg { display: grid; grid-template-columns: 62px 1fr; gap: 8px; align-items: start; padding: 6px 0; border-top: 1px solid var(--line); }
-#manual .mg:first-of-type { border-top: 0; }
-#manual .mg h3 { margin: 8px 0 0; font-size: 12px; }
-#manual .row { gap: 5px; }
-#manual .row button, #manual .row a { padding: 7px 9px; font-size: 12.5px; white-space: nowrap; }
-#manual .row.nw { flex-wrap: nowrap; }
-#manual .row.nw button { flex: 1 1 auto; padding: 7px 6px; }
+/* ---------- screen sizes ---------- */
+/* laptop · iPad landscape: step and scenarios on the left, manual on the right */
+@media (max-width: 1279px) {
+  main { grid-template-columns: minmax(300px, 1fr) minmax(360px, 1fr); grid-template-areas: "run side" "scen side"; }
+}
+/* iPad portrait: step and scenarios side by side, manual below */
+@media (max-width: 999px) {
+  main { grid-template-areas: "run scen" "side side"; grid-template-columns: 1fr 1fr; }
+}
+/* phone: one column; the dock becomes a bar at the bottom */
+@media (max-width: 699px) {
+  :root { --dock: 0px; }
+  header { padding: 8px 12px; }
+  header b { font-size: 16px; }
+  #veh { display: none; }
+  main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "run" "side" "scen"; padding: 10px 10px 96px; gap: 10px; }
+  .col { padding: 12px; border-radius: 14px; }
+  #now .btns button { min-height: 60px; padding: 8px 10px; font-size: 15px; }
+  #now p { font-size: 14.5px; }
+  #manual .tabs { width: 100%; }
+  #manual .tabs button { flex: 1; padding: 8px 4px; }
+  #dock { top: auto; bottom: 0; left: 0; right: 0; transform: none; width: auto; flex-direction: row; align-items: stretch; gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; border: 1px solid var(--line); border-bottom: 0; }
+  #dock b, #dock hr { display: none; }
+  #dock button { flex: 1; padding: 11px 2px; white-space: nowrap; }
+  #dock button span { display: none; }
+  #dock button.warn { padding: 11px 2px; flex: 1.2; }
+}

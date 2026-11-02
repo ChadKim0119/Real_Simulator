@@ -194,8 +194,8 @@
     const next = sc.steps[cur + 1];
     $('#now').innerHTML = `<div class="hd"><small>${esc(sc.n)} · ${esc(sc.title)}</small><b>${s ? `${cur + 1}/${sc.steps.length} · ${esc(s.t)}` : '시작 전'}</b>
         <p>${s ? esc(s.cue) : `첫 단계: ${esc(sc.steps[0].t)}`}</p>${waiting ? `<em class="wait">⏳ ${esc(waiting)}</em>` : ''}</div>
-      <div class="btns"><button id="prev">◀ 이전</button><button id="next" class="pri">${busy ? '대기 건너뛰고 다음 ▶' : next ? `다음 ▶ ${esc(next.t)}` : '끝'}</button>
-        <button id="auto" class="${auto ? 'on' : ''}">${auto ? '■ 자동 진행 멈춤' : '▶▶ 자동 진행'}</button></div>`;
+      <div class="btns"><button id="prev">◀ 이전</button><button id="next" class="pri"><b>${busy ? '대기 건너뛰고 다음 ▶' : next ? '다음 ▶' : '끝'}</b>${next ? `<small>${esc(next.t)}</small>` : ''}</button>
+        <button id="auto" class="${auto ? 'on' : ''}">${auto ? '■ 멈춤' : '▶▶ 자동'}</button></div>`;
     let grp = '';
     $('#steps').innerHTML = sc.steps.map((x, i) => {
       const head = x.grp && x.grp !== grp ? `<div class="grp">${esc(x.grp)}</div>` : '';
@@ -214,19 +214,33 @@
 
   /* ---------------- manual ---------------- */
   const WARNS = [['brake', '브레이크', 'A'], ['engine', '엔진', 'A'], ['coolant', '냉각수', 'A'], ['oil', '오일 압력', 'A'], ['airbag', '에어백', 'B'], ['door', '도어락', 'B'], ['brakepad', '브레이크 패드', 'C']];
+  /* Manual controls, chunked by what is being driven, one tab at a time:
+   *   차량 · 고객   — the car (driving, lamps by WNG case) and the customer's head unit
+   *   상담센터      — the call in its order, timing and situations, the general call
+   *   장면 · 화면   — what the wall shows, its layout, checks
+   * Reset and the camera stay in the fixed dock; the scenario steps stay on top. */
+  let mtab = localStorage.getItem('control-mtab') || 'car';
   function manual() {
-    const g = (title, body, cls) => `<div class="mg"><h3>${title}</h3><div class="row ${cls || ''}">${body}</div></div>`;
     const b = (attr, label, cls) => `<button ${attr} class="${cls || ''}">${label}</button>`;
-    $('#manual').innerHTML = `<h2>수동 제어</h2>
-      ${g('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join('') + b('data-identify', '화면 확인'))}
-      ${g('시연 화면', b('data-wmode="21"', '21:9 모드') + b('data-wmode="169"', '16:9 모드') + b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'), 'nw')}
-      ${g('차량', b('data-a="ign"', '시동 ON/OFF') + b('data-a="drive"', '출발') + b('data-a="stop"', '정지') + b('data-a="hazard"', '비상등') + b('data-a="clear"', '경고 해제'))}
-      ${g('경고등', WARNS.map(([id, n, k]) => b(`data-warn="${id}"`, `${n} <i class="k${k}">${k}</i>`)).join(''))}
-      ${g('헤드유닛', b('data-hu="show"', 'HU 팝업 다시') + b('data-hu="press"', 'HU 전화연결'))}
-      ${g('상담센터', b('data-a="sla25"', '25분 경과') + b('data-c="ack"', '상담원 받기') + b('data-a="accept"', '상담원 전화 걸기') + b('data-c="redial"', '재연결') + b('data-c="hangup"', '통화 종료') + b('data-a="dispatch"', '긴급출동') + b('data-a="complete"', '완료 · 이관'))}
-      ${g('일반 전화', b('data-a="inbound"', '고객 전화 (경고 없을 때)') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))}
-      ${g('설정', b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음'))}
-      ${g('화면', ['wall.html:시연 화면', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))}`;
+    const chunk = (title, body, note) => `<div class="ck"><h3>${title}${note ? `<small>${note}</small>` : ''}</h3><div class="row">${body}</div></div>`;
+    const lamps = (k) => WARNS.filter((w) => w[2] === k).map(([id, n]) => b(`data-warn="${id}"`, n, `lamp k${k}`)).join('');
+    const TABS = {
+      car: ['차량 · 고객', chunk('운행', b('data-a="ign"', '시동 ON/OFF') + b('data-a="drive"', '출발') + b('data-a="stop"', '정지') + b('data-a="hazard"', '비상등'))
+        + chunk('경고등 켜기', `<div class="lampset"><span class="kA">A 긴급</span>${lamps('A')}</div><div class="lampset"><span class="kB">B 주의</span>${lamps('B')}<span class="kC">C 정비</span>${lamps('C')}</div>`, 'WNG Case')
+        + chunk('고객 헤드유닛', b('data-hu="show"', '팝업 다시 띄우기') + b('data-hu="press"', '전화연결 누르기'))
+        + chunk('정리', b('data-a="clear"', '경고등 모두 끄기'))],
+      call: ['상담센터', chunk('통화 진행', b('data-c="ack"', '① 상담원 받기') + b('data-a="accept"', '② 상담원 전화 걸기') + b('data-c="redial"', '③ 재연결') + b('data-c="hangup"', '④ 통화 종료'), '순서대로')
+        + chunk('통화 후', b('data-a="dispatch"', '긴급출동') + b('data-a="complete"', '상담 완료 · 이관'))
+        + chunk('시간 · 상황', b('data-a="sla25"', '25분 경과') + b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음'))
+        + chunk('일반 전화 (경고 없음)', b('data-a="inbound"', '고객 전화 오기') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))],
+      wall: ['장면 · 화면', chunk('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join(''))
+        + chunk('시연 화면 비율', b('data-wmode="21"', '21:9') + b('data-wmode="169"', '16:9'))
+        + chunk('시연 화면 배치', b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))
+        + chunk('점검 · 열기', b('data-identify', '화면 번호 표시') + ['wall.html:시연 화면 열기', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))],
+    };
+    if (!TABS[mtab]) mtab = 'car';
+    $('#manual').innerHTML = `<div class="mh"><h2>수동 제어</h2><nav class="tabs">${Object.keys(TABS).map((k) => `<button data-mtab="${k}" class="${k === mtab ? 'on' : ''}">${TABS[k][0]}</button>`).join('')}</nav></div>
+      <div class="mbody">${TABS[mtab][1]}</div>`;
     manualState();
   }
   function manualState() {
@@ -256,6 +270,7 @@
     if (t.id === 'next') go(cur + 1);
     else if (t.id === 'prev') { Link.send('hush', {}); cur = Math.max(-1, cur - 1); steps(); }
     else if (t.id === 'auto') { auto = !auto; steps(); if (auto && !busy) go(cur + 1); }
+    else if (d.mtab) { mtab = d.mtab; localStorage.setItem('control-mtab', mtab); manual(); }
     else if (d.sc) pick(d.sc);
     else if (d.step) go(+d.step);
     else if (d.pick) { const [kind, key] = d.pick.split(':'); send('cmd', 'pick', { kind, key }); }

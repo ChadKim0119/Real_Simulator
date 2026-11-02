@@ -123,6 +123,7 @@
     W = MODES[m].W;
     L = D.load(m);
     $('#modes').classList.remove('on');
+    document.body.classList.remove('modes-open');
     loadPages();
     render();
     if (!quiet && changed) Link.send('wall', { mode: m });
@@ -139,6 +140,7 @@
     el.innerHTML = `<div class="box"><h1>시연 화면 모드</h1><p>이 화면(${screen.width}×${screen.height} · ${r.toFixed(2)}:1)에 맞는 모드를 고르세요. 나중에 위쪽 막대나 컨트롤 패널, <b>M</b> 키로 바꿀 수 있습니다.</p>
       <div class="opts">${['21', '169'].map((m) => `<button data-pick="${m}" class="${m === best ? 'best' : ''} ${m === mode ? 'cur' : ''}">${mini(m)}<b>${MODES[m].name}</b><span>${MODES[m].desc}</span>${m === best ? '<em>이 화면에 맞음</em>' : ''}</button>`).join('')}</div></div>`;
     el.classList.add('on');
+    document.body.classList.add('modes-open');
   }
   $('#modes').addEventListener('click', (e) => { const b = e.target.closest('[data-pick]'); if (b) setMode(b.dataset.pick); });
 
@@ -241,7 +243,10 @@
     if (e.code === 'KeyR' && edit) reset();
   });
   let barT = 0;
-  addEventListener('mousemove', () => { document.body.classList.add('cur'); clearTimeout(barT); barT = setTimeout(() => document.body.classList.remove('cur'), 2500); });
+  // the bar shows with the pointer, or a tap on a touch screen (phones and tablets have no hover)
+  const showBar = (ms) => { document.body.classList.add('cur'); clearTimeout(barT); barT = setTimeout(() => document.body.classList.remove('cur'), ms); };
+  addEventListener('mousemove', () => showBar(2500));
+  addEventListener('touchstart', () => showBar(4000), { passive: true });
 
   // the control panel (or another wall) changes layout, labels, editing
   Link.on('wall', (d) => {
