@@ -95,3 +95,20 @@ td button { padding: 5px 8px !important; font-size: 12px !important; margin: 2px
 .ck button { padding: 4px 10px !important; font-size: 12px !important; }
 .ck.ok span { color: #8ff0b3; } .ck.ok button[data-ck$=":ok"] { background: #14432b; border-color: var(--ok); }
 .ck.ng span { color: #ff9aa4; } .ck.ng button[data-ck$=":ng"] { background: #4a1820; border-color: var(--ng); }
+
+/* wall preview / output: a W x 1080 canvas scaled into its box */
+.wallwrap { padding: 12px; }
+.prev, .sig { position: relative; width: 100%; overflow: hidden; background: #000; }
+.sig { position: fixed; inset: 0; height: 100vh; }
+.cv { position: absolute; left: 0; top: 0; height: 1080px; transform-origin: 0 0; background: #03050a; }
+.cv .pat { width: 100%; height: 100%; display: block; }
+.cv .pn { position: absolute; overflow: hidden; background: #000; outline: 2px solid #000; }
+.cv .pn img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.cv .pn .tg { position: absolute; left: 14px; top: 12px; padding: 6px 14px; border-radius: 10px; background: rgba(3, 6, 12, 0.75); border: 1px solid rgba(150, 190, 255, 0.3); font-size: 26px; font-weight: 700; color: #cfe1ff; }
+.cv .pn .rv { position: absolute; left: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 6px; }
+.cv .pn .rv div { padding: 6px 14px; border-radius: 10px; font-size: 28px; font-weight: 700; background: rgba(3, 6, 12, 0.85); }
+.cv .rv .ok { color: #3ddc84; } .cv .rv .mid { color: #ffcf4a; } .cv .rv .bad { color: #ff5d6c; }
+.cv .ladder { font-size: 16px; }
+.cv .ladder .lh { font-size: 30px; } .cv .lr .mt, .cv .lr i { font-size: 26px; }
+.rv1 { display: inline-block; margin: 2px 6px 2px 0; padding: 2px 8px; border-radius: 6px; font-size: 12px; background: #0a1019; }
+.rv1.ok { color: #8ff0b3; } .rv1.mid { color: #ffd28a; } .rv1.bad { color: #ff9aa4; }

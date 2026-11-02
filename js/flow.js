@@ -204,25 +204,67 @@
   Link.on('say', (d) => { caption = { who: d.line.who, text: d.line.text, until: performance.now() + (d.line.dur || 4) * 1000 + 2500 }; });
   Link.send('hello', { screen: 'flow' });
 
+  /* Messages play one at a time in arrival order (the director sends them in
+   * bursts); each one's description goes to the log as it plays. */
+  const queue = [];
+  let shown = [];             // messages already played, for the log
+  let lastLaunch = 0;
   function ingest() {
     const fl = (snap && snap.flows) || [];
-    if (!fl.length && seen) { seen = 0; for (const k in counts) counts[k] = 0; }    // scenario reset
+    if (!fl.length && seen) reset();                                 // scenario reset
     for (const f of fl) {
       if (f.id <= seen) continue;
       seen = f.id;
-      if (first) continue;                 // joining mid-scenario: show state, do not replay
-      if (f.type === 'skip') { skip(); continue; }
-      launch(f);
+      if (f.type === 'skip') { if (!first) queue.push(f); continue; }
+      // joining mid-scenario: show the paths and the log, do not replay
+      if (first) { if (f.from !== f.to) keep(f.from, f.to, f.wcase ? CASECOL[f.wcase] : BLUE); shown.push(f); continue; }
+      queue.push(f);
     }
     first = false;
     renderLog();
+  }
+  function reset() {
+    seen = 0;
+    for (const k in counts) counts[k] = 0;
+    queue.length = 0;
+    shown = [];
+    for (const k in used) { const l = used[k]; if (l.dataset.extra) l.remove(); else l.setAttribute('class', ''); delete used[k]; }
+    renderLog();
+  }
+  function pump(now) {
+    if (!queue.length) return;
+    const gap = queue.length > 5 ? 650 : 1100;
+    if (now - lastLaunch < gap) return;
+    lastLaunch = now;
+    const f = queue.shift();
+    if (f.type === 'skip') { skip(); return; }
+    shown.push(f);
+    if (shown.length > 40) shown.shift();
+    launch(f);
+    renderLog();
+  }
+
+  /* Paths a message has taken stay drawn (solid, in the case colour) until
+   * the scenario is reset; the backbone shows faintly before that. */
+  const used = {};
+  function keep(a, b, col) {
+    const k = [a, b].sort().join('|');
+    let l = linkEls[a + b];
+    if (!l) {
+      l = el('path', { d: path(a, b).d, fill: 'none', 'stroke-linecap': 'round' }, g('links'));
+      l.dataset.extra = '1';
+      linkEls[a + b] = linkEls[b + a] = l;
+    }
+    l.setAttribute('class', 'used');
+    l.style.setProperty('--c', col);
+    used[k] = l;
   }
 
   /* ---------------- packets ---------------- */
   function launch(f) {
     const col = f.wcase ? CASECOL[f.wcase] : BLUE;
     counts[f.to] = (counts[f.to] || 0) + 1;
-    if (f.from === f.to) { flash(f.to, col); chip(f, N[f.to].x, N[f.to].y - 92, col, 2600, null, [{ x: N[f.to].x, y: N[f.to].y - 92 }, { x: N[f.to].x, y: N[f.to].y + 92 }, { x: N[f.to].x - 150, y: N[f.to].y - 92 }]); return; }
+    if (f.from === f.to) { flash(f.to, col); chip(f, N[f.to].x, N[f.to].y - 92, col, 4200, null, [{ x: N[f.to].x, y: N[f.to].y - 92 }, { x: N[f.to].x, y: N[f.to].y + 92 }, { x: N[f.to].x - 150, y: N[f.to].y - 92 }]); return; }
     const p0 = path(f.from, f.to);
     const p = p0;
     const tail = el('path', { d: p.d, fill: 'none', stroke: col, 'stroke-width': 6, 'stroke-linecap': 'round', opacity: 0.9 }, g('pk'));
@@ -231,9 +273,8 @@
     const dot = el('circle', { r: 13, fill: col, filter: 'url(#dot)' }, g('pk'));
     const pk = { f, tail, dot, L, t0: performance.now(), dur: Math.min(1400, 520 + L * 0.9), col };
     packets.push(pk);
-    chip(f, p.mx, p.my, col, 2600, pk);
-    const link = linkEls[f.from + f.to];
-    if (link) { link.setAttribute('stroke', col); link.setAttribute('stroke-opacity', 0.6); setTimeout(() => { link.setAttribute('stroke', 'rgba(120,160,220,0.16)'); link.removeAttribute('stroke-opacity'); }, 2400); }
+    chip(f, p.mx, p.my, col, 4200, pk);
+    keep(f.from, f.to, col);
     flash(f.from, col, 0.35);
   }
   // label chips: placed along the message's path where they cover no system
@@ -242,12 +283,12 @@
     .concat([{ x: 692, y: 374, w: 306, h: 316 }, { x: 997, y: 374, w: 306, h: 316 }, { x: 1370, y: 230, w: 260, h: 36 }])
     .concat(ZONES.map((z) => ({ x: z.x, y: 160, w: z.w, h: 52 })));        // zone titles
   const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-  const MAX_CHIPS = 4;        // in a burst only the newest labels stay readable
+  const MAX_CHIPS = 3;        // only the newest labels stay; the log has the descriptions
   function chip(f, x, y, col, ms, p, spots) {
     const live = chips.filter((c) => !c.out);
     live.slice(0, Math.max(0, live.length - MAX_CHIPS + 1)).forEach((c) => { c.out = performance.now(); });
     const grp = el('g', { opacity: 0 }, g('chips'));
-    const txt = `${f.api} · ${f.label}`;
+    const txt = f.api;
     const t = el('text', { x: 0, y: 0, fill: '#fff', 'font-size': 23, 'font-weight': 700, 'text-anchor': 'middle' }, grp);
     t.textContent = txt.length > 38 ? txt.slice(0, 37) + '…' : txt;
     const bb = t.getBBox();
@@ -348,7 +389,7 @@
   }
 
   function renderLog() {
-    const fl = ((snap && snap.flows) || []).filter((f) => !f.type).slice(-4).reverse();
+    const fl = shown.slice(-4).reverse();
     logEls.forEach((r, i) => {
       const f = fl[i];
       r.row.setAttribute('opacity', f ? 1 - i * 0.18 : 0);
@@ -357,6 +398,7 @@
       r.api.textContent = f.api;
       r.api.setAttribute('fill', f.wcase ? CASECOL[f.wcase] : BLUE);
       r.lb.textContent = f.label.length > 40 ? f.label.slice(0, 39) + '…' : f.label;
+      r.lb.setAttribute('fill', i === 0 ? '#ffffff' : '#a9b8cf');            // the message playing now
     });
   }
 
@@ -409,6 +451,7 @@
       n.badge.setAttribute('opacity', cnt ? 1 : 0);
       n.bt.textContent = cnt;
     }
+    pump(now);
     if (snap) tickCards(Date.now());
     tickCaption(now);
     requestAnimationFrame(frame);

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>e-Care Wall</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/wall.css">
+</head>
+<body>
+  <div id="canvas"><div id="panels"></div><div id="scene"></div></div>
+  <div id="bar">
+    <b>e-Care 시연 화면</b>
+    <button data-ratio="21">21:9</button><button data-ratio="63">63:9</button>
+    <button data-edit>배치 편집</button><button data-labels>라벨</button><button data-fs>전체화면</button>
+    <span id="hint"></span>
+  </div>
+  <script src="js/link.js"></script>
+  <script src="js/ecare.js"></script>
+  <script src="js/walldef.js"></script>
+  <script src="js/wall.js"></script>
+</body>
+</html>

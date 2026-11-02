@@ -1,19 +1,28 @@
 #!/usr/bin/env node
-/* Captures still frames of the auditorium demo for the monitor test mode
- * (test.html). Runs the control panel's full presentation through the relay and saves
- * each of the three screens at 1920x1080 per step.
+/* Captures still frames of the demo wall for the monitor test mode
+ * (test.html). Runs the control panel's full presentation through the relay
+ * on wall.html at the ratio given (default layout, no labels) and saves every
+ * panel per step.
  *
  *   node tools/relay.mjs &
- *   NODE_PATH=$(npm root -g) node tools/capture-stills.cjs [http://127.0.0.1:8787]
+ *   NODE_PATH=$(npm root -g) node tools/capture-stills.cjs 21 [http://127.0.0.1:8787]
+ *   NODE_PATH=$(npm root -g) node tools/capture-stills.cjs 63
  *
- * Output: assets/test/stills/<nn>_<left|center|right>.jpg and index.json */
+ * Output: assets/test/stills/<21|63>/<nn>_<panel>.jpg and index.json */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
-const BASE = process.argv[2] || 'http://127.0.0.1:8787';
-const OUT = path.join(__dirname, '..', 'assets', 'test', 'stills');
+const RATIO = process.argv[2] === '63' ? 63 : 21;
+const BASE = process.argv[3] || 'http://127.0.0.1:8787';
+const OUT = path.join(__dirname, '..', 'assets', 'test', 'stills', String(RATIO));
+// default layouts, the same as js/walldef.js
+const W = { 21: 2560, 63: 7560 }[RATIO];
+const LAYOUT = {
+  21: { cockpit: [0, 0, 860, 472], hu: [860, 0, 860, 472], talk: [1720, 0, 840, 472], flow: [0, 472, 1280, 608], ccw: [1280, 472, 1280, 608] },
+  63: { cockpit: [0, 0, 1680, 1080], hu: [1680, 0, 1440, 1080], flow: [3120, 0, 1800, 1080], ccw: [4920, 0, 1800, 1080], talk: [6720, 0, 840, 1080] },
+}[RATIO];
 
 // [press "next" this many times (each once the panel is idle), wait ms, then capture id/title/what]
 const PLAN = [
@@ -42,8 +51,10 @@ const PLAN = [
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
-  const st = await (await b.newContext({ viewport: { width: 5760, height: 1080 } })).newPage();
-  await st.goto(`${BASE}/stage.html?screen=all`, { waitUntil: 'domcontentloaded' });
+  const wctx = await b.newContext({ viewport: { width: W, height: 1080 } });
+  await wctx.addInitScript(() => { localStorage.removeItem('wall-layout-21'); localStorage.removeItem('wall-layout-63'); localStorage.setItem('wall-labels', 'false'); });
+  const st = await wctx.newPage();
+  await st.goto(`${BASE}/wall.html?ratio=${RATIO}`, { waitUntil: 'domcontentloaded' });
   await st.waitForTimeout(3000);
   const rc = await (await b.newContext({ viewport: { width: 1180, height: 900 } })).newPage();
   await rc.goto(`${BASE}/control.html`, { waitUntil: 'domcontentloaded' });
@@ -65,15 +76,16 @@ const PLAN = [
     if (!id) continue;
     n++;
     const key = String(n).padStart(2, '0');
-    for (const [k, x] of [['left', 0], ['center', 1920], ['right', 3840]]) {
+    for (const k in LAYOUT) {
+      const [x, y, w, h] = LAYOUT[k];
       const png = path.join(OUT, `${key}_${k}.png`);
-      await st.screenshot({ path: png, clip: { x, y: 0, width: 1920, height: 1080 } });
-      execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', png, '-q:v', '4', path.join(OUT, `${key}_${k}.jpg`)]);
+      await st.screenshot({ path: png, clip: { x, y, width: w, height: h } });
+      execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-i', png, '-q:v', '5', path.join(OUT, `${key}_${k}.jpg`)]);
       fs.unlinkSync(png);
     }
     index.push({ key, id, title, what, step: (await rc.textContent('#now b')).trim() });
     console.log(key, id, title);
   }
-  fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(index, null, 1));
+  fs.writeFileSync(path.join(OUT, '..', 'index.json'), JSON.stringify(index, null, 1));
   await b.close();
 })();

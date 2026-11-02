@@ -15,3 +15,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #04070d; fon
 #skip span { display: block; margin-top: 2.2vh; font: 600 3.6vh "Pretendard", sans-serif; color: #9fb6d6; }
 
 @keyframes pulse { 0% { opacity: 0.9; } 100% { opacity: 0; } }
+
+/* paths a message has used stay drawn in the case colour */
+#board path.used { stroke: var(--c); stroke-opacity: 0.5; stroke-width: 4; stroke-dasharray: none; }

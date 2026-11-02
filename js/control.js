@@ -21,13 +21,16 @@
 
   /* ---------------- state from the other screens ---------------- */
   let snap = null, veh = null, scene = 'live', say = null;
-  let cust = { screens: 1, layout: 'auto' };
-  try { Object.assign(cust, JSON.parse(localStorage.getItem('stage-cust')) || {}); } catch (e) { /* none saved */ }
+  // the demo wall (wall.html): ratio, labels, layout editing
+  let wall = { ratio: 21, labels: false, edit: false };
+  try { wall.ratio = JSON.parse(localStorage.getItem('wall-ratio')) || 21; } catch (e) { /* none saved */ }
+  Link.on('wall-state', (d) => { Object.assign(wall, d); manualState(); });
+  Link.on('wall', (d) => { if (d.ratio) wall.ratio = d.ratio; if (typeof d.labels === 'boolean') wall.labels = d.labels; manualState(); });
   Link.on('ecare', (d) => { snap = d; status(); manualState(); });
   Link.on('veh', (d) => { veh = d; });
   Link.on('say', (d) => { say = d.line; status(); });
   Link.on('toast', (d) => { const t = $('#toast'); t.textContent = d.msg; clearTimeout(t.tid); t.tid = setTimeout(() => { t.textContent = ''; }, 5000); });
-  Link.on('stage-hello', () => { Link.send('stage', { scene }); Link.send('stage-cust', cust); });
+  Link.on('stage-hello', () => Link.send('stage', { scene }));
   Link.on('@transport', linkText);
   Link.send('hello', { screen: 'control' });
   function linkText() { $('#link').textContent = Link.transport === 'lan' ? '● LAN 릴레이 연결' : '● 이 PC (같은 브라우저)'; }
@@ -217,29 +220,29 @@
     const b = (attr, label, cls) => `<button ${attr} class="${cls || ''}">${label}</button>`;
     $('#manual').innerHTML = `<h2>수동 제어</h2>
       ${g('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join('') + b('data-identify', '화면 확인'))}
-      ${g('고객 화면 (계기판 · 헤드유닛)', b('data-screens="1"', '화면 1개') + b('data-screens="2"', '화면 2개 (계기판 | HU)'))}
-      <div class="row lay">${[['auto', '자동 (경고 시 HU + 계기판 PIP)'], ['split', '나란히'], ['drive', '계기판만'], ['hu', 'HU만']].map(([k, n]) => b(`data-layout="${k}"`, n)).join('')}</div>
+      ${g('시연 화면 (wall)', b('data-ratio="21"', '21:9') + b('data-ratio="63"', '63:9') + b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))}
       ${g('차량', b('data-a="ign"', '시동 ON/OFF') + b('data-a="drive"', '출발') + b('data-a="stop"', '정지') + b('data-a="clear"', '경고 해제'))}
       ${g('경고등', WARNS.map(([id, n, k]) => b(`data-warn="${id}"`, `${n} <i class="k${k}">${k}</i>`)).join(''))}
       ${g('헤드유닛', b('data-hu="show"', 'HU 팝업 다시') + b('data-hu="press"', 'HU 전화연결'))}
       ${g('상담센터', b('data-a="sla25"', '25분 경과') + b('data-c="ack"', '상담원 받기') + b('data-a="accept"', '상담원 전화 걸기') + b('data-c="redial"', '재연결') + b('data-c="hangup"', '통화 종료') + b('data-a="dispatch"', '긴급출동') + b('data-a="complete"', '완료 · 이관'))}
       ${g('일반 전화', b('data-a="inbound"', '고객 전화 (경고 없을 때)') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))}
       ${g('설정', b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음') + b('data-reset', '전체 초기화', 'warn'))}
-      ${g('화면 열기', ['stage.html?screen=all:3면 미리보기', 'stage.html?screen=left:왼쪽 (계기판)', 'stage.html?screen=hu:헤드유닛', 'stage.html?screen=center:가운데', 'stage.html?screen=right:오른쪽', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))}`;
+      ${g('화면 열기', ['wall.html:시연 화면', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))}`;
     manualState();
   }
   function manualState() {
-    document.querySelectorAll('[data-screens]').forEach((x) => x.classList.toggle('on', +x.dataset.screens === cust.screens));
-    document.querySelectorAll('[data-layout]').forEach((x) => { x.classList.toggle('on', x.dataset.layout === cust.layout); x.disabled = cust.screens === 2; });
+    document.querySelectorAll('[data-ratio]').forEach((x) => x.classList.toggle('on', +x.dataset.ratio === wall.ratio));
+    const we = $('[data-wedit]'), wl = $('[data-wlabels]');
+    if (we) we.classList.toggle('on', !!wall.edit);
+    if (wl) wl.classList.toggle('on', !!wall.labels);
     document.querySelectorAll('[data-scene]').forEach((x) => x.classList.toggle('on', x.dataset.scene === scene));
     document.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('on', x.dataset.pick === `in:${(snap && snap.pick && snap.pick.in) || 'in'}`));
     const na = $('[data-noans]');
     if (na) na.classList.toggle('on', !!(snap && snap.noAnswer));
   }
-  function setCust(patch) {
-    cust = Object.assign({}, cust, patch);
-    try { localStorage.setItem('stage-cust', JSON.stringify(cust)); } catch (e) { /* private mode */ }
-    Link.send('stage-cust', cust);
+  function setWall(patch) {
+    Object.assign(wall, patch);
+    Link.send('wall', patch);
     manualState();
   }
 
@@ -256,8 +259,10 @@
     else if (d.pick) { const [kind, key] = d.pick.split(':'); send('cmd', 'pick', { kind, key }); }
     else if (d.scene) { send('scene', d.scene); manualState(); }
     else if ('identify' in d) Link.send('stage-identify', {});
-    else if (d.screens) setCust({ screens: +d.screens });
-    else if (d.layout) setCust({ layout: d.layout });
+    else if (d.ratio) setWall({ ratio: +d.ratio });
+    else if ('wedit' in d) setWall({ edit: !wall.edit });
+    else if ('wlabels' in d) setWall({ labels: !wall.labels });
+    else if ('wreset' in d) { if (confirm('현재 비율의 배치를 기본값으로 되돌릴까요?')) Link.send('wall', { reset: true }); }
     else if (d.a) send('act', d.a);
     else if (d.warn) send('warn', d.warn);
     else if (d.hu) send('hu', d.hu);
@@ -275,5 +280,5 @@
   steps();
   status();
   manual();
-  Link.send('stage-cust', cust);
+  Link.send('wall-hello', {});
 })();
