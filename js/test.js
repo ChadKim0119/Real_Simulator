@@ -123,12 +123,14 @@
     if (S.mode === 'read' && !opts.preview) { cv.innerHTML = ladder(); return; }
     const verdict = S.mode === 'read' ? Object.fromEntries(readability().map((r) => [r.k, r.rows])) : null;
     const whole = sameLayout(L) && STILLS[S.step];
+    // opening and closing fill the whole wall: no panel labels over the title
+    const scene = whole && ['opening', 'closing'].includes(STILLS[S.step].id);
     cv.innerHTML = (whole ? `<img class="whole" src="${still('wall')}" alt="" draggable="false">` : '') + Object.keys(PANELS).map((p) => {
       const [x, y, w, h] = L[p];
       const v = verdict && verdict[p];
       return `<div class="pn ${whole ? 'over' : ''}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px">
         ${!whole && STILLS[S.step] ? `<img src="${still(p)}" alt="" draggable="false">` : ''}
-        ${S.labels || v ? `<span class="tg">${esc(PANELS[p].t)}</span>` : ''}
+        ${(S.labels && !scene) || v ? `<span class="tg">${esc(PANELS[p].t)}</span>` : ''}
         ${v ? `<div class="rv">${v.map((r) => `<div class="${r.v}">${esc(r.what)} ${r.cm.toFixed(1)}cm ${r.v === 'ok' ? '✓' : r.v === 'mid' ? '△' : '✗'}</div>`).join('')}</div>` : ''}</div>`;
     }).join('');
   }
