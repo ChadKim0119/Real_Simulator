@@ -30,6 +30,16 @@
   const camLocked = params.get('cam') === 'lock' || VIEW === 'transcript';
   const setBodyClass = () => { ['view-transcript', 'view-app', 'view-office'].forEach((c) => document.body.classList.toggle(c, c === `view-${mode}`)); };
   setBodyClass();
+  // tab icon and title of the screen shown (call center, agent screen, conversation)
+  function tabIdentity() {
+    const [icon, title] = mode === 'transcript' ? ['talk', '상담 대화 · e-Care'] : mode === 'app' ? ['ccw', 'CCW · 상담원 화면'] : ['ccw', 'CCW · 고객지원실'];
+    document.title = title;
+    const l = document.querySelector('link[rel="icon"]');
+    if (l) l.href = `assets/icons/${icon}.svg`;
+    const t = document.querySelector('link[rel="apple-touch-icon"]');
+    if (t) t.href = `assets/icons/${icon}-180.png`;
+  }
+  tabIdentity();
 
   /* ---------------- camera: office photo <-> monitor ---------------- */
   const stage = $('#stage');
@@ -1020,6 +1030,7 @@
     if (m === mode || mode === 'transcript') return;
     mode = m;
     setBodyClass();
+    tabIdentity();
     app.style.transform = '';            // the office monitor scales the screen by its CSS
     $('#stage').style.transform = '';
     render(true);

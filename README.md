@@ -102,3 +102,7 @@ tools/build_gx2_layers.py  원본 사진에서 레이어와 핸들 투영 데이
 ```
 
 레이어 재생성: `pip install pillow numpy scipy opencv-python-headless && python3 tools/build_gx2_layers.py`
+
+### 화면별 파비콘
+탭 · 홈 화면에서 바로 구분되도록 화면마다 색과 그림이 다른 아이콘(`assets/icons/`, SVG + 홈 화면용 180px PNG).
+컨트롤 = 주황빨강 슬라이더 · 계기판(고객 차량 · HU) = 파랑 속도계 · CCW(고객지원실 · 상담원 화면) = 초록 헤드셋 · 데이터 흐름 = 보라 노드 · 모니터 테스트 = 노랑 모니터 · 상담 대화 = 분홍 말풍선 · 시연 화면 = 네 패널 색의 2×2 타일. 탭 제목도 구분 단어를 앞에(예: `컨트롤 · e-Care 시연`).
