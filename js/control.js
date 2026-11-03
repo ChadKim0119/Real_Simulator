@@ -238,12 +238,13 @@
       call: ['상담센터', chunk('통화 진행', b('data-c="ack"', '① 상담원 받기') + b('data-a="accept"', '② 상담원 전화 걸기') + b('data-c="redial"', '③ 재연결') + b('data-c="hangup"', '④ 통화 종료'), '순서대로')
         + chunk('통화 후', b('data-a="dispatch"', '긴급출동') + b('data-a="complete"', '상담 완료 · 이관'))
         + chunk('시간 · 상황', b('data-a="sla25"', '25분 경과') + b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음'))
+        + chunk('서비스센터 (DMS)', b('data-dms="open"', 'DMS 상세 열기') + b('data-dms="close"', '닫기') + b('data-c="dmsAdvance"', '다음 단계 진행'), '예약 → 입고 → 정비 → 종결')
         + chunk('일반 전화 (경고 없음)', b('data-a="inbound"', '고객 전화 오기') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))],
       wall: ['장면 · 화면', chunk('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join(''))
         + chunk('시연 화면 비율', b('data-wmode="21"', '21:9') + b('data-wmode="169"', '16:9'))
         + chunk('데이터 흐름', b('data-flowlog', flowLog ? '상세 흐름 접기' : '상세 흐름 펼치기'))
         + chunk('시연 화면 배치', b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))
-        + chunk('점검 · 열기', b('data-identify', '화면 번호 표시') + ['wall.html:시연 화면 열기', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))],
+        + chunk('점검 · 열기', b('data-identify', '화면 번호 표시') + ['wall.html:시연 화면 열기', 'dms.html:DMS 열기', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))],
     };
     if (!TABS[mtab]) mtab = 'car';
     $('#manual').innerHTML = `<div class="mh"><h2>수동 제어</h2><nav class="tabs">${Object.keys(TABS).map((k) => `<button data-mtab="${k}" class="${k === mtab ? 'on' : ''}">${TABS[k][0]}</button>`).join('')}</nav></div>
@@ -285,6 +286,7 @@
     else if (d.scene) { send('scene', d.scene); manualState(); }
     else if ('identify' in d) Link.send('stage-identify', {});
     else if (d.cam) { camView = d.cam; Link.send('cam', { view: d.cam }); manualState(); }
+    else if (d.dms) Link.send(d.dms === 'open' ? 'dms-open' : 'dms-close', {});
     else if ('flowlog' in d) { flowLog = !flowLog; Link.send('flow-log', { open: flowLog }); manual(); }
     else if (d.ccwcam) { ccwCam = d.ccwcam; localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: ccwCam }); manualState(); }
     else if (d.wmode) setWall({ mode: d.wmode });

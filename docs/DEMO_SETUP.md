@@ -120,6 +120,7 @@
 | 진행자 맥 · 노트북 | `control.html` |
 | 보조 PC · 추가 디스플레이 | `flow.html`(데이터 흐름) · `agent.html`(상담원 화면 CCW만) · `office.html`(고객지원실 실사, 컨트롤 패널 ‘상담실’ 시선을 따름) |
 | 아이패드 | `control.html`(무선 진행) 또는 `ccw.html?view=transcript`(상담 대화) |
+| 서비스센터 역할 PC · 태블릿 | `dms.html` (서비스센터 DMS 대시보드 · 컨택결과 등록이 CCW · 데이터 흐름에 반영) |
 | 휴대폰 | `control.html`(리모컨) |
 
 - 한 PC에서 여러 창으로 해도, 기기를 나눠도 똑같이 동작합니다. 섞어 써도 됩니다(일부는 한 PC의 여러 창, 일부는 다른 기기).

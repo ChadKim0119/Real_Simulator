@@ -145,6 +145,9 @@
     const prev = script[i - 1];
     return !!(l.stop && prev && prev.who === 'agent' && /비상등/.test(prev.text));
   }
+  const SERVICE_ADVISOR = '이정비';
+  // a reservation slot: tomorrow 10:00
+  function nextSlot() { const d = new Date(Date.now() + 864e5); d.setHours(10, 0, 0, 0); return d.getTime(); }
   const pad = (n) => String(n).padStart(2, '0');
   const hm = (t) => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
   const ymd = (t, sep = '-') => { const d = new Date(t); return [d.getFullYear(), pad(d.getMonth() + 1), pad(d.getDate())].join(sep); };
@@ -228,6 +231,7 @@
         this.log(c, `정비 경고 · 상담원 미대응 · 선호 센터(${c.dealer}) DMS 전송`, 'flow');
         c.contact = 3;
         c.dms = 0;
+        c.dmsAt = { 0: Date.now() };
       }
       this.cases.unshift(c);
       this.publish();
@@ -256,7 +260,12 @@
     dmsProgress(c, direct) {
       const plan = direct ? [[9000, 1], [17000, 2]] : [[6000, 1], [14000, 2]];
       plan.forEach(([ms, k]) => this.after(ms, () => {
+        // the service center works the case on the DMS screen: its own steps win
+        if (c.dmsManual || c.dms >= k || c.dmsStop) return;
         c.dms = k;
+        (c.dmsAt = c.dmsAt || {})[k] = Date.now();
+        if (k === 1) (c.contacts = c.contacts || []).push({ n: 1, t: Date.now(), method: '전화', result: '컨택', reply: '예약대기', memo: '방문 일정 조율 중', agent: SERVICE_ADVISOR });
+        if (k === 2) c.reservation = c.reservation || { center: c.dealer, route: '전화', at: nextSlot() };
         this.log(c, `DMS · ${DMS[k]} (${DMS_CODE[k]}) · ${c.dealer}`, 'flow');
         this.publish();
         this.flow(c, [
@@ -264,6 +273,49 @@
           ['wam', direct ? 'phone' : 'ccw', '상태 반영', direct ? `고객 앱 · 서비스센터 ${DMS[k]}` : `CCW 처리 상태 · ${DMS[k]}`, null],
         ]);
       }));
+    }
+
+    /* The service center's own steps, from the DMS screen (dms.html): a contact
+     * result, stopping the case, and the next stage of the repair. Each goes back
+     * through WAM (DMS-SVC-002) to the call center screen and the data flow. */
+    dmsSend(c, k, note) {
+      this.log(c, `DMS · ${DMS[k]} (${DMS_CODE[k]}) · ${c.dealer}${note ? ' · ' + note : ''}`, 'flow');
+      this.publish();
+      const direct = c.kind !== 'emergency';
+      this.flow(c, [
+        ['dms', 'wam', 'DMS-SVC-002', `정비 상태 · ${DMS[k]}${note ? ' · ' + note : ''}`, { workflowId: c.group, vin: VEHICLE.vin, repairStatus: DMS_CODE[k], repairStatusName: DMS[k], centerName: c.dealer }, 0],
+        ['wam', direct ? 'phone' : 'ccw', '상태 반영', direct ? `고객 앱 · 서비스센터 ${DMS[k]}` : `CCW 처리 상태 · ${DMS[k]}`, null],
+      ]);
+    }
+    dmsContact(c, a) {
+      if (!c || c.dms < 0 || c.dmsStop || c.dms >= 3) return;
+      c.dmsManual = true;
+      c.contacts = c.contacts || [];
+      const reply = a.reply || '예약대기';
+      c.contacts.push({ n: c.contacts.length + 1, t: Date.now(), method: a.method || '전화', result: a.result || '컨택', reply, memo: a.memo || '', agent: SERVICE_ADVISOR });
+      const k = reply === '예약확정' ? 2 : Math.max(c.dms, 1);
+      c.dmsAt = c.dmsAt || {};
+      if (c.dms < 1) c.dmsAt[1] = Date.now();
+      if (k === 2) { c.dmsAt[2] = Date.now(); c.reservation = { center: c.dealer, route: a.method === '문자' ? '온라인' : '전화', at: nextSlot() }; }
+      c.dms = k;
+      this.dmsSend(c, k, `컨택 ${c.contacts.length}차 ${a.result || '컨택'} · ${reply}`);
+    }
+    dmsStopCase(c, reason) {
+      if (!c || c.dms < 0 || c.dmsStop) return;
+      c.dmsManual = true;
+      c.dmsStop = { reason: reason || '입고거부', at: Date.now() };
+      this.dmsSend(c, c.dms, `대응 중단 (${c.dmsStop.reason})`);
+    }
+    dmsAdvance(c) {
+      if (!c || c.dms < 0 || c.dmsStop || c.dms >= 7) return;
+      c.dmsManual = true;
+      const next = { 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 7, 6: 7 }[c.dms];
+      c.dmsAt = c.dmsAt || {};
+      if (next === 1) (c.contacts = c.contacts || []).push({ n: (c.contacts || []).length + 1, t: Date.now(), method: '전화', result: '컨택', reply: '예약대기', memo: '', agent: SERVICE_ADVISOR });
+      if (next === 2) c.reservation = c.reservation || { center: c.dealer, route: '전화', at: nextSlot() };
+      c.dmsAt[next] = Date.now();
+      c.dms = next;
+      this.dmsSend(c, next);
     }
 
     find(id) { return this.cases.find((c) => c.id === (id || this.active)); }
@@ -284,6 +336,9 @@
         case 'pick': return this.pickSet(args);
         case 'consultMemo': { const k = this.consults.find((x) => x.id === args.consult); if (k && args.text) { (k.memos = k.memos || []).push({ t: Date.now(), text: args.text, agent: this.me().name }); k.updated = Date.now(); this.publish(); } return; }
         case 'ack': return this.ack(c);
+        case 'dmsContact': return this.dmsContact(this.find(args.id), args);
+        case 'dmsStop': return this.dmsStopCase(this.find(args.id), args.reason);
+        case 'dmsAdvance': { const k = args.id && this.find(args.id); return this.dmsAdvance(k && k.dms >= 0 ? k : this.cases.find((x) => x.dms >= 0 && !x.dmsStop && x.dms < 7)); }
         case 'accept': return this.accept(c);
         case 'hangup': if (this.general && this.general.state === 'connected') return this.endGeneral(); return this.hangup(c);
         case 'hold': if (c && c.call) { c.call.hold = !c.call.hold; this.publish(); } return;
@@ -597,6 +652,7 @@
       if (c.memo.transfer) {
         c.contact = 3;
         c.dms = 0;
+        c.dmsAt = { 0: Date.now() };
         this.log(c, `상담 메모 저장 · ${c.dealer} 전달 · DMS 전송 → 이관 완료`, 'flow');
         this.flow(c, [
           ['ccw', 'wam', '상담 메모', '상담 메모 저장 · 서비스센터 전달 ON', { title: c.memo.title, callType: c.memo.callType, sms: c.sms }, 0],
