@@ -32,13 +32,13 @@
 
   let snap = null, veh = null;
   let pressed = null;            // case id whose [전화연결] was pressed
-  let shownAt = {};              // case id -> when its popup appeared
-  let reopen = {};               // case id -> popup reopened by the remote
+    let reopen = {};               // case id -> popup reopened by the remote
+  const closed = {};             // case id -> the driver closed the popup ([닫기]); it stays until then
   let caption = null;
   Link.on('ecare', (d) => { snap = d; render(); });
   Link.on('veh', (d) => { veh = d; });
   Link.on('say', (d) => { caption = { who: d.line.who, text: d.line.text, until: Date.now() + (d.line.dur || 4) * 1000 + 2500 }; });
-  const show = () => { const c = current(); if (c) { reopen[c.id] = Date.now(); render(true); } };
+  const show = () => { const c = current(); if (c) { closed[c.id] = false; reopen[c.id] = Date.now(); render(true); } };
   Link.on('hu', (d) => {
     if (MODE === 'overlay') return;           // the screen instance handles the press
     if (d.action === 'show') show();
@@ -47,7 +47,7 @@
   Link.send('hello', { screen: 'hu' });
   $('#hu').addEventListener('click', (e) => {
     if (e.target.closest('button.call')) press();
-    else if (e.target.closest('.pop button')) { const c = current(); if (c) { shownAt[c.id] = 1; reopen[c.id] = 0; render(true); } }
+    else if (e.target.closest('.pop button')) { const c = current(); if (c) { closed[c.id] = true; reopen[c.id] = 0; render(true); } }
     else if (e.target.closest('.mini')) show();
   });
 
@@ -76,9 +76,9 @@
     if (call && call.dir === 'out' && (call.state === 'dialing' || call.state === 'connected')) return { v: 'home', c, phone: call.state, out: true };
     if (c.sms && !(c.sheet && c.sheet.saved && Date.now() - c.sheet.saved > 15000)) return { v: 'home', c, phone: 'sms' };
     const open = c.contact === 0 && !c.inbound;
-    if ((open && c.kind === 'emergency') || (c.wcase !== 'A' && Date.now() - c.at < 20000)) {
-      const since = Date.now() - Math.max(shownAt[c.id] || (shownAt[c.id] = Date.now()), reopen[c.id] || 0);
-      return { v: since < 12000 || pressed === c.id ? 'pop' : 'mini', c };
+    if ((open && c.kind === 'emergency') || (c.wcase !== 'A' && !closed[c.id])) {
+      // the e-Care popup stays on the screen until the driver closes it; then a small reminder
+      return { v: !closed[c.id] || pressed === c.id ? 'pop' : 'mini', c };
     }
     return { v: 'home', c, g };
   }

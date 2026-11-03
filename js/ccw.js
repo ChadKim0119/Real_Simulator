@@ -331,13 +331,12 @@
   const active = () => snap && snap.cases.find((c) => c.id === snap.active);
   const agentOf = (c) => snap && c && snap.agents.find((a) => a.id === c.agent);
   const me = () => (snap ? snap.agents[0] : { name: '김상담', state: '대기' });
-  const ROADS = ['테헤란로', '언주로', '선릉로', '봉은사로', '역삼로', '논현로'];
+  // the car is on Olympic-daero by the Hannam bridge (what the agent confirms on the call)
   function place(s) {
     const [x, y] = Road.pos(s);
-    const road = ROADS[Math.floor(s / 1400) % ROADS.length];
-    const no = 101 + 2 * Math.floor((s % 1400) / 23);
-    const lat = (37.5003 + y / 111000).toFixed(6), lng = (127.0364 + x / 88200).toFixed(8);
-    return { addr: `서울특별시 강남구 ${road} ${no}`, xy: `(X : ${lat}, Y : ${lng})` };
+    const km = (0.2 + (s % 1400) / 1400 * 0.9).toFixed(1);
+    const lat = (37.5205 + y / 111000).toFixed(6), lng = (127.0105 + x / 88200).toFixed(8);
+    return { addr: `서울특별시 서초구 잠원동 올림픽대로 하행 · 한남대교 남단 ${km}km 부근`, xy: `(X : ${lat}, Y : ${lng})` };
   }
   const drvOk = (c) => c.kind !== 'emergency';
   const shortStamp = (t) => E.stamp(t);

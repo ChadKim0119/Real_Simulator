@@ -1,16 +1,49 @@
-/* Synthesised sound for a luxury SUV (Web Audio, no samples): a smooth V8
- * heard through a well-insulated cabin, a short refined starter, soft road,
- * tyre and wind noise, and the cluster's chimes. */
+/* Synthesised sound (Web Audio, no samples): the engine heard through a
+ * well-insulated cabin, a short refined starter, soft road, tyre and wind
+ * noise, and the cluster's chimes.
+ *
+ * Three engine voices, modelled on Lexus flagships (picked on the control panel;
+ * the default is the LS 500, the brand's flagship):
+ *   ls500  LS 500  — V35A-FTS 3.4 L twin-turbo V6, 416 hp: the quietest, a soft
+ *                    whisper start, barely a turbo breath under load
+ *   lx600  LX 600  — the same V35A-FTS family, 409 hp in the flagship SUV: a
+ *                    deeper body boom, more induction and turbo, a firmer start
+ *   lc500  LC 500  — 2UR-GSE 5.0 L naturally aspirated V8, 471 hp at 7,100 rpm:
+ *                    cross-plane burble, the intake sound generator's tones, a rev
+ *                    flare on start
+ * Engine orders are given relative to the firing frequency (rpm / 60 x cylinders / 2). */
 (function () {
   'use strict';
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ENGINES = {
+    ls500: { name: 'LS 500', sub: '3.4L V6 트윈터보 · 416hp', cyl: 6, amps: [0.12, 1.0, 0.1, 0.3, 0.06, 0.02], bodyF: 75, bodyG: 4,
+      lp: [240, 0.08, 520], level: [0.055, 0.11, 0.06], intake: [0.004, 0.018, 420, 0.15, 0.7], turbo: 0.006, crank: 0.75, crankLvl: 0.15, flare: 250, thump: 0.22 },
+    lx600: { name: 'LX 600', sub: '3.4L V6 트윈터보 · 409hp', cyl: 6, amps: [0.18, 1.0, 0.16, 0.34, 0.08, 0.03], bodyF: 62, bodyG: 7,
+      lp: [260, 0.09, 650], level: [0.07, 0.15, 0.07], intake: [0.006, 0.03, 360, 0.16, 0.7], turbo: 0.012, crank: 0.95, crankLvl: 0.22, flare: 450, thump: 0.32 },
+    lc500: { name: 'LC 500', sub: '5.0L V8 자연흡기 · 471hp', cyl: 8, amps: [0.42, 1.0, 0.3, 0.42, 0.12, 0.06], bodyF: 90, bodyG: 5,
+      lp: [320, 0.14, 900], level: [0.08, 0.2, 0.12], intake: [0.01, 0.05, 300, 0.22, 1.4], turbo: 0, crank: 0.85, crankLvl: 0.24, flare: 1400, thump: 0.36 },
+  };
 
   class SimAudio {
     constructor() {
       this.ctx = null;
       this.enabled = true;
       this.repeat = null;
+      this.eng = ENGINES.ls500;
+      this.flareAt = -1;
+    }
+
+    /* Switch the engine voice (ls500 | lx600 | lc500). */
+    setEngine(id) {
+      this.eng = ENGINES[id] || ENGINES.ls500;
+      this.engId = ENGINES[id] ? id : 'ls500';
+      if (!this.ctx) return;
+      const E = this.eng, t = this.ctx.currentTime;
+      this.orders.forEach((o, i) => o.g.gain.setTargetAtTime(E.amps[i], t, 0.1));
+      this.body.frequency.setTargetAtTime(E.bodyF, t, 0.1);
+      this.body.gain.setTargetAtTime(E.bodyG, t, 0.1);
+      this.intakeBP.Q.setTargetAtTime(E.intake[4], t, 0.1);
     }
 
     /* Must be called from a user gesture (browser autoplay policy). */
@@ -90,20 +123,20 @@
       shaper.curve = curve;
       shaper.oversample = '2x';
       this.engLP = this.filter('lowpass', 420, 0.7);
-      const body = this.filter('peaking', 85, 1.0);
+      const body = this.body = this.filter('peaking', 85, 1.0);
       body.gain.value = 6;                         // chassis resonance: felt more than heard
       const sum = this.gain(0.42);
       sum.connect(shaper).connect(body).connect(this.engLP).connect(this.engBus).connect(this.cabin);
 
-      this.orders = [[0.5, 0.32, 'sine'], [1, 1.0, 'sine'], [1.5, 0.22, 'sine'], [2, 0.36, 'triangle'], [3, 0.08, 'sine'], [4, 0.04, 'sine']].map(([mul, amp, type]) => {
+      this.orders = [[0.5, 'sine'], [1, 'sine'], [1.5, 'sine'], [2, 'triangle'], [3, 'sine'], [4, 'sine']].map(([mul, type], i) => {
         const o = ctx.createOscillator();
         o.type = type;
         o.frequency.value = 26 * mul;
         o.detune.value = (Math.random() - 0.5) * 6;
-        const g = this.gain(amp);
+        const g = this.gain(this.eng.amps[i]);
         o.connect(g).connect(sum);
         o.start();
-        return { o, mul };
+        return { o, mul, g };
       });
 
       // the faintest combustion texture, so it never sounds like a tone generator
@@ -117,6 +150,13 @@
       this.intakeBP = this.filter('bandpass', 520, 0.7);
       this.intakeGain = this.gain(0);
       intake.connect(this.intakeBP).connect(this.intakeGain).connect(this.cabin);
+
+      // turbo: a faint, high breath that follows boost (twin-turbo V6 only)
+      const tw = this.noise(1);
+      this.turboBP = this.filter('bandpass', 2400, 6);
+      this.turboGain = this.gain(0);
+      tw.connect(this.turboBP).connect(this.turboGain).connect(this.master);
+      this.setEngine(this.engId || 'ls500');
     }
 
     buildRoad() {
@@ -144,14 +184,16 @@
 
     /* Starter: a short, muted whir with a soft compression rhythm, then the
      * engine catches with a low thump. Well damped, as in a luxury car. */
-    crank(seconds) {
+    crank(seconds0) {
       if (!this.ctx) return;
+      const E = this.eng, seconds = E.crank || seconds0;
       const ctx = this.ctx, t = ctx.currentTime;
+      this.flareAt = t + seconds;
       const env = this.gain(0);
       env.connect(this.cabin);
       env.gain.setValueAtTime(0, t);
-      env.gain.linearRampToValueAtTime(0.22, t + 0.08);
-      env.gain.setValueAtTime(0.22, t + seconds - 0.15);
+      env.gain.linearRampToValueAtTime(E.crankLvl, t + 0.08);
+      env.gain.setValueAtTime(E.crankLvl, t + seconds - 0.15);
       env.gain.linearRampToValueAtTime(0, t + seconds + 0.05);
 
       const motor = ctx.createOscillator();
@@ -179,7 +221,7 @@
       thump.frequency.exponentialRampToValueAtTime(34, t + seconds + 0.45);
       const tg = this.gain(0);
       tg.gain.setValueAtTime(0, t + seconds - 0.05);
-      tg.gain.linearRampToValueAtTime(0.32, t + seconds + 0.02);
+      tg.gain.linearRampToValueAtTime(E.thump, t + seconds + 0.02);
       tg.gain.exponentialRampToValueAtTime(0.001, t + seconds + 0.6);
       thump.connect(tg).connect(this.master);
       thump.start(t + seconds - 0.05);
@@ -189,19 +231,26 @@
     update(st, dt) {
       if (!this.ctx) return;
       const t = this.ctx.currentTime;
-      const rpm = Math.max(st.rpm, 1);
-      const fire = rpm / 60 * 4;                 // V8, four-stroke: 4 pulses per rev
+      const E = this.eng;
+      // the start: revs flare as the engine catches, then settle to idle
+      const ft = t - this.flareAt;
+      const flare = this.flareAt > 0 && ft > 0 && ft < 2 ? E.flare * Math.min(1, ft / 0.18) * Math.exp(-Math.max(0, ft - 0.18) / 0.45) : 0;
+      const rpm = Math.max(st.rpm, 1) + (st.rpm > 150 ? flare : 0);
+      const fire = rpm / 60 * E.cyl / 2;         // four-stroke: cylinders / 2 pulses per rev
       for (const { o, mul } of this.orders) o.frequency.setTargetAtTime(fire * mul, t, 0.03);
       const running = st.rpm > 150;
-      const load = clamp(st.throttle, 0, 1);
+      const load = clamp(st.throttle + flare / 4000, 0, 1);
 
       // quiet at idle and cruise, a refined swell under load
-      this.engLP.frequency.setTargetAtTime(260 + rpm * 0.1 + load * 700, t, 0.08);
-      const lvl = running ? 0.07 + load * 0.15 + (rpm / 6000) * 0.08 : 0;
+      this.engLP.frequency.setTargetAtTime(E.lp[0] + rpm * E.lp[1] + load * E.lp[2], t, 0.08);
+      const lvl = running ? E.level[0] + load * E.level[1] + (rpm / 6000) * E.level[2] : 0;
       this.engBus.gain.setTargetAtTime(lvl, t, running ? 0.08 : 0.35);
       this.roughAmt.gain.setTargetAtTime(running ? lvl * 0.12 : 0, t, 0.1);
-      this.intakeBP.frequency.setTargetAtTime(380 + rpm * 0.18, t, 0.12);
-      this.intakeGain.gain.setTargetAtTime(running ? 0.006 + load * 0.03 : 0, t, 0.12);
+      this.intakeBP.frequency.setTargetAtTime(E.intake[2] + rpm * E.intake[3], t, 0.12);
+      this.intakeGain.gain.setTargetAtTime(running ? E.intake[0] + load * E.intake[1] : 0, t, 0.12);
+      const boost = running ? clamp((rpm - 1600) / 3000, 0, 1) * load : 0;
+      this.turboBP.frequency.setTargetAtTime(1800 + rpm * 0.45, t, 0.2);
+      this.turboGain.gain.setTargetAtTime(E.turbo * boost, t, 0.25);
 
       const v = st.speed;
       this.tyreGain.gain.setTargetAtTime(Math.min(0.2, Math.pow(v / 110, 1.2) * 0.13), t, 0.3);
@@ -305,5 +354,6 @@
     }
   }
 
+  SimAudio.ENGINES = ENGINES;
   window.SimAudio = SimAudio;
 })();

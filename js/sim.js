@@ -73,6 +73,8 @@
   const exterior = new Exterior(extCanvas);
   const wheel = new Wheel(wheelCanvas, $('#wheelArt'));
   const audio = new SimAudio();
+  // engine voice (Lexus LS 500 · LX 600 · LC 500), chosen on the control panel and kept here
+  try { audio.setEngine(localStorage.getItem('engine-sound') || 'ls500'); } catch (e) { audio.setEngine('ls500'); }
 
   const cr = Cluster.rect;
   Object.assign($('#cluster').style, { left: cr.x + 'px', top: cr.y + 'px', width: cr.w + 'px', height: cr.h + 'px' });
@@ -641,24 +643,23 @@
    * passes the driver's window and pulls up in front of the car. It stays there, light
    * bar flashing, until the call is over; then the view closes back onto the dashboard.
    * plate: where the photo (IMG px) sits in the clip (clip px per photo px). */
-  // three filmed parts: the approach (A) up to switchAt; the stop (B, which starts on that very
-  // frame): the truck straightens out right in front of the car and lowers its flatbed; then the
-  // parked truck (C, first frame = last frame = B's end) looping for as long as the scene holds —
-  // light bar flashing, traffic passing in the other lanes
-  const RESCUE = { src: 'assets/rescue_arrive.mp4', srcB: 'assets/rescue_stop.mp4', srcC: 'assets/rescue_hold.mp4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, switchAt: 5.6, stoppedAt: 2.4, playDelay: 1.6, hold: 12 };
+  // two filmed parts of the same truck: the approach (A), slowing to a stop centred in front of
+  // the car at switchAt; then the parked truck (C, first frame = last frame = A at switchAt)
+  // looping for as long as the scene holds — light bar flashing, traffic passing in the other lanes
+  const RESCUE = { src: 'assets/rescue_arrive.mp4', srcC: 'assets/rescue_hold.mp4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 5.7, switchAt: 6.6, playDelay: 1.6, hold: 12 };
   const rescueEl = document.createElement('div');
   rescueEl.id = 'rescue';
-  rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vb" muted playsinline preload="auto"></video><video class="vb" muted playsinline preload="auto"></video><i class="bar"></i></div><div class="cap">긴급출동 차량 도착</div>';
+  rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vc" muted playsinline preload="auto" loop></video><i class="bar"></i></div><div class="cap">긴급출동 차량 도착</div>';
   document.body.appendChild(rescueEl);
-  const [rVid, rB1, rB2] = rescueEl.querySelectorAll('video'), rFrame = rescueEl.querySelector('.frame'), rBg = rescueEl.querySelector('.bg');
-  rVid.src = RESCUE.src; rB1.src = RESCUE.srcB; rB2.src = RESCUE.srcC; rB2.loop = true;
-  const rAll = [rVid, rB1, rB2];
+  const [rVid, rC] = rescueEl.querySelectorAll('video'), rFrame = rescueEl.querySelector('.frame'), rBg = rescueEl.querySelector('.bg');
+  rVid.src = RESCUE.src; rC.src = RESCUE.srcC;
+  const rAll = [rVid, rC];
   const rShow = (v) => { rAll.forEach((x) => { x.style.opacity = x === v ? 1 : 0; x.style.zIndex = x === v ? 2 : 1; }); };
   let rescue = null;      // { phase: pull | fade | widen | hold | narrow | out, t0, stopped }
   function rescueStart() {
     if (rescue) return;
-    rescue = { phase: 'pull', t0: now(), played: false, stopped: 0, onB: null, xf: null };
-    rAll.forEach((v) => { try { v.pause(); v.currentTime = 0; } catch (e) { /* not loaded yet */ } });
+    rescue = { phase: 'pull', t0: now(), played: false, stopped: 0, onC: false };
+    rAll.forEach((v) => { try { v.pause(); v.currentTime = 0; v.playbackRate = 1; } catch (e) { /* not loaded yet */ } });
     rShow(rVid);
     focusPolicy(true);
   }
@@ -703,26 +704,18 @@
       if (R.phase === 'widen' && !R.played && t >= RESCUE.playDelay) { R.played = true; rVid.play().catch(() => {}); }
       if (R.phase === 'widen' && t >= 3.4) R.phase = 'hold';
       // the approach hands over to the stop on the same frame
-      // (if the stop clip could not load, the approach plays to its end and stays there)
-      if (R.played && !R.onB && rB1.readyState < 2 && rVid.ended && !R.stopped) { R.stopped = now(); rescueEl.classList.add('stopped', 'capon'); }
-      if (R.played && !R.onB && rB1.readyState >= 2 && rVid.currentTime >= RESCUE.switchAt - 0.03) {
-        // a short dissolve hides the small difference between the two films' frames
-        R.onB = rB1; rB1.currentTime = 0; rB1.play().catch(() => {}); R.xB = now();
-        rB1.style.zIndex = 3; rB1.style.opacity = 0;
+      // the truck slows to a stop centred in front of the car; the parked loop takes over on that frame
+      if (R.played && !R.onC) {
+        const ct = rVid.currentTime;
+        if (ct >= RESCUE.switchAt - 0.02 || rVid.ended) {
+          R.stopped = now(); rescueEl.classList.add('stopped', 'capon');
+          // the same truck on the same frame: a 0.25 s dissolve hides the films' small difference
+          if (rC.readyState >= 2) { rC.currentTime = 0; rC.play().catch(() => {}); rC.style.zIndex = 3; rC.style.opacity = 0; R.xC = now(); }
+          rVid.pause();
+          R.onC = true;
+        } else if (ct >= RESCUE.slowFrom) rVid.playbackRate = Math.max(0.25, 1 - 0.75 * (ct - RESCUE.slowFrom) / (RESCUE.switchAt - RESCUE.slowFrom));
       }
-      if (R.xB) {
-        const k = clamp((now() - R.xB) / 0.3, 0, 1);
-        rB1.style.opacity = k.toFixed(3);
-        if (k >= 1) { R.xB = 0; if (R.onB === rB1) rShow(rB1); rVid.pause(); }
-      }
-      if (R.onB) {
-        const cur = R.onB;
-        if (!R.stopped && cur === rB1 && cur.currentTime >= RESCUE.stoppedAt) { R.stopped = now(); rescueEl.classList.add('stopped', 'capon'); }
-        // parked: the seamless loop takes over on the stop clip's last frame
-        if (cur === rB1 && (rB1.ended || (rB1.duration && rB1.currentTime >= rB1.duration - 0.04)) && rB2.readyState >= 2) {
-          R.onB = rB2; rB2.currentTime = 0; rB2.play().catch(() => {}); rShow(rB2); rB1.pause();
-        }
-      }
+      if (R.xC) { const k = clamp((now() - R.xC) / 0.25, 0, 1); rC.style.opacity = k.toFixed(3); if (k >= 1) { R.xC = 0; rShow(rC); } }
       if (R.stopped && now() - R.stopped > 4) rescueEl.classList.remove('capon');
       // after the call (and a while on the truck) the view closes back onto the dashboard
       if (R.stopped && now() - R.stopped > RESCUE.hold && !onCall()) rescueStop(false);
@@ -827,7 +820,7 @@
   setInterval(() => Link.send('veh', {
     ign: st.ign, speed: st.speed, gear: st.gear, gearNum: st.gearNum, rpm: st.rpm, odoMeters: st.odoMeters, odo: st.odo,
     fuel: st.fuel, range: st.range, red: [...st.redActive], amber: [...st.amberActive], wheel: st.wheel, mode: st.mode,
-    clock: st.clock, coolant: st.coolant, outside: st.outside, hazard: st.hazard,
+    clock: st.clock, coolant: st.coolant, outside: st.outside, hazard: st.hazard, engine: audio.engId,
   }), 250);
   let careT = 0;
   function updateCare(dt) {
@@ -865,6 +858,14 @@
       camTo(cam.to > 0.5 ? 0 : 1, 3);
     },
     sound: () => { audio.unlock(); audio.setEnabled(!audio.enabled); syncUI(); },
+    engineSound: (a) => {
+      const id = a && a.id;
+      if (!SimAudio.ENGINES[id]) return;
+      audio.setEngine(id);
+      try { localStorage.setItem('engine-sound', id); } catch (e) { /* private mode */ }
+      const E = SimAudio.ENGINES[id];
+      toast(`엔진 사운드 · Lexus ${E.name} (${E.sub})`);
+    },
     full: () => {
       const d = document;
       if (!d.fullscreenElement) (d.documentElement.requestFullscreen || d.documentElement.webkitRequestFullscreen || (() => {})).call(d.documentElement);

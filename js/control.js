@@ -27,7 +27,10 @@
   Link.on('wall-state', (d) => { Object.assign(wall, d); manualState(); });
   Link.on('wall', (d) => { if (d.mode) wall.mode = d.mode; if (typeof d.labels === 'boolean') wall.labels = d.labels; if (typeof d.edit === 'boolean') wall.edit = d.edit; manualState(); });
   Link.on('ecare', (d) => { snap = d; status(); manualState(); });
-  Link.on('veh', (d) => { const hz = !!(veh && veh.hazard); veh = d; if (!!d.hazard !== hz) manualState(); });
+  Link.on('veh', (d) => { const hz = !!(veh && veh.hazard), en = veh && veh.engine; veh = d; if (!!d.hazard !== hz) manualState(); if (d.engine && d.engine !== en && mtab === 'car') manual(); });
+  // the engine voice the car panel plays (its own setting, shown here)
+  let engineSel = null;
+  const engineId = () => (veh && veh.engine) || engineSel || 'ls500';
   Link.on('say', (d) => { say = d.line; status(); });
   Link.on('toast', (d) => { const t = $('#toast'); t.textContent = d.msg; clearTimeout(t.tid); t.tid = setTimeout(() => { t.textContent = ''; }, 5000); });
   Link.on('stage-hello', () => Link.send('stage', { scene }));
@@ -107,7 +110,7 @@
       steps: [PREP, DRIVE,
         { t: '긴급 경고 · HU 팝업', cue: '“주행불가 경고가 발생했습니다. VEP가 긴급(Case A)으로 판정하고, 헤드유닛에 ‘고객 지원실로 연결하시겠습니까?’ 팝업을 띄웁니다.” 경고등은 고른 대화 세트에 맞춰 나옵니다.', run: [['warn', '@in']], until: 'case', pause: 4000 },
         { t: '고객 HU [전화연결]', cue: '“고객이 화면의 전화연결 버튼을 누릅니다. MM 콜이 CTI를 거쳐 유휴 상담원에게 배정되고, 25분 자동 아웃바운드는 취소됩니다.”', run: [['hu', 'press']], until: 'inbound', pause: 2500 },
-        { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 진단 정보가 이미 화면에 있습니다.” 걱정하는 고객에게 정차와 비상등을 안내하고, 위치를 확인해 긴급출동을 요청합니다. 출동 기사가 고객에게 직접 연락한다고 안내하고 통화를 마칩니다.', run: [['cmd', 'ack']], until: 'callEnd', pause: 2500, long: true },
+        { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 위치와 진단 정보가 이미 화면에 있습니다.” 위치 확인 → 정차 · 비상등 안내 → 긴급출동 요청 → 선호 서비스센터 진행 동의 · 연락처 확인 · 추가 전달 사항 → 출동 기사와 서비스센터가 연락드린다는 안내로 통화를 마칩니다. 통화가 끝나면 출동 차량이 도착합니다.', run: [['cmd', 'ack']], until: 'callEnd', pause: 2500, long: true },
         ARRIVE,
         { t: '상담 완료 · 서비스센터 이관', cue: '“상담 메모가 WAM-MEMO-001로 서비스센터 DMS에 전달됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 6000 },
         DMS_CONTACT, DMS_REPAIR,
@@ -249,6 +252,7 @@
     const lamps = (k) => WARNS.filter((w) => w[2] === k).map(([id, n]) => b(`data-warn="${id}"`, n, `lamp k${k}`)).join('');
     const TABS = {
       car: ['차량 · 고객', chunk('운행', b('data-a="ign"', '시동 ON/OFF') + b('data-a="drive"', '출발') + b('data-a="stop"', '정지') + b('data-a="hazard"', '비상등'))
+        + chunk('엔진 사운드', [['ls500', 'LS 500'], ['lx600', 'LX 600'], ['lc500', 'LC 500']].map(([id, n]) => b(`data-engine="${id}"`, n, engineId() === id ? 'on' : '')).join(''), '시동 · 주행음 · 기본 LS 500')
         + chunk('경고등 켜기', `<div class="lampset"><span class="kA">긴급</span>${lamps('A')}</div><div class="lampset"><span class="kB">경고</span>${lamps('B')}<span class="kC">알림</span>${lamps('C')}</div>`, 'WNG 등급')
         + chunk('고객 헤드유닛', b('data-hu="show"', '팝업 다시 띄우기') + b('data-hu="press"', '전화연결 누르기'))
         + chunk('정리', b('data-a="clear"', '경고등 모두 끄기'))],
@@ -310,6 +314,7 @@
     else if ('wedit' in d) setWall({ edit: !wall.edit });
     else if ('wlabels' in d) setWall({ labels: !wall.labels });
     else if ('wreset' in d) { if (confirm('현재 비율의 배치를 기본값으로 되돌릴까요?')) Link.send('wall', { reset: true }); }
+    else if (d.engine) { Link.send('act', { name: 'engineSound', args: { id: d.engine } }); engineSel = d.engine; manual(); }
     else if (d.a) send('act', d.a);
     else if (d.warn) send('warn', d.warn);
     else if (d.hu) send('hu', d.hu);
