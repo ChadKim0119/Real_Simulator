@@ -1218,7 +1218,7 @@
       ctx.globalAlpha /= pulse;
       this.text(ctx, p.item.title, x + 98, y + 36, 18, '#ffffff', { kr: true, weight: 600, align: 'left' });
       this.text(ctx, p.item.desc, x + 98, y + 62, 12.5, 'rgba(210,218,230,0.9)', { kr: true, align: 'left' });
-      this.text(ctx, red ? '경고' : '주의', x + 98, y + 84, 11, col, { kr: true, weight: 600, align: 'left' });
+      this.text(ctx, red ? '긴급' : '경고', x + 98, y + 84, 11, col, { kr: true, weight: 600, align: 'left' });
       ctx.restore();
     }
 

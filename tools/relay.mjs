@@ -93,7 +93,8 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`  시연 화면 (4분할 · 차량 포함)   ${u('wall.html')}`);
     console.log(`  컨트롤 패널 (아이패드 가능)     ${u('control.html')}`);
     console.log(`  데이터 흐름 (단독 화면)         ${u('flow.html')}`);
-    console.log(`  상담원 화면 CCW (단독)          ${u('ccw.html?view=app')}`);
+    console.log(`  상담원 화면 CCW (단독)          ${u('agent.html')}`);
+    console.log(`  고객지원실 실사 (시선 제어)     ${u('office.html')}`);
     console.log(`  상담 대화 (아이패드 가능)       ${u('ccw.html?view=transcript')}`);
     console.log(`  고객 차량 단독 (wall 대신)      ${u('index.html?stage=1&hu=1')}`);
     console.log(`  모니터 테스트                   ${u('test.html')}`);

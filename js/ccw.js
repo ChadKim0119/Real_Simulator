@@ -23,7 +23,13 @@
   let onlyOpen = true;
   let locFlash = 0;         // "현재 위치 새로고침" pressed
 
-  document.body.className = VIEW === 'transcript' ? 'view-transcript' : VIEW === 'app' ? 'view-app' : 'view-office';
+  // the agent screen is shown either alone ('app', flat) or on the monitor of the office
+  // photo ('office', with a camera from the room to the monitor). The control panel can
+  // switch it (Link 'ccw-cam'), unless the page was opened locked (?cam=lock, agent.html)
+  let mode = VIEW === 'app' ? 'app' : VIEW === 'transcript' ? 'transcript' : 'office';
+  const camLocked = params.get('cam') === 'lock' || VIEW === 'transcript';
+  const setBodyClass = () => { ['view-transcript', 'view-app', 'view-office'].forEach((c) => document.body.classList.toggle(c, c === `view-${mode}`)); };
+  setBodyClass();
 
   /* ---------------- camera: office photo <-> monitor ---------------- */
   const stage = $('#stage');
@@ -31,7 +37,7 @@
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
   function camTo(z, dur) { cam.from = cam.z; cam.to = z; cam.t0 = performance.now(); cam.dur = dur; }
   function placeStage() {
-    if (VIEW === 'app') {
+    if (mode === 'app') {
       // the agent screen alone, filling the display (a dedicated TV)
       const k = Math.min(innerWidth / 1920, innerHeight / 960);
       app.style.transform = `translate(${((innerWidth - 1920 * k) / 2).toFixed(1)}px, ${((innerHeight - 960 * k) / 2).toFixed(1)}px) scale(${k.toFixed(5)})`;
@@ -54,14 +60,19 @@
     let tx = vw / 2 - cx * s, ty = vh / 2 - cy * s;
     tx = clamp(tx, Math.min(vw - IMG.w * s, 0), Math.max(vw - IMG.w * s, 0));
     ty = clamp(ty, Math.min(vh - IMG.h * s, 0), Math.max(vh - IMG.h * s, 0));
-    stage.style.transform = `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${s.toFixed(5)})`;
+    // a layer only while the camera moves: still, the browser draws the agent screen
+    // again at the zoomed size (sharp text on the monitor)
+    const moving = cam.dur > 0;
+    if (stage.dataset.moving !== String(moving)) { stage.dataset.moving = String(moving); stage.style.willChange = moving ? 'transform' : 'auto'; }
+    const tr = moving ? `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${s.toFixed(5)})` : `translate(${Math.round(tx)}px, ${Math.round(ty)}px) scale(${s.toFixed(5)})`;
+    if (stage.style.transform !== tr) stage.style.transform = tr;
     $('#viewBtn').textContent = cam.to > 0.5 ? '사무실 보기' : '상담원 화면';
   }
 
   /* ---------------- link ---------------- */
   Link.on('ecare', (d) => { snap = d; render(); });
   Link.on('veh', (d) => { veh = d; lastVeh = Date.now(); });
-  Link.on('ccw-open-case', () => { if (VIEW !== 'transcript' && cam.to < 0.5) camTo(1, 2600); render(true); });
+  Link.on('ccw-open-case', () => { if (VIEW !== 'transcript' && cam.to < 0.5 && camHold === 'auto') camTo(1, 2600); render(true); });
   // the control panel went back a step or reset: stop the voice, and stay quiet for
   // the rest of that call (a new call, line 0, speaks again)
   let hushed = null;
@@ -83,7 +94,8 @@
 
   function conn() {
     const ok = Date.now() - lastVeh < 2500;
-    $('#conn').textContent = ok ? `● 차량 연결됨 · ${Link.label()}` : '○ 차량 시뮬레이터 연결 대기';
+    $('#conn').textContent = ok ? `● 차량 연결됨 · ${Link.online ? '인터넷' : Link.relay ? 'LAN' : '이 PC'}` : '○ 차량 시뮬레이터 연결 대기';
+    $('#conn').title = Link.label();
     $('#conn').style.color = ok ? '#7fe7a8' : '#ffb46b';
   }
 
@@ -360,7 +372,7 @@
       <div class="cnt"><b>총 ${cs.length}건</b><span>주행 불가 ${red}</span><span>주행 가능 ${cs.length - red}</span></div></div>
       <div class="wlist">${cs.slice(0, 3).map((x, i) => `<div class="witem ${i === 0 ? 'top' : ''}">
         <div class="h"><span class="ic">${x.warn.id === 'engine' ? `<img src="${A}ic_engine.png" alt="">` : x.warn.id === 'oillevel' ? `<img src="${A}ic_drop.svg" alt="">` : `<canvas data-wicon="${x.warn.id}" width="56" height="56"></canvas>`}</span>
-          <div><b>${esc(x.warn.title)}</b>${i === 0 ? '<span class="new">NEW</span>' : ''}</div><span class="drv ${drvOk(x) ? 'ok' : ''}">${drvOk(x) ? '주행 가능' : '주행 불가'}</span></div>
+          <div><b>${esc(x.warn.title)}</b>${i === 0 ? '<span class="new">NEW</span>' : ''}</div><span class="drv ${drvOk(x) ? 'ok' : ''}">${E.CASE[x.wcase] ? `${E.CASE[x.wcase].label} · ` : ''}${drvOk(x) ? '주행 가능' : '주행 불가'}</span></div>
         <dl><dt>발생일시</dt><dd>${shortStamp(x.at)}</dd><dt>상담 안내</dt><dd>${esc(x.warn.act)}</dd></dl>
         <div class="mid-t"><span>MID 메시지 · 고객 안내 문구</span><img src="${A}${i === 0 ? 'chev_up' : 'chev_down'}.svg" alt=""></div>
         ${i === 0 ? `<div class="midbox"><small>MID 메시지</small><p>${esc(x.warn.mid)}</p><small>고객 안내 문구</small><p style="margin:0">${esc(x.warn.desc)}</p></div>` : ''}</div>`).join('')}</div></div>`;
@@ -372,7 +384,7 @@
     const cs = snap.cases;
     let body;
     if (histTab === 'warn') {
-      const rows = cs.map((x, i) => [cs.length - i + 2, shortStamp(x.at), x.kind === 'emergency' ? '긴급' : '경고', x.warn.title, x.dealer || '-', x.dms >= 0 ? E.DMS[x.dms] : '-', x.kind === 'emergency' && x.contact < 3])
+      const rows = cs.map((x, i) => [cs.length - i + 2, shortStamp(x.at), E.CASE[x.wcase] ? E.CASE[x.wcase].label : (x.kind === 'emergency' ? '긴급' : '경고'), x.warn.title, x.dealer || '-', x.dms >= 0 ? E.DMS[x.dms] : '-', x.kind === 'emergency' && x.contact < 3])
         .concat(OLD_WARN.map((r, i) => [2 - i, ...r, false])).slice(0, 3);
       body = `<thead><tr><th style="width:86px">No.</th><th style="width:196px">이벤트 발생 일시</th><th style="width:106px">경고 등급</th><th>경고등명</th><th style="width:238px">처리 센터</th><th style="width:238px">서비스센터 처리 상태</th></tr></thead>
         <tbody>${rows.map((r) => `<tr class="${r[6] ? 'hot' : ''}"><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="l">${esc(r[3])}</td><td>${esc(r[4])}</td><td>${r[5]}</td></tr>`).join('')}</tbody>`;
@@ -399,7 +411,7 @@
       inner = `<div class="s2"><h4>서비스센터 선택</h4><p>마지막 수신 위치: ${place(veh ? veh.odoMeters : c.loc.odo).addr}</p>
         <div class="srch">${searchSvg}<span class="q">서비스 센터명/주소/전화번호 검색</span><span class="only ${onlyOpen ? '' : 'off'}" data-only>업무중만 보기<i>✓</i></span></div>
         <table class="grid"><thead><tr><th style="width:82px">No.</th><th>서비스 센터명</th><th style="width:104px">브랜드</th><th style="width:104px">영업상태</th><th style="width:116px">거리(km)</th><th>주소</th><th style="width:196px">대표전화</th><th style="width:196px">운영 시간</th></tr></thead>
-        <tbody>${list.map((d) => `<tr class="${d.name === m.dealer ? 'sel' : ''}" data-dealer="${esc(d.name)}"><td><span class="radio ${d.name === m.dealer ? 'on' : ''}"></span></td><td>${d.pref ? '[고객 선호] ' : ''}${esc(d.name)}</td><td>${d.brand}</td><td>${d.open}</td><td>${d.km}</td><td>${d.addr}</td><td>${d.tel}</td><td>${d.hours}</td></tr>`).join('')}</tbody></table>
+        <tbody>${list.map((d) => `<tr class="${d.name === m.dealer ? 'picked' : ''}" data-dealer="${esc(d.name)}"><td><span class="radio ${d.name === m.dealer ? 'on' : ''}"></span></td><td>${d.pref ? '[고객 선호] ' : ''}${esc(d.name)}</td><td>${d.brand}</td><td>${d.open}</td><td>${d.km}</td><td>${d.addr}</td><td>${d.tel}</td><td>${d.hours}</td></tr>`).join('')}</tbody></table>
         <div class="foot"><button class="bt-white" data-step="1">이전</button><button class="bt-dark" data-step="3">다음</button></div></div>`;
     } else {
       const d = E.DEALERS.find((x) => x.name === m.dealer) || E.DEALERS[0];
@@ -971,7 +983,7 @@
   keepAwake();
 
   /* ---------------- controls ---------------- */
-  $('#viewBtn').addEventListener('click', () => camTo(cam.to > 0.5 ? 0 : 1, 2200));
+  $('#viewBtn').addEventListener('click', () => { camHold = cam.to > 0.5 ? 'office' : 'monitor'; camTo(cam.to > 0.5 ? 0 : 1, 2200); });
   $('#fsBtn').addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}));
   $('#noiseBtn').addEventListener('click', () => { unlock(); setNoise(!noise.on); });
   noiseUi();
@@ -992,5 +1004,47 @@
   render(true);
   requestAnimationFrame(frame);
   // the office view settles on the agent screen after a moment
-  if (VIEW === 'office') setTimeout(() => { if (cam.to < 0.5) camTo(1, 3000); }, 2500);
+  /* camera of the office view: held by the control panel, or 'auto' — the room while
+   * nothing happens, the monitor while the agent works (a new case, a call ringing or
+   * in progress, the memo), back to the room a few seconds after it settles */
+  let camHold = VIEW === 'monitor' ? 'monitor' : 'auto', quietSince = 0;
+  function setMode(m) {
+    if (m === mode || mode === 'transcript') return;
+    mode = m;
+    setBodyClass();
+    app.style.transform = '';            // the office monitor scales the screen by its CSS
+    $('#stage').style.transform = '';
+    render(true);
+  }
+  function busy() {
+    if (!snap) return false;
+    const now = Date.now();
+    const g = snap.general;
+    if (g && g.state !== 'ended') return true;
+    return snap.cases.some((c) => now - c.at < 9000 || (c.inbound && !c.call) || (c.call && c.call.state !== 'ended' && c.call.state !== 'failed') || (c.sheet && !c.sheet.saved && c.sheet.open) || (c.assign && !c.call));
+  }
+  function camPolicy() {
+    if (mode !== 'office') return;
+    let z;
+    if (camHold === 'office') z = 0;
+    else if (camHold === 'monitor') z = 1;
+    else {
+      const b = busy();
+      if (b) quietSince = 0; else if (!quietSince) quietSince = Date.now();
+      z = b || Date.now() - quietSince < 4000 ? 1 : 0;
+    }
+    if (cam.to !== z && !cam.dur) camTo(z, z ? 2400 : 2800);
+  }
+  if (!camLocked) {
+    Link.on('ccw-cam', (d) => {
+      const v = d.view || 'auto';
+      if (v === 'screen') { setMode('app'); return; }
+      setMode('office');
+      camHold = v === 'office' || v === 'monitor' ? v : 'auto';
+      if (camHold !== 'auto') camTo(camHold === 'monitor' ? 1 : 0, 2400);
+      else camPolicy();
+    });
+    Link.send('ccw-hello', {});
+  }
+  setInterval(camPolicy, 400);
 })();

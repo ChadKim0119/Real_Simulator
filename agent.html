@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>e-Care 상담원 화면 (CCW)</title>
+  <!-- 상담원 화면(CCW)만 화면 가득. 컨트롤 패널의 상담실 시선과 상관없이 항상 이 화면. -->
+  <script>
+    // keeps the device's own options (room, cloud, stage) and opens the screen
+    (function () {
+      var q = new URLSearchParams(location.search), t = new URLSearchParams('view=app&cam=lock');
+      t.forEach(function (v, k) { if (!q.has(k)) q.set(k, v); });
+      location.replace('ccw.html?' + q.toString());
+    })();
+  </script>
+</head>
+<body style="background:#000"></body>
+</html>

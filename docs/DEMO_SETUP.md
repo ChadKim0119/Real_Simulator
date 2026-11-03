@@ -118,7 +118,7 @@
 |---|---|
 | 큰 디스플레이 PC | `wall.html` — 4분할 시연 화면 (차량 포함) |
 | 진행자 맥 · 노트북 | `control.html` |
-| 보조 PC · 추가 디스플레이 | `flow.html`(데이터 흐름) · `ccw.html?view=app`(상담원 화면) |
+| 보조 PC · 추가 디스플레이 | `flow.html`(데이터 흐름) · `agent.html`(상담원 화면 CCW만) · `office.html`(고객지원실 실사, 컨트롤 패널 ‘상담실’ 시선을 따름) |
 | 아이패드 | `control.html`(무선 진행) 또는 `ccw.html?view=transcript`(상담 대화) |
 | 휴대폰 | `control.html`(리모컨) |
 

@@ -305,7 +305,7 @@
     const item = id ? SimData.RED.concat(SimData.AMBER).find((w) => w.id === id) : list.find((w) => !set.has(w.id));
     if (!item || (id && set.has(id))) {
       if (id && item) return;
-      toast(level === 'red' ? '모든 경고등이 이미 점등되어 있습니다' : '모든 주의등이 이미 점등되어 있습니다');
+      toast(level === 'red' ? '모든 긴급 경고등이 이미 점등되어 있습니다' : '모든 경고 · 알림등이 이미 점등되어 있습니다');
       return;
     }
     set.add(item.id);

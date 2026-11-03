@@ -172,7 +172,10 @@ body.view-transcript #viewport, body.view-transcript #viewBtn, body.view-transcr
 .wpanel .hd p { margin: 8px 0 14px; font-size: 14px; color: var(--t2); }
 .wpanel .hd .cnt { display: flex; gap: 12px; font-size: 14px; color: var(--t2); align-items: center; }
 .wpanel .hd .cnt b { background: var(--sand2); color: var(--t1); font-weight: 600; border-radius: 8px; padding: 4px 12px; }
-.wlist { padding: 14px 24px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; flex: 1; }
+.wlist { padding: 14px 24px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; min-height: 0; scrollbar-width: thin; scrollbar-color: #d9cfc3 transparent; }
+/* the card scrolls instead of cutting its last lines; a fade says there is more below */
+.wpanel { position: relative; }
+.wpanel::after { content: ''; position: absolute; left: 1px; right: 1px; bottom: 1px; height: 28px; border-radius: 0 0 12px 12px; background: linear-gradient(rgba(255, 255, 255, 0), #fff); pointer-events: none; }
 .witem { border: 1px solid rgba(216, 208, 200, 0.6); border-radius: 8px; padding: 16px 17px; background: #fff; }
 .witem.top { background: var(--sand); }
 .witem .h { display: flex; gap: 12px; align-items: flex-start; padding-bottom: 12px; border-bottom: 1px solid rgba(216, 208, 200, 0.4); }
@@ -240,7 +243,7 @@ table.grid tr.hot td.l { color: var(--redtx); font-weight: 500; }
 .radio { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 4px solid #a8a8a8; background: #fff; vertical-align: middle; }
 .radio.on { border-color: #3f322e; }
 .s2 tr { cursor: pointer; }
-.s2 tr.sel td { background: #faf6f1; }
+.s2 tr.picked td { background: #faf6f1; }   /* not .sel: that is the drop-down box style */
 .s2 .foot { position: absolute; right: 34px; bottom: 18px; }
 .s3 { display: grid; grid-template-columns: 330px 1fr 420px; gap: 0 22px; flex: 1; min-height: 0; margin-top: 18px; }
 .s3 dl { display: grid; grid-template-columns: 120px 1fr; row-gap: 12px; margin: 0; font-size: 15px; align-items: center; }

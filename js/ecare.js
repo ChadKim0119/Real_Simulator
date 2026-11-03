@@ -57,9 +57,10 @@
     oillevel: { code: 'OLW', name: '엔진오일 레벨', case: 'A' },
   };
   const CASE = {
-    A: { label: 'Case A', kind: '주행불가', owner: 'e-Care 고객지원실', sla: 25 * 60 * 1000, slaText: '25분' },
-    B: { label: 'Case B', kind: '주행가능 · 점검 필요', owner: '서비스센터 (DMS)', sla: 24 * 3600 * 1000, slaText: '1일' },
-    C: { label: 'Case C', kind: '정비 · 알림', owner: '서비스센터 · 고객 (DMS · App/MM)', sla: 7 * 24 * 3600 * 1000, slaText: '7일' },
+    // WNG case grades: A Malfunction = 긴급, B Maintenance = 경고, C Notification = 알림
+    A: { label: '긴급', en: 'Malfunction', kind: '주행불가', owner: 'e-Care 고객지원실', sla: 25 * 60 * 1000, slaText: '25분' },
+    B: { label: '경고', en: 'Maintenance', kind: '주행가능 · 점검 필요', owner: '서비스센터 (DMS)', sla: 24 * 3600 * 1000, slaText: '1일' },
+    C: { label: '알림', en: 'Notification', kind: '정비 안내', owner: '서비스센터 · 고객 (DMS · App/MM)', sla: 7 * 24 * 3600 * 1000, slaText: '7일' },
   };
 
   const CUSTOMER = { name: '홍길동', phone: '010-1234-5678', grade: 'Lexus Premium' };
@@ -236,7 +237,7 @@
         ['car', 'vdp', 'WNG', `경고 발생 · ${wng.code}`, info, 0],
         ['vdp', 'vep', 'VDP 이벤트', 'WNG 이벤트 전달 (VDP → TSP)', { messageId: String(Date.now()).slice(-10), wngInfo: [info] }],
         ['vep', 'vep', '필터 검사', 'VIN · 정비 · 중복 필터 통과', { vinFilter: 'pass', maintenanceFilter: 'pass', duplicateFilter: 'pass' }, 650],
-        ['vep', 'vep', 'Case 판정', `WNG master ${wng.code} → ${CASE[wng.case].label} ${CASE[wng.case].kind}`, { dataLabel: wng.code, warningName: wng.name, case: wng.case, owner: CASE[wng.case].owner, source: wng.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master v8.2' }, 700],
+        ['vep', 'vep', 'Case 판정', `WNG master ${wng.code} → ${CASE[wng.case].label}(Case ${wng.case}) · ${CASE[wng.case].kind}`, { dataLabel: wng.code, warningName: wng.name, case: wng.case, owner: CASE[wng.case].owner, source: wng.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master v8.2' }, 700],
         ['vep', 'wam', '그룹 ID', `workflowId 발급 · ${group.slice(0, 8)}`, { workflowId: group, case: wng.case }],
       ];
       if (wng.case === 'A') steps.push(['wam', 'ccw', 'e-Care 이벤트', 'CCW 긴급 케이스 등록 · 인바운드 대기 25:00', { caseId: id, workflowId: group, case: 'A' }]);

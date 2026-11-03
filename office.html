@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>e-Care 고객지원실</title>
+  <!-- 고객지원실 실사 사무실 + 모니터의 상담원 화면. 컨트롤 패널 상담실 시선(자동 · 사무실 · 모니터 · 화면만)을 따름. -->
+  <script>
+    // keeps the device's own options (room, cloud, stage) and opens the screen
+    (function () {
+      var q = new URLSearchParams(location.search), t = new URLSearchParams('view=office');
+      t.forEach(function (v, k) { if (!q.has(k)) q.set(k, v); });
+      location.replace('ccw.html?' + q.toString());
+    })();
+  </script>
+</head>
+<body style="background:#000"></body>
+</html>

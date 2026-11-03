@@ -14,7 +14,7 @@
   const PANELS = {
     car: { src: 'index.html?stage=1&hu=1', t: '고객 차량 · 계기판 · 헤드유닛', ideal: 2300 / 941, design: [2300, 941] },
     flow: { src: 'flow.html', t: '데이터 흐름', ideal: 16 / 9, design: [1920, 1080] },
-    ccw: { src: 'ccw.html?view=app&stage=1', t: 'e-Care 고객지원실 (CCW)', ideal: 2, design: [1920, 960] },
+    ccw: { src: 'ccw.html?view=office&stage=1', t: 'e-Care 고객지원실 (CCW)', ideal: 2, design: [1920, 960] },
     talk: { src: 'ccw.html?view=transcript&stage=1', t: '상담 대화', ideal: null, design: null },
   };
   const MODES = {

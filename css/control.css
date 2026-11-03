@@ -16,7 +16,7 @@ header b { font-size: 18px; white-space: nowrap; }
 #toast { margin-left: auto; color: #ffd28a; }
 
 main { display: grid; gap: 14px; padding: 14px 20px 30px; padding-right: calc(var(--dock) + 30px); align-items: start;
-  grid-template-columns: minmax(230px, 280px) minmax(320px, 1fr) minmax(420px, 520px); grid-template-areas: "scen run side"; }
+  grid-template-columns: minmax(250px, 300px) minmax(320px, 1fr) minmax(420px, 520px); grid-template-areas: "scen run side"; }
 .run { grid-area: run; } .scen { grid-area: scen; } .side { grid-area: side; }
 .col { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; min-width: 0; }
 h2 { margin: 0 0 10px; font-size: 15px; color: #cfd6e2; }
@@ -35,6 +35,7 @@ h3 { margin: 0 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700; }
 #now #next small { max-width: 100%; color: rgba(255, 255, 255, 0.85); font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #steps { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
 #steps .grp { margin: 10px 0 2px; font-size: 12px; color: var(--mut); font-weight: 700; }
+#steps button span.t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #steps button { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0b111a; cursor: pointer; font-size: 14px; line-height: 1.35; }
 #steps button i { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 700 12px "Barlow", sans-serif; font-style: normal; background: #18212f; }
 #steps button small { flex: none; margin-left: auto; font-size: 11px; color: #ffd28a; }
@@ -46,12 +47,13 @@ h3 { margin: 0 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700; }
 /* ---------- 2. scenarios ---------- */
 .sc { display: grid; grid-template-columns: 34px 1fr; gap: 2px 10px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--line); background: #0b111a; cursor: pointer; line-height: 1.35; }
 .sc i { grid-row: span 2; align-self: center; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font: 700 15px "Barlow", sans-serif; font-style: normal; background: #18212f; }
+.sc b, .sc small { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* one line each, full text on hover */
 .sc b { font-size: 14.5px; }
 .sc small { font-size: 12px; color: var(--mut); }
 .sc.on { border-color: var(--blue); background: #10213d; }
 .sc.on i { background: var(--blue); color: #fff; }
 .sets { margin-top: 10px; }
-.sets button { display: block; width: 100%; text-align: left; margin-bottom: 6px; line-height: 1.4; }
+.sets button { display: block; width: 100%; text-align: left; margin-bottom: 6px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- buttons ---------- */
 .col button, .col a { border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); padding: 8px 11px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; }
@@ -83,9 +85,10 @@ h3 { margin: 0 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700; }
 #manual button.lamp.kA { border-left-color: #ff4d5e; } #manual button.lamp.kB { border-left-color: #ffb02e; } #manual button.lamp.kC { border-left-color: #3fd0c9; }
 
 /* ---------- fixed dock: camera and reset, always in reach ---------- */
-#dock { position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 5; width: var(--dock); display: flex; flex-direction: column; gap: 8px; padding: 14px 10px; border-radius: 16px 0 0 16px; background: rgba(10, 16, 26, 0.96); border: 1px solid var(--line); border-right: 0; box-shadow: -10px 0 30px rgba(0, 0, 0, 0.4); }
-#dock b { font-size: 12px; color: var(--mut); text-align: center; }
-#dock button { border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); color: inherit; font: 700 13px/1.25 "Pretendard", sans-serif; padding: 12px 4px; border-radius: 10px; cursor: pointer; word-break: keep-all; }
+#dock { position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 5; width: var(--dock); max-height: calc(100vh - 70px); overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 14px 10px; border-radius: 16px 0 0 16px; background: rgba(10, 16, 26, 0.96); border: 1px solid var(--line); border-right: 0; box-shadow: -10px 0 30px rgba(0, 0, 0, 0.4); }
+#dock b { font-size: 12px; color: var(--mut); text-align: center; white-space: nowrap; }
+#dock b.g2 { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+#dock button { border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); color: inherit; font: 700 13px/1.25 "Pretendard", sans-serif; padding: 10px 4px; white-space: nowrap; border-radius: 10px; cursor: pointer; word-break: keep-all; }
 #dock button span { display: block; }
 #dock button.on { background: #173a6b; border-color: var(--blue); color: #fff; }
 #dock button.warn { border-color: rgba(255, 93, 108, 0.6); color: #ff9aa4; padding: 16px 4px; }
@@ -112,9 +115,11 @@ h3 { margin: 0 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700; }
   #now p { font-size: 14.5px; }
   #manual .tabs { width: 100%; }
   #manual .tabs button { flex: 1; padding: 8px 4px; }
-  #dock { top: auto; bottom: 0; left: 0; right: 0; transform: none; width: auto; flex-direction: row; align-items: stretch; gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; border: 1px solid var(--line); border-bottom: 0; }
-  #dock b, #dock hr { display: none; }
-  #dock button { flex: 1; padding: 11px 2px; white-space: nowrap; }
-  #dock button span { display: none; }
-  #dock button.warn { padding: 11px 2px; flex: 1.2; }
+  #dock { top: auto; bottom: 0; left: 0; right: 0; transform: none; width: auto; max-height: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; border: 1px solid var(--line); border-bottom: 0; }
+  #dock b:not(.g2), #dock hr { display: none; }
+  #dock button { padding: 10px 2px; order: 1; }
+  #dock button.warn { padding: 10px 2px; order: 2; }
+  #dock b.g2 { order: 3; margin: 0; padding: 0; border: 0; align-self: center; font-size: 11.5px; }
+  #dock button[data-ccwcam] { order: 4; }
+  main { padding-bottom: 140px; }
 }
