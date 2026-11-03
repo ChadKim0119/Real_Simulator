@@ -105,7 +105,10 @@
     { who: 'agent', text: '확인해 보니 서비스센터로 상담 내용이 전달되어 있고, 담당 어드바이저가 오늘 중 연락드릴 예정입니다.', dur: 6.4 },
     { who: 'customer', text: '네, 알겠습니다. 감사합니다.', dur: 2.2 },
   ];
-  // second inbound set (ElevenLabs female v4): engine warning, a frightened customer
+  // main inbound set: a worried woman driving alone, engine warning. The agent sends the
+  // rescue truck during the call and stays on the line until it stops in front of her car.
+  // dispatch: the agent requests the rescue truck on this line; rescue: the truck comes into
+  // view (the car panel shows it pass the driver's window); arrive: it has stopped in front
   const CALL_IN2 = [
     { who: 'customer', text: '어, 저기요. 차 계기판에 막 빨간불이 켜지고 차가 막 덜컹거리는데, 저 지금 도로 한가운데라 너무 무서워요. 이거 차에서 불나는 거 아니에요? 어떡해요, 진짜!', audio: 'assets/audio/ecare_f4_01_customer.mp3', dur: 11.96 },
     { who: 'agent', text: '고객님, 갑작스러운 알림에 많이 놀라셨죠? 우선 안심하셔도 괜찮습니다. 제가 끝까지 도와드리겠습니다.', audio: 'assets/audio/ecare_f4_02_agent.mp3', dur: 8.62 },
@@ -113,15 +116,19 @@
     { who: 'customer', text: '네, 갓길에 겨우 세웠어요. 여기가 올림픽대로 한남 방향으로 빠지는 길목 부근이에요.', audio: 'assets/audio/ecare_f4_04_customer.mp3', dur: 6.03, stop: true },
     { who: 'agent', text: '네, 위치 확인되었습니다. 안전한 장소에 즉시 정차해 주셔서 정말 다행입니다. 안전이 확인될 때까지 재출발을 삼가 주시기 바랍니다.', audio: 'assets/audio/ecare_f4_05_agent.mp3', dur: 10.19 },
     { who: 'customer', text: '하… 휴… 상담원님이 차분하게 말해 주시니까 이제야 좀 살 것 같아요. 당장 어쩌나 싶어 너무 겁먹었거든요.', audio: 'assets/audio/ecare_f4_06_customer.mp3', dur: 8.62 },
-    { who: 'agent', text: '견인 또는 긴급 지원이 필요하시면 바로 접수 도와드리겠습니다. 가장 가까운 지정 서비스센터로 안전하게 입고하실 수 있도록 안내해 드리겠습니다.', audio: 'assets/audio/ecare_f4_07_agent.mp3', dur: 10.0 },
-    { who: 'customer', text: '안내해 주신 대로 차 안에서 안전하게 기다릴게요. 정말 감사합니다.', audio: 'assets/audio/ecare_f4_08_customer.mp3', dur: 4.13 },
+    { who: 'agent', text: '지금 바로 긴급출동을 요청했습니다. 가까운 출동 차량이 고객님 차 앞까지 갈 거예요. 비상등을 켜 두시고, 안전벨트를 맨 채 차 안에서 잠시만 기다려 주세요.', audio: 'assets/audio/ecare_f4_09_agent.mp3', dur: 11.89, dispatch: true },
+    { who: 'customer', text: '네, 차 안에서 기다릴게요. 근데 정말 금방 오는 거죠? 혼자 있으니까 자꾸 불안해서요.', audio: 'assets/audio/ecare_f4_10_customer.mp3', dur: 6.48 },
+    { who: 'agent', text: '그럼요, 출동 차량 위치를 제가 계속 보고 있어요. 거의 다 왔습니다. 도착할 때까지 전화 끊지 않고 함께 있을게요.', audio: 'assets/audio/ecare_f4_11_agent.mp3', dur: 8.72, rescue: true },
+    { who: 'customer', text: '어, 저기 노란 경광등 켠 차가 와요! 지금 제 차 바로 앞에 섰어요.', audio: 'assets/audio/ecare_f4_12_customer.mp3', dur: 5.04, arrive: true },
+    { who: 'agent', text: '네, 저희 긴급출동 기사님입니다. 차량은 가장 가까운 강남 서비스센터로 입고되도록 제가 예약까지 잡아 두겠습니다.', audio: 'assets/audio/ecare_f4_13_agent.mp3', dur: 9.25 },
+    { who: 'customer', text: '정말 다행이에요. 끝까지 함께해 주셔서 감사합니다.', audio: 'assets/audio/ecare_f4_14_customer.mp3', dur: 3.4 },
   ];
   const SCRIPTS = { in: CALL_IN, in2: CALL_IN2, out: CALL_OUT, gen: CALL_GEN };
-  const SCRIPT_NAMES = { in: '인바운드 세트 1 · 빨간 경고등 (차분한 고객)', in2: '인바운드 세트 2 · 엔진 이상 (긴박한 고객)', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)' };
+  const SCRIPT_NAMES = { in2: '메인 · 걱정 많은 여성 운전자 · 엔진 이상 · 긴급출동 도착', in: '보조 · 빨간 경고등 (차분한 고객)', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)' };
   /* Conversation sets per call type; the director plays the picked one.
    * warn: the lamp the presenter's run sheet raises for that set. */
   const SCRIPT_SETS = {
-    in: { label: '고객 인바운드 (HU 전화연결)', keys: ['in', 'in2'] },
+    in: { label: '고객 인바운드 (HU 전화연결)', keys: ['in2', 'in'] },
     out: { label: '상담원 아웃바운드', keys: ['out'] },
     gen: { label: '일반 전화', keys: ['gen'] },
   };
@@ -169,6 +176,7 @@
 
     reset(silent) {
       if (!silent && this.hooks.hazard) this.hooks.hazard(null, false);
+      if (!silent && this.hooks.rescue) this.hooks.rescue(null);   // the rescue scene ends
       this.cases = [];
       this.seq = 41;
       this.active = null;
@@ -336,7 +344,8 @@
         case 'pick': return this.pickSet(args);
         case 'consultMemo': { const k = this.consults.find((x) => x.id === args.consult); if (k && args.text) { (k.memos = k.memos || []).push({ t: Date.now(), text: args.text, agent: this.me().name }); k.updated = Date.now(); this.publish(); } return; }
         case 'ack': return this.ack(c);
-        case 'dmsContact': return this.dmsContact(this.find(args.id), args);
+        // without an id (the control panel's scenario): the case the service center is working on
+        case 'dmsContact': return this.dmsContact((args.id && this.find(args.id)) || this.cases.find((x) => x.dms >= 0 && x.dms < 3 && !x.dmsStop), args);
         case 'dmsStop': return this.dmsStopCase(this.find(args.id), args.reason);
         case 'dmsAdvance': { const k = args.id && this.find(args.id); return this.dmsAdvance(k && k.dms >= 0 ? k : this.cases.find((x) => x.dms >= 0 && !x.dmsStop && x.dms < 7)); }
         case 'accept': return this.accept(c);
@@ -345,6 +354,7 @@
         case 'redial': return this.redial(c);
         case 'noAnswer': this.noAnswer = args.on == null ? !this.noAnswer : !!args.on; this.publish(); return;
         case 'dispatch': return this.dispatch(c);
+        case 'arrive': return this.arrive(c);   // the rescue truck pulls up in front (car panel scene)
         case 'complete': return this.complete(c);
         case 'sheet': return this.sheet(c, args);
         case 'memo': if (c) { Object.assign(c.memo, args.memo || {}); this.publish(); } return;
@@ -466,7 +476,7 @@
       const set = SCRIPT_SETS[args.kind];
       if (!set || !set.keys.includes(args.key)) return;
       this.pick[args.kind] = args.key;
-      try { localStorage.setItem('ecare-pick', JSON.stringify(this.pick)); } catch (e) { /* private mode */ }
+      try { localStorage.setItem('ecare-pick-v2', JSON.stringify(this.pick)); } catch (e) { /* private mode */ }
       this.publish();
     }
 
@@ -581,6 +591,10 @@
       this.publish();
       Link.send('say', { caseId: c.id, line: script[i], index: i });
       if (script[i].stop && this.hooks.stop) this.hooks.stop(c);
+      // the rescue truck follows the conversation: requested, in view, stopped in front
+      if (script[i].dispatch) this.dispatch(c, true, true);
+      if (script[i].rescue) this.rescue(c);
+      if (script[i].arrive) this.arrive(c);
       if (this.hooks.hazard && hazardOn(script, i)) this.hooks.hazard(c, true);
       this.after(script[i].dur * 1000 + 700, () => { if (c.call === call) this.nextLine(c, i + 1, script); });
     }
@@ -606,7 +620,7 @@
       c.memo.callType = c.call && c.call.dir === 'in' ? '인바운드 콜' : '아웃바운드 콜';
       c.memo.text = c.sms
         ? `${c.warn.sys} 경고(주행 불가) 발생. 아웃바운드 3회 발신 실패로 SMS 자동 발송. 고객 회신 시 즉시 출동 및 입고 안내 필요.`
-        : `${c.warn.sys} 경고(주행 불가) 발생. 고객 갓길 정차 확인, 비상등 점등 및 차량 밖 대기 안내. 현재 위치로 긴급출동 요청 완료, 견인 후 서비스센터 입고 필요.`;
+        : `${c.warn.sys} 경고(주행 불가) 발생. 고객 갓길 정차 확인, 비상등 점등 안내. 현재 위치로 긴급출동 요청${c.dispatch >= 2 ? ' → 고객 차량 앞 도착 확인' : ' 완료'}, 견인 후 서비스센터 입고 필요.`;
       c.memo.request = '견인 입고 예정 차량입니다. 도착 즉시 진단 부탁드립니다.';
       c.sheet = { step: 1, open: true, at: Date.now() };
       this.log(c, '상담 메모(1) 바텀시트 · 상담 제목 자동 입력', 'info');
@@ -619,17 +633,38 @@
       this.publish();
     }
 
-    dispatch(c, auto) {
+    /** Rescue truck: 신고접수 → 출동 → 도착 → 출동완료. live: the call script itself says
+     *  when the truck arrives (rescue / arrive lines); otherwise it arrives on a timer. */
+    dispatch(c, auto, live) {
       if (!c || c.kind !== 'emergency' || c.dispatch >= 0) return;
       c.dispatch = 0;
       this.log(c, `긴급출동 신고접수(출동접수)${auto ? ' · 상담 중 요청' : ''}`, 'alert');
       this.flow(c, [['ccw', 'rescue', '긴급출동', '마스터자동차 출동 요청 · 현재 위치', { caseId: c.id, vin: VEHICLE.vin, location: 'last received' }, 0]]);
       this.publish();
-      [[4000, 1, '긴급출동 출동(목적지출발) · 도착 예정 12분'], [16000, 2, '긴급출동 도착(목적지도착) · 견인 준비'], [26000, 3, '긴급출동 출동완료 · 견인 후 서비스센터 이동']].forEach(([ms, k, text]) =>
-        this.after(ms, () => {
-          c.dispatch = k; this.log(c, text, 'alert'); this.publish();
-          this.flow(c, [['rescue', 'ccw', '출동 상태', `${DISPATCH[k]}`, { status: DISPATCH[k] }, 0], ...(k === 1 ? [['ccw', 'car', 'MM 알림', '견인 차량 출동 · 도착 예정 12분', null]] : [])]);
-        }));
+      this.after(live ? 2500 : 4000, () => this.dispatchStep(c, 1, `긴급출동 출동(목적지출발) · 도착 예정 ${live ? '5' : '12'}분`));
+      if (!live) this.after(16000, () => this.arrive(c));
+    }
+
+    dispatchStep(c, k, text) {
+      if (c.dispatch >= k) return;
+      c.dispatch = k; this.log(c, text, 'alert'); this.publish();
+      this.flow(c, [['rescue', 'ccw', '출동 상태', `${DISPATCH[k]}`, { status: DISPATCH[k] }, 0], ...(k === 1 ? [['ccw', 'car', 'MM 알림', '긴급출동 차량 출발 · 곧 도착', null]] : [])]);
+    }
+
+    /** The truck comes into view: the car panel pulls back and shows it pass the driver's window. */
+    rescue(c) {
+      if (!c || c.rescueShown) return;
+      if (c.dispatch < 0) this.dispatch(c, true, true);
+      c.rescueShown = Date.now();
+      if (this.hooks.rescue) this.hooks.rescue(c);
+      this.publish();
+    }
+
+    arrive(c) {
+      if (!c || c.dispatch >= 2) return;
+      if (!c.rescueShown) this.rescue(c);
+      this.dispatchStep(c, 2, '긴급출동 도착(목적지도착) · 고객 차량 앞 정차 · 견인 준비');
+      this.after(20000, () => this.dispatchStep(c, 3, '긴급출동 출동완료 · 견인 후 서비스센터 이동'));
     }
 
     /** Control panel shortcut: finish the call and the memo in one go. */
@@ -680,18 +715,18 @@
   function loadScripts() {
     const d = defaults();
     try {
-      const v = JSON.parse(localStorage.getItem('ecare-scripts-v3'));
+      const v = JSON.parse(localStorage.getItem('ecare-scripts-v4'));
       // sets added since the scripts were saved come from the defaults
       if (v && typeof v === 'object') { Object.keys(d).forEach((k) => { if (!Array.isArray(v[k])) v[k] = d[k]; }); return v; }
     } catch (e) { /* none saved */ }
     return d;
   }
   function loadPick() {
-    const p = { in: 'in', out: 'out', gen: 'gen' };
-    try { const v = JSON.parse(localStorage.getItem('ecare-pick')); Object.keys(p).forEach((k) => { if (v && SCRIPT_SETS[k].keys.includes(v[k])) p[k] = v[k]; }); } catch (e) { /* none saved */ }
+    const p = { in: 'in2', out: 'out', gen: 'gen' };
+    try { const v = JSON.parse(localStorage.getItem('ecare-pick-v2')); Object.keys(p).forEach((k) => { if (v && SCRIPT_SETS[k].keys.includes(v[k])) p[k] = v[k]; }); } catch (e) { /* none saved */ }
     return p;
   }
-  function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v3', JSON.stringify(v)); } catch (e) { /* private mode */ } }
+  function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v4', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
   window.ECare = { SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();

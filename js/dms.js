@@ -346,12 +346,133 @@
   Link.on('dms-open', (d) => { const id = d.id || (liveRows()[0] || {}).id; if (id) { detail = id; detailTab = 'info'; render(true); } });
   Link.on('dms-close', () => { detail = null; render(true); });
 
-  /* ---------------- fit 1920x1080 to the window ---------------- */
-  function fit() {
-    const k = Math.min(innerWidth / 1920, innerHeight / 1080);
-    app.style.transform = `translate(${((innerWidth - 1920 * k) / 2).toFixed(1)}px, ${((innerHeight - 1080 * k) / 2).toFixed(1)}px) scale(${k.toFixed(5)})`;
+  /* ---------------- the advisor's desk: office photo → monitor → the part of the DMS in play ----------------
+   * 'office' (default): the DMS on the monitor of the service advisor's desk, with a
+   * camera that follows the main flow — the room while nothing happens, the monitor
+   * when an e-Care case comes in, and in close on the row or the dialog being worked
+   * on, so the audience at the back can read it. 'app' (?view=app or the control
+   * panel's 화면만): the DMS alone, fitted to the window. The control panel's
+   * call-center camera (Link 'ccw-cam') steers this desk the same way. */
+  const params = new URLSearchParams(location.search);
+  let mode = params.get('view') === 'app' ? 'app' : 'office';
+  const IMG = { w: 1344, h: 752 }, SCR = { x: 398, y: 214, w: 501, h: 267 }, OW = 2026;   // the DMS is 2026x1080 on the monitor
+  const stageEl = $('#stage'), capEl = $('#cap');
+  const setBody = () => { document.body.classList.toggle('view-office', mode === 'office'); document.body.classList.toggle('view-app', mode === 'app'); };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const cam = { to: 'office', rect: null, from: null, cur: null, t0: 0, dur: 0 };
+  const same = (a, b) => (!a && !b) || (a && b && Math.abs(a.x - b.x) < 24 && Math.abs(a.y - b.y) < 24 && Math.abs(a.w - b.w) < 24 && Math.abs(a.h - b.h) < 24);
+  function camTo(kind, dur, rect) {
+    if (kind === cam.to && same(rect, cam.rect)) return;
+    cam.from = cam.cur; cam.to = kind; cam.rect = rect || null; cam.t0 = performance.now(); cam.dur = cam.from ? dur : 0;
   }
-  addEventListener('resize', fit);
-  fit();
+  function viewOf(kind, rect, vw, vh, s0, s1) {
+    if (kind === 'office') return { s: s0, cx: IMG.w / 2, cy: IMG.h / 2 };
+    const mon = { s: s1, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 + 14 };
+    if (kind !== 'focus' || !rect) return mon;
+    const k = SCR.w / OW;
+    const r = { x: SCR.x + rect.x * k, y: SCR.y + rect.y * k, w: rect.w * k, h: rect.h * k };
+    const s = clamp(Math.min(vw / (r.w * 1.12), vh / (r.h * 1.2)), s1 * 1.15, s1 * 4.2);
+    return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 };
+  }
+  function place() {
+    if (mode === 'app') {
+      stageEl.style.transform = '';
+      const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+      app.style.transform = `translate(${((innerWidth - 1920 * k) / 2).toFixed(1)}px, ${((innerHeight - 1080 * k) / 2).toFixed(1)}px) scale(${k.toFixed(5)})`;
+      return;
+    }
+    app.style.transform = '';
+    const vw = innerWidth, vh = innerHeight, tall = vw / vh < 1;
+    document.body.classList.toggle('tall', tall);
+    const s0 = tall ? vw / IMG.w * 1.12 : Math.max(vw / IMG.w, vh / IMG.h);
+    const s1 = Math.max(s0, Math.min(vw / SCR.w, vh / SCR.h) * (tall ? 0.97 : 0.8));
+    const target = viewOf(cam.to, cam.rect, vw, vh, s0, s1);
+    let v = target;
+    if (cam.dur > 0 && cam.from) {
+      const p = clamp((performance.now() - cam.t0) / cam.dur, 0, 1), e = ease(p), A = cam.from;
+      v = { s: Math.exp(Math.log(A.s) + (Math.log(target.s) - Math.log(A.s)) * e), cx: A.cx + (target.cx - A.cx) * e, cy: A.cy + (target.cy - A.cy) * e };
+      if (p >= 1) cam.dur = 0;
+    }
+    cam.cur = v;
+    let tx = vw / 2 - v.cx * v.s, ty = vh / 2 - v.cy * v.s;
+    tx = clamp(tx, Math.min(vw - IMG.w * v.s, 0), Math.max(vw - IMG.w * v.s, 0));
+    ty = clamp(ty, Math.min(vh - IMG.h * v.s, 0), Math.max(vh - IMG.h * v.s, 0));
+    const moving = cam.dur > 0;
+    stageEl.style.willChange = moving ? 'transform' : 'auto';
+    const tr = moving ? `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${v.s.toFixed(5)})` : `translate(${Math.round(tx)}px, ${Math.round(ty)}px) scale(${v.s.toFixed(5)})`;
+    if (stageEl.style.transform !== tr) stageEl.style.transform = tr;
+  }
+  function frame() { place(); requestAnimationFrame(frame); }
+
+  /* the live e-Care case and what the center is doing with it now */
+  const liveCase = () => snap && snap.cases.filter((c) => c.dms >= 0 || (c.wcase === 'A' && c.contact < 3)).slice(-1)[0];
+  const lastChange = () => { const c = liveCase(); return c ? Math.max(flash[c.id] || 0, c.at || 0, (c.sheet && c.sheet.saved) || 0) : 0; };
+  function stepText() {
+    const c = liveCase();
+    if (!c) return null;
+    const dlg = !!app.querySelector('.ov .dlg');
+    if (c.dms < 0) return ['e-Care 고객지원실 상담 중', '긴급 경고 · 이관 대기'];
+    if (c.dmsStop) return ['대응 중단', c.dmsStop];
+    const T = {
+      0: ['상담 메모 이관 접수 · 컨택대기', '고객지원실 → 서비스센터 (WAM-MEMO-001) · 첫 컨택 SLA 시작'],
+      1: ['고객 컨택 · 예약대기', `서비스 어드바이저 ${'이정비'} 컨택 등록`],
+      2: ['입고 예약 확정', '컨택 결과 → CCW · 데이터 흐름에 반영 (DMS-SVC-002)'],
+      3: ['차량 입고', '긴급출동 견인 차량 서비스센터 도착'],
+      4: ['정비 진행', '진단 · 수리'], 5: ['정비 완료', '고객 인도 준비'], 6: ['고객 인도', ''], 7: ['정비 종결', 'e-Care 케이스 종결'],
+    };
+    const t = T[c.dms] || T[0];
+    return dlg && c.dms <= 1 ? ['컨택 결과 등록', `${E.CUSTOMER.name} 고객 · ${E.VEHICLE.model} · 예약 확정`] : t;
+  }
+  function focusSel() {
+    if (app.querySelector('.ov .dlg')) return '.ov .dlg';
+    if (app.querySelector('.spanel')) return '.spanel';
+    const c = liveCase();
+    if (c && Date.now() - lastChange() < 12000) return view === 'list' ? '.row.live' : '.card.live';
+    return null;
+  }
+  function rectOf(sel) {
+    const e = app.querySelector(sel);
+    if (!e) return null;
+    // the live row may sit below the fold of the list: scroll the list (only the list) to it
+    const box = e.closest('.lbody, .kbody');
+    if (box && sel !== '.ov .dlg') {
+      const top = e.offsetTop - box.offsetTop, want = Math.max(0, top - box.clientHeight / 2 + e.offsetHeight / 2);
+      if (top < box.scrollTop || top + e.offsetHeight > box.scrollTop + box.clientHeight) box.scrollTop = want;
+    }
+    const ar = app.getBoundingClientRect(), W = mode === 'office' ? OW : 1920, k = ar.width / W || 1;
+    const er = e.getBoundingClientRect();
+    let r = { x: (er.left - ar.left) / k, y: (er.top - ar.top) / k, w: er.width / k, h: er.height / k };
+    // a list row: the whole width of the table, with the header above it
+    if (sel === '.row.live') { const m = app.querySelector('.content'); if (m) { const mr = m.getBoundingClientRect(); r = { x: (mr.left - ar.left) / k, y: Math.max(0, r.y - 80), w: Math.min(mr.width / k, 1240), h: r.h + 150 }; } }
+    // never past the edges of the screen
+    r.y = Math.max(0, r.y); r.h = Math.min(r.h, 1080 - r.y);
+    if (r.w < 20 || r.h < 20) return null;
+    return r;
+  }
+  let camHold = 'auto', quiet = 0;
+  function camPolicy() {
+    const st = stepText(), live = !!liveCase();
+    const busyNow = live && (Date.now() - lastChange() < 14000 || !!app.querySelector('.ov .dlg'));
+    capEl.classList.toggle('on', !!st && (busyNow || camHold !== 'auto'));
+    if (st) { $('b', capEl).textContent = st[0]; $('small', capEl).textContent = st[1] || ''; }
+    if (mode !== 'office') return;
+    if (camHold === 'office' || camHold === 'monitor') { camTo(camHold, 2400); return; }
+    if (busyNow) quiet = 0; else if (!quiet) quiet = Date.now();
+    if (!busyNow && Date.now() - quiet >= 4000) { camTo(live ? 'monitor' : 'office', 2800); return; }
+    const sel = focusSel(), r = sel && rectOf(sel);
+    if (r) camTo('focus', cam.to === 'focus' ? 1600 : 2400, r); else camTo('monitor', 2400);
+  }
+  Link.on('ccw-cam', (d) => {
+    const v = d.view || 'auto';
+    const m = v === 'screen' ? 'app' : 'office';
+    if (m !== mode) { mode = m; setBody(); }
+    camHold = v === 'office' || v === 'monitor' ? v : 'auto';
+    camPolicy();
+  });
+  Link.send('ccw-hello', {});
+  setBody();
+  setInterval(camPolicy, 400);
   render(true);
+  requestAnimationFrame(frame);
 })();

@@ -4,6 +4,31 @@
 html, body { margin: 0; height: 100%; overflow: hidden; background: #1c1714; font-family: "Pretendard", "Noto Sans KR", sans-serif; color: var(--tx); }
 button, input, select, textarea { font: inherit; color: inherit; }
 #app { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; display: flex; background: var(--bg); overflow: hidden; }
+
+/* ---------- the service advisor's desk (office view): photo 1344x752, DMS on the monitor ---------- */
+#viewport { position: fixed; inset: 0; overflow: hidden; background: #15110e; }
+body.tall #viewport::before { content: ''; position: absolute; inset: -40px; background: url(../assets/dms_office.webp) center / cover; filter: blur(22px) brightness(0.4); }
+body.tall #stage { z-index: 1; }
+#stage { position: absolute; left: 0; top: 0; width: 1344px; height: 752px; transform-origin: 0 0; }
+#office { position: absolute; inset: 0; width: 1344px; height: 752px; user-select: none; }
+#deskGlow { position: absolute; left: 300px; top: 486px; width: 700px; height: 170px; pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(ellipse 50% 60% at 50% 15%, rgba(255, 244, 228, 0.2), transparent 70%); }
+#screen { position: absolute; left: 398px; top: 214px; width: 501px; height: 267px; overflow: hidden; background: #000; }
+body.view-office #app { width: 2026px; transform: scale(0.24729); }
+#glassFx { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(118deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 34%, rgba(255, 255, 255, 0) 52%), radial-gradient(ellipse 120% 90% at 50% 50%, transparent 70%, rgba(0, 0, 0, 0.12) 100%); }
+/* the DMS alone (a dedicated screen) */
+body.view-app #office, body.view-app #deskGlow, body.view-app #glassFx { display: none; }
+body.view-app #stage { transform: none !important; width: 100vw; height: 100vh; }
+body.view-app #screen { position: fixed; inset: 0; width: 100vw; height: 100vh; background: #1c1714; }
+
+/* step caption: what the service center is doing now (the main flow) */
+#cap { position: fixed; left: 2.2vw; top: 2.2vw; z-index: 10; display: flex; align-items: center; gap: 0.7em; max-width: 92vw; padding: 0.55em 1.1em 0.55em 0.8em; border-radius: 0.8em;
+  background: rgba(30, 22, 17, 0.88); color: #fff; font: 700 clamp(14px, 2.4vw, 40px) "Pretendard", sans-serif; box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.45);
+  opacity: 0; transform: translateY(-0.4em); transition: opacity 0.45s, transform 0.45s; pointer-events: none; white-space: nowrap; }
+#cap.on { opacity: 1; transform: none; }
+#cap i { width: 0.55em; height: 0.55em; border-radius: 50%; background: #f0b44a; box-shadow: 0 0 0 0.18em rgba(240, 180, 74, 0.3); flex: none; }
+#cap small { font-size: 0.62em; font-weight: 600; color: #e3d3c2; overflow: hidden; text-overflow: ellipsis; }
 .num, .clock b, .plate, .slab b, .pp { font-family: "Barlow", "Pretendard", sans-serif; font-variant-numeric: tabular-nums; }
 
 /* side panel */

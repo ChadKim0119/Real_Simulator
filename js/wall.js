@@ -49,7 +49,7 @@
     }
   }
   // split handles (edit mode): the outer split and one inner split per part
-  for (const k of ['o', 'i0', 'i1']) {
+  for (const k of ['o', 'i0', 'i1', 'i2']) {
     const d = document.createElement('div');
     d.className = 'split';
     d.dataset.s = k;
@@ -75,11 +75,11 @@
       const ok = !ideal || Math.abs(w / h - ideal) / ideal < 0.04;
       $('small', frames[k]).innerHTML = `${w} × ${h} · ${ratioText(w, h)}${ideal ? ` <span class="${ok ? 'ok' : 'off'}">권장 ${ratioText(ideal, 1)} ${ok ? '✓' : ''}</span>` : ''}`;
     }
-    const [o, a, b] = host.querySelectorAll('.split');
+    const [o, a, b, c2] = host.querySelectorAll('.split');
     const V = (el, x, y, h) => { el.className = 'split v'; Object.assign(el.style, { left: `${x - 9}px`, top: `${y}px`, width: '18px', height: `${h}px` }); };
     const Hh = (el, x, y, w) => { el.className = 'split h'; Object.assign(el.style, { left: `${x}px`, top: `${y - 9}px`, width: `${w}px`, height: '18px' }); };
-    if (cols()) { V(o, L.o, 0, H); Hh(a, 0, L.i0, L.o); Hh(b, L.o, L.i1, W - L.o); }
-    else { Hh(o, 0, L.o, W); V(a, L.i0, 0, L.o); V(b, L.i1, L.o, H - L.o); }
+    if (cols()) { V(o, L.o, 0, H); Hh(a, 0, L.i0, L.o); Hh(b, L.o, L.i1, W - L.o); V(c2, L.i2, L.i0, H - L.i0); }
+    else { Hh(o, 0, L.o, W); V(a, L.i0, 0, L.o); V(b, L.i1, L.o, H - L.o); V(c2, L.i2, L.o, H - L.o); }
   }
   function render() {
     fit();
@@ -148,7 +148,7 @@
   // positions of a split where a panel next to it reaches its own ratio (found
   // numerically for any layout), and the line of the other part's inner split
   function magnets(k) {
-    const lo = MIN, hi = (k === 'o' ? (cols() ? W : H) : (cols() ? H : W)) - MIN;
+    const lo = MIN, hi = (k === 'o' ? (cols() ? W : H) : k === 'i2' ? W : (cols() ? H : W)) - MIN;
     const ratios = (v) => { const T = Object.assign({}, L, { [k]: v }); const R = D.rects(T, mode); return Object.keys(R).map((p) => [p, R[p][2] / R[p][3]]); };
     const out = [];
     let prev = ratios(lo);
@@ -163,7 +163,7 @@
       });
       prev = cur;
     }
-    if (k !== 'o') out.push({ v: k === 'i0' ? L.i1 : L.i0, label: '다른 줄과 정렬' });
+    if (k === 'i0' || k === 'i1') out.push({ v: k === 'i0' ? L.i1 : L.i0, label: '다른 줄과 정렬' });
     return out;
   }
   let drag = null;
@@ -184,7 +184,7 @@
     const cx = (e.clientX - r.left) / scale, cy = (e.clientY - r.top) / scale;
     if (drag.split) {
       const k = drag.split;
-      const horiz = k === 'o' ? cols() : !cols();           // the split moves along x
+      const horiz = k === 'o' ? cols() : k === 'i2' ? true : !cols();   // the split moves along x
       const lo = MIN, hi = (horiz ? W : H) - MIN;
       let v = Math.max(lo, Math.min(hi, Math.round((horiz ? cx : cy) / SNAP) * SNAP));
       let hit = null;

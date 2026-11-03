@@ -14,7 +14,10 @@
   // the climate band under the screen, from a photo of the real 14" unit: a separate
   // high-resolution layer (hu_band.webp, BAND.k pixels per plate pixel) so it stays sharp
   const BAND = { x: 1186, y: 280, k: 3.6, src: 'assets/hu_band.webp' };
-  const HAND_CONTACT = 1.35, HAND_AR = 1680 / 720;   // hand_call.webm: fingertip on the button at this second; aspect of the view it was shot on
+  // hand_call.webm (the driver: a woman's hand, cream knit sleeve): fingertip on the button at
+  // this second; aspect of the view it was shot on; the clip's fingertip lands this far
+  // (share of its height) above the button, so the layer is moved down by it
+  const HAND_CONTACT = 1.35, HAND_AR = 1680 / 720, HAND_DY = 0.075;
   // 10-speed automatic: engine rpm per km/h in each gear
   const GEAR_FACTOR = [0, 142, 90, 64, 48, 38, 31, 26, 21, 17.5, 15];
   const IDLE = 650;
@@ -115,6 +118,7 @@
   }
 
   let resT = 0;
+  const stageView = { tx: 0, ty: 0, s: 1 };      // where the photo is on screen (rescue scene lines up with it)
   function applyCamera(t, dt) {
     if (cam.dur > 0) {
       const p = clamp((t - cam.t0) / cam.dur, 0, 1);
@@ -157,6 +161,7 @@
     else ty = clamp(ty, 0, Math.max(0, L.area.y1 - IMG_H * s));   // short picture: no gap at the top
     if (still) { tx = Math.round(tx); ty = Math.round(ty); shakeX = Math.round(shakeX); shakeY = Math.round(shakeY); }
     stage.style.transform = `translate3d(${(tx + shakeX).toFixed(2)}px, ${(ty + shakeY).toFixed(2)}px, 0) scale(${s.toFixed(5)})`;
+    stageView.tx = tx + shakeX; stageView.ty = ty + shakeY; stageView.s = s;
     // the head unit sits outside the stage layer (which is rasterized once, at one scale),
     // so it stays sharp when the camera closes in: it follows the same transform here
     if (huLayer) {
@@ -588,7 +593,7 @@
   function initHand() {
     const HAND = { src: 'assets/hand_call.webm', contact: HAND_CONTACT, ar: HAND_AR };
     const R = { h: HU_VIEW.h, w: HU_VIEW.h * HAND.ar };
-    R.x = HU_VIEW.cx - R.w / 2; R.y = HU_VIEW.cy - R.h / 2;
+    R.x = HU_VIEW.cx - R.w / 2; R.y = HU_VIEW.cy - R.h / 2 + HAND_DY * R.h;
     const vid = document.createElement('video');
     vid.id = 'huHand';
     vid.muted = true; vid.playsInline = true; vid.preload = 'auto';
@@ -629,12 +634,102 @@
       setTimeout(() => { if (busy) { vid.pause(); done(); } }, 15000);
     });
   }
+  /* ---------------- the rescue truck arrives (filmed, hyperreal) ----------------
+   * When the truck comes into view the camera pulls back to the whole cabin; a filmed
+   * wide shot of the same cockpit fades in exactly over the photo and the view keeps
+   * widening — the whole windshield and the driver's window open up — while the truck
+   * passes the driver's window and pulls up in front of the car. It stays there, light
+   * bar flashing, until the call is over; then the view closes back onto the dashboard.
+   * plate: where the photo (IMG px) sits in the clip (clip px per photo px). */
+  const RESCUE = { src: 'assets/rescue_arrive.mp4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 4.6, stopAt: 5.6, playDelay: 1.6 };
+  const rescueEl = document.createElement('div');
+  rescueEl.id = 'rescue';
+  rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video muted playsinline preload="auto"></video><i class="bar"></i></div><div class="cap">긴급출동 차량 도착</div>';
+  document.body.appendChild(rescueEl);
+  const rVid = rescueEl.querySelector('video'), rFrame = rescueEl.querySelector('.frame'), rBg = rescueEl.querySelector('.bg');
+  rVid.src = RESCUE.src;
+  let rescue = null;      // { phase: pull | fade | widen | hold | narrow | out, t0, stopped }
+  function rescueStart() {
+    if (rescue) return;
+    rescue = { phase: 'pull', t0: now(), played: false, stopped: 0 };
+    try { rVid.pause(); rVid.currentTime = 0; rVid.playbackRate = 1; } catch (e) { /* not loaded yet */ }
+    focusPolicy(true);
+  }
+  function rescueStop(now_) {
+    if (!rescue) return;
+    if (now_) { rescue = null; rescueEl.classList.remove('on', 'stopped', 'capon'); try { rVid.pause(); } catch (e) { /* */ } focusPolicy(true); return; }
+    if (rescue.phase !== 'narrow' && rescue.phase !== 'out') { rescue.phase = 'narrow'; rescue.t0 = now(); rescue.from = rescue.cur; rescueEl.classList.remove('capon'); }
+  }
+  director.hooks.rescue = (c) => (c ? rescueStart() : rescueStop(true));
+  // the clip's framing that lines up with the photo where it is now / that fills the view
+  function rescueAligned() {
+    const k = stageView.s / RESCUE.plate.s;
+    return { k, x: stageView.tx - RESCUE.plate.x * k, y: stageView.ty - RESCUE.plate.y * k };
+  }
+  function rescueWide() {
+    const vw = innerWidth, vh = innerHeight;
+    const k = Math.min(Math.max(vw / RESCUE.w, vh / RESCUE.h), Math.min(vw / RESCUE.w, vh / RESCUE.h) * 1.12);
+    return { k, x: (vw - RESCUE.w * k) / 2, y: (vh - RESCUE.h * k) / 2 };
+  }
+  // a dolly between two framings: log scale, the view centre following the scale
+  function rescueBlend(A, B, w) {
+    const vw = innerWidth, vh = innerHeight;
+    const k = Math.exp(Math.log(A.k) + (Math.log(B.k) - Math.log(A.k)) * w);
+    const f = Math.abs(B.k - A.k) > 1e-6 ? (k - A.k) / (B.k - A.k) : w;
+    const ca = { x: (vw / 2 - A.x) / A.k, y: (vh / 2 - A.y) / A.k }, cb = { x: (vw / 2 - B.x) / B.k, y: (vh / 2 - B.y) / B.k };
+    const cx = ca.x + (cb.x - ca.x) * f, cy = ca.y + (cb.y - ca.y) * f;
+    return { k, x: vw / 2 - cx * k, y: vh / 2 - cy * k };
+  }
+  function rescueTick() {
+    if (!rescue) return;
+    const t = now() - rescue.t0, R = rescue;
+    let v = null, op = 1;
+    if (R.phase === 'pull') {
+      // wait for the camera to settle on the whole cabin
+      if ((cam.z < 0.02 && cam.h < 0.02 && !cam.dur && !cam.hdur) || t > 4) { R.phase = 'fade'; R.t0 = now(); }
+      return;
+    }
+    if (R.phase === 'fade') { v = rescueAligned(); op = smooth(0, 0.9, t); if (t >= 0.9) { R.phase = 'widen'; R.t0 = now(); R.from = v; } }
+    else if (R.phase === 'widen' || R.phase === 'hold') {
+      const w = ease(clamp(t / 3.4, 0, 1));
+      v = R.phase === 'hold' ? rescueWide() : rescueBlend(R.from, rescueWide(), w);
+      if (R.phase === 'widen' && !R.played && t >= RESCUE.playDelay) { R.played = true; rVid.playbackRate = 1; rVid.play().catch(() => {}); }
+      if (R.phase === 'widen' && t >= 3.4) R.phase = 'hold';
+      // the truck brakes to a stop in front of the car
+      const ct = rVid.currentTime;
+      if (R.played && !R.stopped) {
+        if (ct >= RESCUE.stopAt) { rVid.pause(); R.stopped = now(); rescueEl.classList.add('stopped', 'capon'); }
+        else if (ct >= RESCUE.slowFrom) rVid.playbackRate = Math.max(0.12, 1 - 0.88 * (ct - RESCUE.slowFrom) / (RESCUE.stopAt - RESCUE.slowFrom));
+      }
+      if (R.stopped && now() - R.stopped > 3.5) rescueEl.classList.remove('capon');
+      // after the call (and a moment on the truck) the view closes back onto the dashboard
+      if (R.stopped && now() - R.stopped > 8 && !onCall()) rescueStop(false);
+    } else if (R.phase === 'narrow') {
+      const w = ease(clamp(t / 2.6, 0, 1));
+      v = rescueBlend(R.from, rescueAligned(), w);
+      if (t >= 2.6) { R.phase = 'out'; R.t0 = now(); }
+    } else if (R.phase === 'out') {
+      v = rescueAligned(); op = 1 - smooth(0, 0.8, t);
+      if (t >= 0.8) { rescueStop(true); return; }
+    }
+    if (!v) return;
+    R.cur = v;
+    rescueEl.classList.add('on');
+    rFrame.style.transform = `translate3d(${v.x.toFixed(2)}px, ${v.y.toFixed(2)}px, 0) scale(${v.k.toFixed(5)})`;
+    rFrame.style.opacity = op.toFixed(3);
+    // a soft blurred copy fills the view where the clip does not reach (an upright or 4:3 screen)
+    const wide = rescueWide();
+    const kk = clamp((v.k - (R.from ? R.from.k : v.k)) / Math.max(1e-6, wide.k - (R.from ? R.from.k : v.k)), 0, 1);
+    rBg.style.opacity = (op * (R.phase === 'narrow' || R.phase === 'out' ? 1 - smooth(0, 2.6, t) : kk)).toFixed(3);
+  }
+
   let camHold = 'auto', seenCase = null, huFocus = 0, huEndAt = 0, hazLookUntil = 0;
   Link.on('cam', (d) => { camHold = d.view || 'auto'; focusPolicy(true); });
   function focusPolicy(force) {
     if (!huShade) return;
     let want;                                   // 'hu' | 'cluster' | null (vehicle decides)
     if (handHold) want = 'hu';
+    else if (rescue) want = 'full';                     // the rescue truck: the whole cabin
     else if (camHold !== 'auto') want = camHold === 'full' ? 'full' : camHold;
     else if (Date.now() < hazLookUntil) want = 'full';     // the flashers just came on: show the cabin
     else {
@@ -841,6 +936,7 @@
     hazardTick(t);
 
     applyCamera(t, dt);
+    rescueTick();
     wheel.render(st.wheel);
     exterior.update(st, dt);
     exterior.render(st);

@@ -83,6 +83,7 @@
     flow: [['상자 이름', 32], ['통화 표시', 24], ['로그 · 패킷 라벨', 22]],
     ccw: [['팝업 제목', 18], ['화면 본문', 13], ['표 글자', 11]],
     talk: [['대화 말풍선', 22], ['보조 글자', 14]],
+    dms: [['차량번호', 24], ['SLA · 단계 정보', 13], ['표 글자', 14]],
   };
   // zoom of the car panel's camera for a row (cluster ≈ 3.4x the overview, the HU screen ≈ 0.26 x 4.1)
   const CAR_ZOOM = [3.4 * 0.42, 0.255 * 4.1];

@@ -17,4 +17,5 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #04070d; fon
 @keyframes pulse { 0% { opacity: 0.9; } 100% { opacity: 0; } }
 
 /* paths a message has used stay drawn in the case colour */
-#board path.used { stroke: var(--c); stroke-opacity: 0.5; stroke-width: 4; stroke-dasharray: none; }
+/* (quiet, so the message moving now stands out) */
+#board path.used { stroke: var(--c); stroke-opacity: 0.2; stroke-width: 3; stroke-dasharray: none; }

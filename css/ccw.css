@@ -26,6 +26,16 @@ body.tall #stage { z-index: 1; }
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
+/* step caption: what the call center is doing now (the main flow), office view only */
+#cap { position: fixed; left: 2.2vw; top: 2.2vw; z-index: 15; display: flex; align-items: center; gap: 0.7em; max-width: 92vw; padding: 0.55em 1.1em 0.55em 0.8em; border-radius: 0.8em;
+  background: rgba(10, 18, 30, 0.88); color: #fff; font: 700 clamp(14px, 2.4vw, 40px) "Noto Sans KR", sans-serif; box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.45);
+  opacity: 0; transform: translateY(-0.4em); transition: opacity 0.45s, transform 0.45s; pointer-events: none; white-space: nowrap; }
+#cap.on { opacity: 1; transform: none; }
+#cap i { width: 0.55em; height: 0.55em; border-radius: 50%; background: #4f8cff; box-shadow: 0 0 0 0.18em rgba(79, 140, 255, 0.3); flex: none; }
+#cap.red i { background: #ff4d5e; box-shadow: 0 0 0 0.18em rgba(255, 77, 94, 0.3); }
+#cap small { font-size: 0.62em; font-weight: 500; color: #c9d4e4; overflow: hidden; text-overflow: ellipsis; }
+body.view-transcript #cap, body.view-app #cap { display: none; }
+
 /* ---------- hud ---------- */
 /* demo buttons: shown on a touch or the pointer, gone after a few seconds */
 #hud { position: fixed; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); max-width: calc(100vw - 28px); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; align-items: center; z-index: 20; opacity: 0; pointer-events: none; transition: opacity 0.3s; }

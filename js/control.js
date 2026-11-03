@@ -9,6 +9,7 @@
  *   ['warn', id]          raise a warning lamp ('@in' = lamp of the picked inbound set)
  *   ['cmd', name, args]   e-Care director command
  *   ['hu', action]        head unit: press (전화연결) | show (popup again)
+ *   ['dms', open|close]   the service center DMS: the live case's detail dialog
  *   ['ign', on]           ignition on / off (only if it is not already)
  *   ['reset']             clear warnings, reset e-Care, customer answers
  *   ['wait', ms] */
@@ -52,6 +53,7 @@
     else if (kind === 'act') Link.send('act', { name: a, args: b || {} });
     else if (kind === 'warn') Link.send('act', { name: 'warnItem', args: { id: a === '@in' ? E.SCRIPT_WARN[(snap && snap.pick && snap.pick.in) || 'in'] : a } });
     else if (kind === 'cmd') Link.send('cmd', { name: a, args: b || {} });
+    else if (kind === 'dms') Link.send(a === 'open' ? 'dms-open' : 'dms-close', {});
     else if (kind === 'hu') {
       if (a !== 'press') { Link.send('hu', { action: a }); return; }
       // the driver's hand presses the button on the car panel; with no car panel open
@@ -87,7 +89,13 @@
     saved: () => { const c = active(); return !!(c && c.sheet && c.sheet.saved); },
     genRing: () => !!(snap && snap.general && snap.general.state === 'ringing'),
     genEnd: () => !!(snap && snap.general && snap.general.state === 'ended'),
+    dmsIn: () => { const c = active(); return !!(c && c.dms >= 0); },
+    resv: () => { const c = active(); return !!(c && c.dms >= 2); },
+    closed: () => { const c = active(); return !!(c && c.dms >= 7); },
   };
+  // the service center (DMS) works the transferred case: contact, reservation, then the repair
+  const DMS_CONTACT = { t: '서비스센터 · 고객 컨택 · 예약 확정', cue: '“서비스센터 DMS에 컨택대기로 들어온 건을 서비스 어드바이저가 열어 고객에게 전화하고, 입고 예약을 확정합니다. 결과는 CCW와 데이터 흐름에 바로 돌아옵니다.”', run: [['dms', 'open'], ['wait', 3000], ['cmd', 'dmsContact', { method: '전화', result: '컨택', reply: '예약확정', memo: '견인 입고 · 내일 10시 예약 확정', agent: '이정비' }], ['wait', 3500], ['dms', 'close']], until: 'resv', pause: 3500 };
+  const DMS_REPAIR = { t: '입고 → 정비 → 종결', cue: '“견인 차량이 서비스센터에 도착해 입고되고, 정비를 마치고 종결됩니다. 단계마다 DMS-SVC-002로 상태가 돌아옵니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 3500], ['cmd', 'dmsAdvance'], ['wait', 3500], ['cmd', 'dmsAdvance'], ['wait', 3500], ['cmd', 'dmsAdvance']], until: 'closed', pause: 3000 };
   const PREP = { t: '준비 · 초기화 · 시동', cue: '경고와 상담 기록을 지우고 라이브 화면에서 시동을 켭니다.', run: [['reset'], ['scene', 'live'], ['ign', true]] };
   const DRIVE = { t: '주행 시작', cue: '“고객이 GX 550으로 주행 중입니다.” 가운데 화면은 차량에서 콜센터 · 딜러까지 연결된 시스템입니다.', run: [['act', 'drive']], pause: 5000 };
   const SCENARIOS = [
@@ -96,8 +104,9 @@
       steps: [PREP, DRIVE,
         { t: '긴급 경고 · HU 팝업', cue: '“주행불가 경고가 발생했습니다. VEP가 긴급(Case A)으로 판정하고, 헤드유닛에 ‘고객 지원실로 연결하시겠습니까?’ 팝업을 띄웁니다.” 경고등은 고른 대화 세트에 맞춰 나옵니다.', run: [['warn', '@in']], until: 'case', pause: 4000 },
         { t: '고객 HU [전화연결]', cue: '“고객이 화면의 전화연결 버튼을 누릅니다. MM 콜이 CTI를 거쳐 유휴 상담원에게 배정되고, 25분 자동 아웃바운드는 취소됩니다.”', run: [['hu', 'press']], until: 'inbound', pause: 2500 },
-        { t: '상담원 전화 받기 · 통화', cue: '“상담원이 전화를 받습니다. 차량 진단 정보가 이미 화면에 있습니다.” 통화 중 고객이 갓길에 정차하고, 통화가 끝나면 긴급출동이 자동 요청됩니다.', run: [['cmd', 'ack']], until: 'callEnd', pause: 2500, long: true },
-        { t: '상담 완료 · 서비스센터 이관', cue: '“상담 메모가 WAM-MEMO-001로 서비스센터에 전달되고, 정비 상태가 DMS-SVC-002로 돌아옵니다.”', run: [['act', 'complete']], until: 'saved', pause: 9000 },
+        { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 진단 정보가 이미 화면에 있습니다.” 걱정하는 고객이 갓길에 정차하고, 상담원이 통화 중 긴급출동을 요청합니다. 출동 차량이 운전석 옆을 지나 고객 차 앞에 멈추는 것까지 통화로 함께합니다.', run: [['cmd', 'ack']], until: 'callEnd', pause: 2500, long: true },
+        { t: '상담 완료 · 서비스센터 이관', cue: '“상담 메모가 WAM-MEMO-001로 서비스센터 DMS에 전달됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 6000 },
+        DMS_CONTACT, DMS_REPAIR,
       ],
     },
     {
@@ -106,7 +115,8 @@
         { t: '긴급 경고 (고객 미연락)', cue: '“이번에는 고객이 전화하지 못하는 상황입니다.” 경고와 팝업은 뜨지만 전화연결을 누르지 않습니다.', run: [['warn', 'brake']], until: 'case', pause: 4000 },
         { t: '25분 경과 · 상담원 자동 배정', cue: '“25분간 고객 연락이 없으면 CTI에서 유휴 상담원을 찾아 자동 배정합니다. 상담원 화면에 경고 알림 팝업이 뜹니다.”', run: [['act', 'sla25']], until: 'assigned', pause: 3500 },
         { t: '상담원 전화 걸기 · 통화', cue: '“상담원이 고객 휴대전화로 전화를 겁니다.” 고객 휴대전화가 울리고 통화가 자막으로 흐릅니다. 통화 중 긴급출동이 자동 요청됩니다.', run: [['act', 'accept']], until: 'callEnd', pause: 2500, long: true },
-        { t: '상담 완료 · 서비스센터 이관', cue: '“같은 방식으로 상담 메모가 서비스센터로 넘어갑니다.”', run: [['act', 'complete']], until: 'saved', pause: 9000 },
+        { t: '상담 완료 · 서비스센터 이관', cue: '“같은 방식으로 상담 메모가 서비스센터 DMS로 넘어갑니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 6000 },
+        DMS_CONTACT,
       ],
     },
     {
@@ -123,7 +133,8 @@
     {
       id: 'caseb', n: '4', title: '경고 등급 → 서비스센터', sub: '주행 가능 · 상담원 없이 직행',
       steps: [PREP, DRIVE,
-        { t: '에어백 · 경고 등급', cue: '“주행 가능한 경고는 경고 등급(Case B)으로 판정되어 서비스센터에 바로 전달되고, SLA는 1일입니다. 헤드유닛에는 ‘지정된 서비스센터로 연결하시겠습니까?’가 뜹니다.”', run: [['warn', 'airbag']], until: 'case', pause: 18000 },
+        { t: '에어백 · 경고 등급', cue: '“주행 가능한 경고는 경고 등급(Case B)으로 판정되어 서비스센터에 바로 전달되고, SLA는 1일입니다. 헤드유닛에는 ‘지정된 서비스센터로 연결하시겠습니까?’가 뜹니다.”', run: [['warn', 'airbag']], until: 'dmsIn', pause: 5000 },
+        { ...DMS_CONTACT, t: '서비스센터 직접 컨택 · 예약 확정', cue: '“상담원을 거치지 않고 서비스센터 DMS에 바로 들어온 건을 서비스 어드바이저가 고객에게 연락해 예약을 확정합니다.”' },
       ],
     },
     {
@@ -145,6 +156,7 @@
       { t: '다른 상황 · 다시 주행', cue: '“이번에는 고객이 전화하지 못하는 상황입니다.”', run: [['act', 'clear'], ['wait', 600], ['act', 'drive']], pause: 2500, grp: '2막 · 상담원 아웃바운드' },
       ...SCENARIOS[1].steps.slice(2).map((s) => ({ ...s, grp: '2막 · 상담원 아웃바운드' })),
       { ...SCENARIOS[3].steps[2], run: [['act', 'clear'], ['wait', 900], ['warn', 'airbag']], grp: '3막 · 경고 등급' },
+      { ...SCENARIOS[3].steps[3], grp: '3막 · 경고 등급' },
       { t: '시동 끄기', cue: 'IG OFF 세리머니가 재생됩니다.', run: [['ign', false]], grp: '클로징' },
       { t: '3면 클로징 · 요약', cue: '“경고 발생부터 상담 · 출동 · 딜러 이관까지의 흐름을 정리하면 이렇습니다. 감사합니다.”', run: [['scene', 'closing']], grp: '클로징' },
     ],
@@ -236,7 +248,7 @@
         + chunk('고객 헤드유닛', b('data-hu="show"', '팝업 다시 띄우기') + b('data-hu="press"', '전화연결 누르기'))
         + chunk('정리', b('data-a="clear"', '경고등 모두 끄기'))],
       call: ['상담센터', chunk('통화 진행', b('data-c="ack"', '① 상담원 받기') + b('data-a="accept"', '② 상담원 전화 걸기') + b('data-c="redial"', '③ 재연결') + b('data-c="hangup"', '④ 통화 종료'), '순서대로')
-        + chunk('통화 후', b('data-a="dispatch"', '긴급출동') + b('data-a="complete"', '상담 완료 · 이관'))
+        + chunk('통화 후', b('data-a="dispatch"', '긴급출동') + b('data-c="arrive"', '출동 차량 도착') + b('data-a="complete"', '상담 완료 · 이관'))
         + chunk('시간 · 상황', b('data-a="sla25"', '25분 경과') + b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음'))
         + chunk('서비스센터 (DMS)', b('data-dms="open"', 'DMS 상세 열기') + b('data-dms="close"', '닫기') + b('data-c="dmsAdvance"', '다음 단계 진행'), '예약 → 입고 → 정비 → 종결')
         + chunk('일반 전화 (경고 없음)', b('data-a="inbound"', '고객 전화 오기') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))],

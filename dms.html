@@ -11,9 +11,21 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/dms.css">
 </head>
-<body>
+<body class="view-office">
   <!-- service center DMS: e-Care dashboard (list / card), detail popup -->
-  <div id="app" aria-label="서비스센터 e-Care 대시보드 (DMS)"></div>
+  <!-- the service advisor's desk at the dealer: the photo, with the live DMS on its monitor -->
+  <main id="viewport" aria-label="서비스센터 서비스 어드바이저 데스크">
+    <div id="stage">
+      <img id="office" src="assets/dms_office.webp" alt="" draggable="false">
+      <div id="deskGlow" aria-hidden="true"></div>
+      <div id="screen">
+        <div id="app" aria-label="서비스센터 e-Care 대시보드 (DMS)"></div>
+        <div id="glassFx" aria-hidden="true"></div>
+      </div>
+    </div>
+  </main>
+  <!-- what is happening now, large enough to read from the back of the room -->
+  <div id="cap" aria-live="polite"><i></i><b></b><small></small></div>
   <script src="js/link.js"></script>
   <script src="js/road.js"></script>
   <script src="js/ecare.js"></script>

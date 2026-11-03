@@ -152,7 +152,7 @@
   const linkEls = {};
   LINKS.forEach(([a, b]) => {
     const p = path(a, b);
-    linkEls[a + b] = linkEls[b + a] = el('path', { d: p.d, fill: 'none', stroke: 'rgba(120,160,220,0.16)', 'stroke-width': 3, 'stroke-dasharray': '2 10', 'stroke-linecap': 'round' }, g('links'));
+    linkEls[a + b] = linkEls[b + a] = el('path', { d: p.d, fill: 'none', stroke: 'rgba(120,160,220,0.045)', 'stroke-width': 3, 'stroke-dasharray': '2 10', 'stroke-linecap': 'round' }, g('links'));
   });
 
   // nodes: easy name, project name, a colour bar for the zone
@@ -170,7 +170,7 @@
     const badge = el('g', { opacity: 0 }, grp);
     el('rect', { x: w - 30, y: -16, width: 46, height: 32, rx: 16, fill: '#24406a', stroke: '#0a1220', 'stroke-width': 3 }, badge);
     const bt = el('text', { x: w - 7, y: 7, fill: '#cfe1ff', 'font-size': 19, 'font-weight': 700, 'text-anchor': 'middle', class: 'num' }, badge);
-    nodeEls[k] = { halo, badge, bt };
+    nodeEls[k] = { halo, badge, bt, grp };
   }
 
   // Case judgement card (under VEP) and workflow / SLA card (under WAM)
@@ -205,12 +205,58 @@
 
   // header
   const hud = g('hud');
-  const tt = el('text', { x: 60, y: 82, fill: '#eef3fb', 'font-size': 46, 'font-weight': 800 }, hud); tt.textContent = 'e-Care 데이터 흐름';
-  const ts = el('text', { x: 60, y: 120, fill: '#7f93b0', 'font-size': 22, 'font-weight': 600 }, hud); ts.textContent = 'Toyota Global South · 실시간 시스템 연동';
-  const clockL = el('text', { x: 960, y: 50, fill: '#7f93b0', 'font-size': 20, 'font-weight': 700, 'text-anchor': 'middle' }, hud); clockL.textContent = '시각';
-  const clock = el('text', { x: 960, y: 112, fill: '#fff', 'font-size': 66, 'font-weight': 700, 'text-anchor': 'middle', class: 'num' }, hud);
-  const elapsedL = el('text', { x: 1860, y: 50, fill: '#7f93b0', 'font-size': 20, 'font-weight': 700, 'text-anchor': 'end' }, hud); elapsedL.textContent = '경고 발생 후 경과';
-  const elapsed = el('text', { x: 1860, y: 112, fill: '#fff', 'font-size': 62, 'font-weight': 700, 'text-anchor': 'end', class: 'num' }, hud);
+  const tt = el('text', { x: 52, y: 72, fill: '#eef3fb', 'font-size': 38, 'font-weight': 800 }, hud); tt.textContent = 'e-Care 데이터 흐름';
+  const ts = el('text', { x: 52, y: 106, fill: '#7f93b0', 'font-size': 20, 'font-weight': 600 }, hud); ts.textContent = 'Toyota Global South · 실시간 시스템 연동';
+  const elapsedL = el('text', { x: 1868, y: 44, fill: '#7f93b0', 'font-size': 19, 'font-weight': 700, 'text-anchor': 'end' }, hud); elapsedL.textContent = '경고 발생 후 경과';
+  const elapsed = el('text', { x: 1868, y: 98, fill: '#fff', 'font-size': 52, 'font-weight': 700, 'text-anchor': 'end', class: 'num' }, hud);
+  const clock = el('text', { x: 1868, y: 128, fill: '#6f84a3', 'font-size': 20, 'font-weight': 700, 'text-anchor': 'end', class: 'num' }, hud);
+  /* the journey rail: where the case is now, in six steps, read from the back of the room.
+   * The step playing is lit in the case colour; its one-line explanation sits under the rail. */
+  const STEPS = ['경고 감지 · 판정', '고객 연결', '상담 · 긴급출동', '서비스센터 이관', '예약 · 입고', '정비 · 종결'];
+  const RX = 450, RW = 190, RG = 8;
+  const rail = STEPS.map((t, i) => {
+    const grp = el('g', { transform: `translate(${RX + i * (RW + RG)},26)` }, hud);
+    const bg = el('rect', { width: RW, height: 50, rx: 25, fill: 'rgba(120,160,220,0.07)', stroke: 'rgba(140,180,240,0.18)', 'stroke-width': 2 }, grp);
+    const n = el('text', { x: 24, y: 32, fill: '#5d7090', 'font-size': 18, 'font-weight': 800, 'text-anchor': 'middle', class: 'num' }, grp); n.textContent = i + 1;
+    const lb = el('text', { x: 42, y: 32, fill: '#7f93b0', 'font-size': 18.5, 'font-weight': 700 }, grp); lb.textContent = t;
+    return { bg, n, lb };
+  });
+  const nowT = el('text', { x: RX + (STEPS.length * (RW + RG) - RG) / 2, y: 120, fill: '#fff', 'font-size': 31, 'font-weight': 800, 'text-anchor': 'middle' }, hud);
+  /** Which step the case is in, and what is happening, from the snapshot. */
+  function stepOf(c) {
+    if (!c) return { i: -1, d: '차량 이벤트 수신 대기' };
+    const w = c.wng || { code: '', case: c.wcase || 'A' };
+    const K = E.CASE[w.case] || E.CASE.A;
+    if (c.dms >= 7 || c.dms >= 4) return { i: 5, d: `서비스센터 ${E.DMS[c.dms]} · DMS-SVC-002 → CCW · 고객 앱` };
+    if (c.dms >= 2) return { i: 4, d: `입고 예약 확정 · ${c.dealer || '서비스센터'}${c.dms >= 3 ? ' · 차량 입고' : ''}` };
+    if (c.dms >= 0) return { i: 3, d: c.kind === 'emergency' ? '상담 메모 WAM-MEMO-001 → 서비스센터 DMS · 컨택대기' : `${K.label} 등급 · 상담원 없이 서비스센터 DMS로 직접 · SLA ${K.slaText}` };
+    const call = c.call;
+    if (c.dispatch >= 0 || (call && (call.state === 'connected' || call.state === 'ended'))) {
+      const d = c.dispatch >= 2 ? '긴급출동 차량 도착 · 고객 차량 앞 정차' : c.dispatch >= 0 ? `긴급출동 ${E.DISPATCH[c.dispatch]} · 상담원이 고객과 통화 유지` : '상담원 ↔ 고객 통화 · 차량 진단 정보 공유';
+      return { i: 2, d };
+    }
+    if (c.inbound || c.assign || (call && call.state === 'dialing') || Date.now() - c.at > 7000)
+      return { i: 1, d: c.inbound ? '고객 HU [전화연결] → MM 콜 · 유휴 상담원 배정' : c.assign ? '25분 경과 · 상담원 자동 배정 · 고객에게 발신' : '고객 연락 대기 · HU 팝업 · 앱 푸시' };
+    return { i: 0, d: `${w.code} 경고 → VDP → VEP 판정 · ${K.label}(Case ${w.case})` };
+  }
+  let railKey = '';
+  function tickRail() {
+    const c = primary();
+    const st = stepOf(c);
+    const col = c ? CASECOL[(c.wng && c.wng.case) || c.wcase || 'A'] : BLUE;
+    const key = st.i + '|' + st.d + '|' + col;
+    if (key === railKey) return;
+    railKey = key;
+    rail.forEach((r, i) => {
+      const on = i === st.i, done = i < st.i;
+      r.bg.setAttribute('fill', on ? col : done ? 'rgba(120,160,220,0.14)' : 'rgba(120,160,220,0.05)');
+      r.bg.setAttribute('stroke', on ? col : 'rgba(140,180,240,0.18)');
+      r.n.setAttribute('fill', on ? '#fff' : done ? '#8fa6c6' : '#4d5f7c');
+      r.lb.setAttribute('fill', on ? '#fff' : done ? '#a9b8cf' : '#5d7090');
+      r.n.textContent = done ? '✓' : i + 1;
+    });
+    nowT.textContent = st.d;
+  }
 
   /* footer: the detailed message log, folded by default to one line (the newest
    * message); a tap or the control panel unfolds it to the last six messages */
@@ -266,7 +312,7 @@
       seen = f.id;
       if (f.type === 'skip') { if (!first) queue.push(f); continue; }
       // joining mid-scenario: show the paths and the log, do not replay
-      if (first) { if (f.from !== f.to) keep(f.from, f.to, f.wcase ? CASECOL[f.wcase] : BLUE); shown.push(f); continue; }
+      if (first) { if (f.from !== f.to) keep(f.from, f.to, f.wcase ? CASECOL[f.wcase] : BLUE); touched[f.from] = touched[f.to] = true; shown.push(f); continue; }
       queue.push(f);
     }
     first = false;
@@ -274,6 +320,7 @@
   }
   function reset() {
     seen = 0;
+    for (const k in touched) delete touched[k];
     for (const k in counts) counts[k] = 0;
     queue.length = 0;
     shown = [];
@@ -310,8 +357,10 @@
   }
 
   /* ---------------- packets ---------------- */
+  const touched = {};
   function launch(f) {
     const col = f.wcase ? CASECOL[f.wcase] : BLUE;
+    touched[f.from] = touched[f.to] = true;
     counts[f.to] = (counts[f.to] || 0) + 1;
     if (f.from === f.to) { flash(f.to, col); chip(f, N[f.to].x, N[f.to].y - 92, col, 4200, null, [{ x: N[f.to].x, y: N[f.to].y - 92 }, { x: N[f.to].x, y: N[f.to].y + 92 }, { x: N[f.to].x - 150, y: N[f.to].y - 92 }]); return; }
     const p0 = path(f.from, f.to);
@@ -332,13 +381,13 @@
     .concat([{ x: 692, y: 374, w: 306, h: 316 }, { x: 997, y: 374, w: 306, h: 316 }, { x: 1370, y: 230, w: 260, h: 36 }])
     .concat(ZONES.map((z) => ({ x: z.x, y: 160, w: z.w, h: 52 })));        // zone titles
   const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-  const MAX_CHIPS = 3;        // only the newest labels stay; the log has the descriptions
+  const MAX_CHIPS = 1;        // only the message playing now has a label; the log has the rest
   function chip(f, x, y, col, ms, p, spots) {
     const live = chips.filter((c) => !c.out);
     live.slice(0, Math.max(0, live.length - MAX_CHIPS + 1)).forEach((c) => { c.out = performance.now(); });
     const grp = el('g', { opacity: 0 }, g('chips'));
     const txt = f.api;
-    const t = el('text', { x: 0, y: 0, fill: '#fff', 'font-size': 23, 'font-weight': 700, 'text-anchor': 'middle' }, grp);
+    const t = el('text', { x: 0, y: 0, fill: '#fff', 'font-size': 26, 'font-weight': 800, 'text-anchor': 'middle' }, grp);
     t.textContent = txt.length > 38 ? txt.slice(0, 37) + '…' : txt;
     const bb = t.getBBox();
     const r = el('rect', { x: bb.x - 16, y: bb.y - 9, width: bb.width + 32, height: bb.height + 18, rx: 14, fill: 'rgba(6,12,22,0.94)', stroke: col, 'stroke-width': 2.5 }, grp);
@@ -542,12 +591,13 @@
       const a = gl ? Math.max(0, 1 - (now - gl.t0) / 1400) * gl.a : 0;
       n.halo.setAttribute('opacity', a.toFixed(3));
       if (gl) n.halo.setAttribute('fill', gl.col);
-      const cnt = counts[k] || 0;
-      n.badge.setAttribute('opacity', cnt ? 1 : 0);
-      n.bt.textContent = cnt;
+      // systems the case has not reached yet stay dim, so the path taken reads at a glance
+      const dim = snap && primary() && !touched[k] ? 0.42 : 1;
+      if (n.dim !== dim) { n.dim = dim; n.grp.setAttribute('opacity', dim); }
     }
     pump(now);
     if (snap) tickCards(Date.now());
+    tickRail();
     tickCall(now);
     requestAnimationFrame(frame);
   }

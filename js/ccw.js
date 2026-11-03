@@ -60,7 +60,7 @@
     // the rectangle (screen px) on the photo, filling about 80% of the view
     const kx = SCR.w / 1920, ky = SCR.h / 960;
     const r = { x: SCR.x + rect.x * kx, y: SCR.y + rect.y * ky, w: rect.w * kx, h: rect.h * ky };
-    const s = clamp(Math.min(vw / (r.w * 1.22), vh / (r.h * 1.3)), s1 * 1.15, s1 * 3.2);
+    const s = clamp(Math.min(vw / (r.w * 1.12), vh / (r.h * 1.2)), s1 * 1.15, s1 * 4.2);
     return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 };
   }
   function placeStage() {
@@ -1083,8 +1083,36 @@
     if (r.w < 20 || r.h < 20) return null;
     return r;
   }
+  /* the caption for the step on screen: [title, detail, red] */
+  function stepText(sel) {
+    const c = active();
+    if (!c && !(snap && snap.general && snap.general.state !== 'ended')) return null;
+    const g = snap.general;
+    if (g && g.state !== 'ended' && !c) return ['일반 전화 상담', '경고 없는 고객 재문의'];
+    const W = c ? `${c.warn.sys} · ${E.CASE[c.wcase] ? E.CASE[c.wcase].label : ''}` : '';
+    switch (sel) {
+      case '.ov .pop': return c.inbound ? ['고객 전화 수신 · 상담원 배정', `HU [전화연결] → MM 콜 · ${W}`, true] : ['25분 경과 · 상담원 자동 배정', `고객 미연락 · ${W}`, true];
+      case '.wpanel': return ['통화 중 · 차량 진단 정보 확인', `${W} · 고객 안전 확인`, true];
+      case '.box.loc': return c.dispatch >= 2 ? ['긴급출동 차량 도착', '고객 차량 앞 정차 · 견인 준비', true] : ['긴급출동 요청 · 위치 확인', `출동 상태 ${E.DISPATCH[Math.max(0, c.dispatch)]}`, true];
+      case '.sheet:not(.closed)': return ['상담 메모 작성', '통화 후 처리 · 서비스센터 전달 선택'];
+      case '.box.hist': return ['상담 메모 저장 · 서비스센터 이관', 'WAM-MEMO-001 → DMS'];
+      case 'tr.hot': return ['긴급 경고 접수', `${W} · VEP 판정 → 고객지원실`, true];
+      case '.ov .dlg2': return ['상담 이력 상세', ''];
+      default: return null;
+    }
+  }
+  const capEl = $('#cap');
+  function caption(sel) {
+    const t = mode === 'office' ? stepText(sel) : null;
+    capEl.classList.toggle('on', !!t);
+    if (!t) return;
+    capEl.classList.toggle('red', !!t[2]);
+    $('b', capEl).textContent = t[0];
+    $('small', capEl).textContent = t[1] || '';
+  }
   function camPolicy() {
-    if (mode !== 'office') return;
+    if (mode !== 'office') { caption(null); return; }
+    caption(camHold === 'office' ? null : focusTarget());
     if (camHold === 'office' || camHold === 'monitor') { camTo(camHold, 2400); return; }
     const b = busy();
     if (b) quietSince = 0; else if (!quietSince) quietSince = Date.now();
