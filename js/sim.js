@@ -706,7 +706,14 @@
       // (if the stop clip could not load, the approach plays to its end and stays there)
       if (R.played && !R.onB && rB1.readyState < 2 && rVid.ended && !R.stopped) { R.stopped = now(); rescueEl.classList.add('stopped', 'capon'); }
       if (R.played && !R.onB && rB1.readyState >= 2 && rVid.currentTime >= RESCUE.switchAt - 0.03) {
-        R.onB = rB1; rB1.currentTime = 0; rB1.play().catch(() => {}); rShow(rB1); rVid.pause();
+        // a short dissolve hides the small difference between the two films' frames
+        R.onB = rB1; rB1.currentTime = 0; rB1.play().catch(() => {}); R.xB = now();
+        rB1.style.zIndex = 3; rB1.style.opacity = 0;
+      }
+      if (R.xB) {
+        const k = clamp((now() - R.xB) / 0.3, 0, 1);
+        rB1.style.opacity = k.toFixed(3);
+        if (k >= 1) { R.xB = 0; if (R.onB === rB1) rShow(rB1); rVid.pause(); }
       }
       if (R.onB) {
         const cur = R.onB;
