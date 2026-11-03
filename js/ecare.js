@@ -63,7 +63,7 @@
     C: { label: '알림', en: 'Notification', kind: '정비 안내', owner: '서비스센터 · 고객 (DMS · App/MM)', sla: 7 * 24 * 3600 * 1000, slaText: '7일' },
   };
 
-  const CUSTOMER = { name: '홍길동', phone: '010-1234-5678', grade: 'Lexus Premium' };
+  const CUSTOMER = { name: '김지현', phone: '010-1234-5678', grade: 'Lexus Premium' };
   const VEHICLE = { model: 'GX 550', year: 2026, brand: '렉서스', vin: 'JTJBA7BX5T4041417', plate: '123가4567', color: 'Atomic Silver' };
   const AGENTS = [
     { id: 'a1', name: '김상담', ext: '2101' },
@@ -78,25 +78,22 @@
   ];
   // outbound call after 25 minutes (recorded Korean lines)
   const CALL_OUT = [
-    { who: 'agent', text: '안녕하세요, e-Care 상담센터입니다. 홍길동 고객님 휴대폰 맞으신가요?', audio: 'assets/audio/ko_agent_001.wav', dur: 5.64 },
-    { who: 'customer', text: '네, 맞아요.', audio: 'assets/audio/ko_customer_002.wav', dur: 1.88 },
-    { who: 'agent', text: '25분 전 차량에서 브레이크 시스템 경고가 감지됐는데 연락이 없으셔서 먼저 전화드렸습니다. 지금 안전한 곳에 계신가요?', audio: 'assets/audio/ko_agent_003.wav', dur: 8.56 },
-    { who: 'customer', text: '경황이 없어서 연락을 못 했어요. 갓길에 세워 뒀어요.', audio: 'assets/audio/ko_customer_004.wav', dur: 4.24 },
-    { who: 'agent', text: '현재 위치로 긴급출동 차량을 바로 보내드리겠습니다. 비상등을 켜고 차 밖 안전한 곳에서 기다려 주세요.', audio: 'assets/audio/ko_agent_005.wav', dur: 7.36 },
+    { who: 'agent', text: '안녕하세요, e-Care 상담센터입니다. 김지현 고객님 휴대폰 맞으신가요?', audio: 'assets/audio/ecare_out_01_agent.mp3', dur: 5.36 },
+    { who: 'customer', text: '네, 맞아요.', audio: 'assets/audio/ecare_out_02_customer.mp3', dur: 1.2 },
+    { who: 'agent', text: '25분 전 차량에서 브레이크 시스템 경고가 감지됐는데 연락이 없으셔서 먼저 전화드렸습니다. 지금 안전한 곳에 계신가요?', audio: 'assets/audio/ecare_out_03_agent.mp3', dur: 9.12 },
+    { who: 'customer', text: '경황이 없어서 연락을 못 했어요. 갓길에 세워 뒀어요.', audio: 'assets/audio/ecare_out_04_customer.mp3', dur: 5.49 },
+    { who: 'agent', text: '다행입니다. 현재 위치로 긴급출동을 요청해 드렸고, 출동 기사님이 곧 직접 연락드릴 거예요. 비상등을 켜고 안전한 곳에서 기다려 주세요.', audio: 'assets/audio/ecare_out_05_agent.mp3', dur: 10.58, dispatch: true },
+    { who: 'customer', text: '네, 알겠습니다. 감사합니다.', audio: 'assets/audio/ecare_out_06_customer.mp3', dur: 2.85 },
   ];
   // inbound MM call (customer presses the e-Care button / calls from the app)
-  // inbound call from the HU [전화연결] (ElevenLabs v4 recording, cut per turn).
+  // secondary inbound set: a calm man, brake warning; short (the agent only sends the rescue truck).
   // stop: the car pulls over while that line plays
   const CALL_IN = [
-    { who: 'customer', text: '여보세요?', audio: 'assets/audio/ecare_v4_01_customer.mp3', dur: 1.12 },
-    { who: 'agent', text: '안녕하세요, 토요타 e-Care 고객센터입니다. 무엇을 도와드릴까요?', audio: 'assets/audio/ecare_v4_02_agent.mp3', dur: 4.44 },
-    { who: 'customer', text: '지금 운전 중인데 갑자기 차량에 빨간색 경고등이 켜졌어요. 처음 보는 경고등인데 차에 무슨 문제가 생긴 건가요? 계속 운전해도 되는 건지 너무 불안해서요.', audio: 'assets/audio/ecare_v4_03_customer.mp3', dur: 11.31 },
-    { who: 'agent', text: '갑작스러운 경고등 때문에 많이 놀라셨겠어요. 너무 걱정하지 마세요. 제가 차근차근 안내해 드리겠습니다. 우선 비상등을 켜고 안전한 장소에 정차하셨는지 확인 부탁드립니다.', audio: 'assets/audio/ecare_v4_04_agent.mp3', dur: 12.38 },
-    { who: 'customer', text: '아… 네, 일단 안전한 곳에 차를 세웠어요.', audio: 'assets/audio/ecare_v4_05_customer.mp3', dur: 3.74, stop: true },
-    { who: 'agent', text: '네, 잘하셨습니다. 빨간색 경고등은 점검이 필요한 상황일 수 있으니 원인이 확인되기 전까지는 운행을 재개하지 않는 것이 좋겠습니다. 현재 상황에 맞는 조치 방법을 안내해 드리고, 필요하시면 긴급출동 서비스까지 연결해 드리겠습니다.', audio: 'assets/audio/ecare_v4_06_agent.mp3', dur: 15.65 },
-    { who: 'customer', text: '아, 그렇군요. 긴급출동까지 안내해 주신다니 정말 다행이에요.', audio: 'assets/audio/ecare_v4_07_customer.mp3', dur: 4.6 },
-    { who: 'agent', text: '고객님께서 안전하게 도움을 받으실 수 있도록 끝까지 안내해 드리겠습니다. 안심하세요.', audio: 'assets/audio/ecare_v4_08_agent.mp3', dur: 5.62 },
-    { who: 'customer', text: '덕분에 마음이 놓이네요. 친절하게 안내해 주셔서 정말 감사합니다.', audio: 'assets/audio/ecare_v4_09_customer.mp3', dur: 4.18 },
+    { who: 'customer', text: '여보세요, 운전 중인데 빨간 경고등이 켜져서 연락드렸습니다.', audio: 'assets/audio/ecare_m_01_customer.mp3', dur: 4.23 },
+    { who: 'agent', text: '네, 고객님. 차량에서 브레이크 시스템 이상이 감지된 것이 확인됩니다. 안전한 곳에 정차하시고 비상등을 켜 주시겠어요?', audio: 'assets/audio/ecare_m_02_agent.mp3', dur: 8.39 },
+    { who: 'customer', text: '네, 지금 갓길에 세우고 비상등 켰습니다.', audio: 'assets/audio/ecare_m_03_customer.mp3', dur: 3.71, stop: true },
+    { who: 'agent', text: '감사합니다. 현재 위치로 긴급출동을 요청했고, 출동 기사님이 곧 직접 연락드릴 겁니다. 그때까지 안전한 곳에서 기다려 주세요.', audio: 'assets/audio/ecare_m_04_agent.mp3', dur: 9.06, dispatch: true },
+    { who: 'customer', text: '네, 알겠습니다. 감사합니다.', audio: 'assets/audio/ecare_m_05_customer.mp3', dur: 2.64 },
   ];
   // general call: the customer calls with no open warning case (11.1.1.3)
   const CALL_GEN = [
@@ -105,26 +102,20 @@
     { who: 'agent', text: '확인해 보니 서비스센터로 상담 내용이 전달되어 있고, 담당 어드바이저가 오늘 중 연락드릴 예정입니다.', dur: 6.4 },
     { who: 'customer', text: '네, 알겠습니다. 감사합니다.', dur: 2.2 },
   ];
-  // main inbound set: a worried woman driving alone, engine warning. The agent sends the
-  // rescue truck during the call and stays on the line until it stops in front of her car.
-  // dispatch: the agent requests the rescue truck on this line; rescue: the truck comes into
-  // view (the car panel shows it pass the driver's window); arrive: it has stopped in front
+  // main inbound set: a worried woman driving alone, engine warning. The e-Care agent
+  // only sends the rescue truck (dispatch: on this line); the truck's driver calls her
+  // himself, and the truck pulls up in front of the car after the call.
   const CALL_IN2 = [
-    { who: 'customer', text: '어, 저기요. 차 계기판에 막 빨간불이 켜지고 차가 막 덜컹거리는데, 저 지금 도로 한가운데라 너무 무서워요. 이거 차에서 불나는 거 아니에요? 어떡해요, 진짜!', audio: 'assets/audio/ecare_f4_01_customer.mp3', dur: 11.96 },
-    { who: 'agent', text: '고객님, 갑작스러운 알림에 많이 놀라셨죠? 우선 안심하셔도 괜찮습니다. 제가 끝까지 도와드리겠습니다.', audio: 'assets/audio/ecare_f4_02_agent.mp3', dur: 8.62 },
-    { who: 'agent', text: '시스템 확인 결과 고객님 차량에서 엔진 시스템 이상이 감지되었습니다. 현재 안전 주행이 어려운 상황으로 즉각적인 조치가 필요합니다. 현재 안전한 장소에 정차하셨나요? 현재 위치를 알려주실 수 있으신가요?', audio: 'assets/audio/ecare_f4_03_agent.mp3', dur: 16.38 },
-    { who: 'customer', text: '네, 갓길에 겨우 세웠어요. 여기가 올림픽대로 한남 방향으로 빠지는 길목 부근이에요.', audio: 'assets/audio/ecare_f4_04_customer.mp3', dur: 6.03, stop: true },
-    { who: 'agent', text: '네, 위치 확인되었습니다. 안전한 장소에 즉시 정차해 주셔서 정말 다행입니다. 안전이 확인될 때까지 재출발을 삼가 주시기 바랍니다.', audio: 'assets/audio/ecare_f4_05_agent.mp3', dur: 10.19 },
-    { who: 'customer', text: '하… 휴… 상담원님이 차분하게 말해 주시니까 이제야 좀 살 것 같아요. 당장 어쩌나 싶어 너무 겁먹었거든요.', audio: 'assets/audio/ecare_f4_06_customer.mp3', dur: 8.62 },
-    { who: 'agent', text: '지금 바로 긴급출동을 요청했습니다. 가까운 출동 차량이 고객님 차 앞까지 갈 거예요. 비상등을 켜 두시고, 안전벨트를 맨 채 차 안에서 잠시만 기다려 주세요.', audio: 'assets/audio/ecare_f4_09_agent.mp3', dur: 11.89, dispatch: true },
-    { who: 'customer', text: '네, 차 안에서 기다릴게요. 근데 정말 금방 오는 거죠? 혼자 있으니까 자꾸 불안해서요.', audio: 'assets/audio/ecare_f4_10_customer.mp3', dur: 6.48 },
-    { who: 'agent', text: '그럼요, 출동 차량 위치를 제가 계속 보고 있어요. 거의 다 왔습니다. 도착할 때까지 전화 끊지 않고 함께 있을게요.', audio: 'assets/audio/ecare_f4_11_agent.mp3', dur: 8.72, rescue: true },
-    { who: 'customer', text: '어, 저기 노란 경광등 켠 차가 와요! 지금 제 차 바로 앞에 섰어요.', audio: 'assets/audio/ecare_f4_12_customer.mp3', dur: 5.04, arrive: true },
-    { who: 'agent', text: '네, 저희 긴급출동 기사님입니다. 차량은 가장 가까운 강남 서비스센터로 입고되도록 제가 예약까지 잡아 두겠습니다.', audio: 'assets/audio/ecare_f4_13_agent.mp3', dur: 9.25 },
-    { who: 'customer', text: '정말 다행이에요. 끝까지 함께해 주셔서 감사합니다.', audio: 'assets/audio/ecare_f4_14_customer.mp3', dur: 3.4 },
+    { who: 'customer', text: '여보세요, 운전 중에 계기판에 빨간 경고등이 켜졌어요. 차가 좀 덜컹거리는데, 계속 가도 되는 건지 걱정돼서요.', audio: 'assets/audio/ecare_w_01_customer.mp3', dur: 9.33 },
+    { who: 'agent', text: '네, 김지현 고객님. 차량에서 엔진 시스템 이상이 감지돼서 저희 쪽에도 함께 들어와 있습니다. 지금은 운행하지 않으시는 게 안전합니다. 가까운 갓길에 차를 세우시고 비상등을 켜 주시겠어요?', audio: 'assets/audio/ecare_w_02_agent.mp3', dur: 14.37 },
+    { who: 'customer', text: '네, 지금 갓길에 세웠어요. 비상등도 켰어요.', audio: 'assets/audio/ecare_w_03_customer.mp3', dur: 5.22, stop: true },
+    { who: 'agent', text: '잘하셨습니다. 차량 위치가 확인돼서 바로 긴급출동을 요청해 드렸습니다. 출동 기사님이 곧 고객님께 직접 연락드릴 거예요.', audio: 'assets/audio/ecare_w_04_agent.mp3', dur: 9.06, dispatch: true },
+    { who: 'customer', text: '아, 다행이네요. 그럼 차 안에서 기다리면 될까요?', audio: 'assets/audio/ecare_w_05_customer.mp3', dur: 4.99 },
+    { who: 'agent', text: '네, 안전벨트를 매고 차 안에서 기다려 주세요. 다른 문의가 있으시면 언제든 다시 연락 주세요.', audio: 'assets/audio/ecare_w_06_agent.mp3', dur: 6.74 },
+    { who: 'customer', text: '네, 감사합니다.', audio: 'assets/audio/ecare_w_07_customer.mp3', dur: 1.23 },
   ];
   const SCRIPTS = { in: CALL_IN, in2: CALL_IN2, out: CALL_OUT, gen: CALL_GEN };
-  const SCRIPT_NAMES = { in2: '메인 · 걱정 많은 여성 운전자 · 엔진 이상 · 긴급출동 도착', in: '보조 · 빨간 경고등 (차분한 고객)', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)' };
+  const SCRIPT_NAMES = { in2: '메인 · 걱정 많은 여성 운전자 · 엔진 이상 · 긴급출동', in: '보조 · 브레이크 경고 (차분한 남성 고객)', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)' };
   /* Conversation sets per call type; the director plays the picked one.
    * warn: the lamp the presenter's run sheet raises for that set. */
   const SCRIPT_SETS = {
@@ -452,7 +443,7 @@
       if (g.state === 'connected') this.endGeneral();
       const k = this.consults.find((x) => x.id === g.consult);
       if (k && text) { (k.memos = k.memos || []).push({ t: Date.now(), text, agent: this.me().name }); k.updated = Date.now(); }
-      this.consults.unshift({ id: `GN-${Date.now()}`, at: g.at, type: '인바운드 콜', title: '일반문의_홍길동', agent: this.me().name, result: '상담 완료', dealer: '-', general: true, memo: text || g.memo });
+      this.consults.unshift({ id: `GN-${Date.now()}`, at: g.at, type: '인바운드 콜', title: `일반문의_${CUSTOMER.name}`, agent: this.me().name, result: '상담 완료', dealer: '-', general: true, memo: text || g.memo });
       this.general = null;
       this.me().state = '대기';
       this.publish();
@@ -592,7 +583,7 @@
       Link.send('say', { caseId: c.id, line: script[i], index: i });
       if (script[i].stop && this.hooks.stop) this.hooks.stop(c);
       // the rescue truck follows the conversation: requested, in view, stopped in front
-      if (script[i].dispatch) this.dispatch(c, true, true);
+      if (script[i].dispatch) this.dispatch(c, true);
       if (script[i].rescue) this.rescue(c);
       if (script[i].arrive) this.arrive(c);
       if (this.hooks.hazard && hazardOn(script, i)) this.hooks.hazard(c, true);
@@ -620,7 +611,7 @@
       c.memo.callType = c.call && c.call.dir === 'in' ? '인바운드 콜' : '아웃바운드 콜';
       c.memo.text = c.sms
         ? `${c.warn.sys} 경고(주행 불가) 발생. 아웃바운드 3회 발신 실패로 SMS 자동 발송. 고객 회신 시 즉시 출동 및 입고 안내 필요.`
-        : `${c.warn.sys} 경고(주행 불가) 발생. 고객 갓길 정차 확인, 비상등 점등 안내. 현재 위치로 긴급출동 요청${c.dispatch >= 2 ? ' → 고객 차량 앞 도착 확인' : ' 완료'}, 견인 후 서비스센터 입고 필요.`;
+        : `${c.warn.sys} 경고(주행 불가) 발생. 고객 갓길 정차 · 비상등 점등 확인. 현재 위치로 긴급출동 요청 완료(출동 기사 고객 직접 연락 예정), 견인 후 서비스센터 입고 필요.`;
       c.memo.request = '견인 입고 예정 차량입니다. 도착 즉시 진단 부탁드립니다.';
       c.sheet = { step: 1, open: true, at: Date.now() };
       this.log(c, '상담 메모(1) 바텀시트 · 상담 제목 자동 입력', 'info');
@@ -641,8 +632,14 @@
       this.log(c, `긴급출동 신고접수(출동접수)${auto ? ' · 상담 중 요청' : ''}`, 'alert');
       this.flow(c, [['ccw', 'rescue', '긴급출동', '마스터자동차 출동 요청 · 현재 위치', { caseId: c.id, vin: VEHICLE.vin, location: 'last received' }, 0]]);
       this.publish();
-      this.after(live ? 2500 : 4000, () => this.dispatchStep(c, 1, `긴급출동 출동(목적지출발) · 도착 예정 ${live ? '5' : '12'}분`));
-      if (!live) this.after(16000, () => this.arrive(c));
+      this.after(live ? 2500 : 4000, () => this.dispatchStep(c, 1, `긴급출동 출동(목적지출발) · 출동 기사 고객 연락 · 도착 예정 ${live ? '5' : '12'}분`));
+      // the truck pulls up a little after the call is over (the agent does not wait on the line)
+      const tryArrive = () => {
+        const busy = c.call && (c.call.state === 'connected' || c.call.state === 'dialing');
+        if (busy || (c.call && c.call.endedAt && Date.now() - c.call.endedAt < 3000)) this.after(1000, tryArrive);
+        else this.arrive(c);
+      };
+      if (!live) this.after(16000, tryArrive);
     }
 
     dispatchStep(c, k, text) {
@@ -715,7 +712,7 @@
   function loadScripts() {
     const d = defaults();
     try {
-      const v = JSON.parse(localStorage.getItem('ecare-scripts-v4'));
+      const v = JSON.parse(localStorage.getItem('ecare-scripts-v5'));
       // sets added since the scripts were saved come from the defaults
       if (v && typeof v === 'object') { Object.keys(d).forEach((k) => { if (!Array.isArray(v[k])) v[k] = d[k]; }); return v; }
     } catch (e) { /* none saved */ }
@@ -726,7 +723,7 @@
     try { const v = JSON.parse(localStorage.getItem('ecare-pick-v2')); Object.keys(p).forEach((k) => { if (v && SCRIPT_SETS[k].keys.includes(v[k])) p[k] = v[k]; }); } catch (e) { /* none saved */ }
     return p;
   }
-  function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v4', JSON.stringify(v)); } catch (e) { /* private mode */ } }
+  function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v5', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
   window.ECare = { SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();

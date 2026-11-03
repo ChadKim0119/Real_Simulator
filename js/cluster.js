@@ -123,6 +123,9 @@
         return true;
       };
       const RW = 9;                                      // drawn half width of the main road (maps exaggerate it)
+      // the car keeps right (right-hand traffic): the arrow sits in the right lane, not on the centre line
+      const lane = P(0, RW * 0.5, 0);
+      this.arrowDX = lane ? (lane[0] - tx) * MAP.w / mw : 0;
 
       mc.setTransform(1, 0, 0, 1, 0, 0);
       mc.globalCompositeOperation = 'source-over';
@@ -390,7 +393,7 @@
     }
 
     drawArrow(ctx) {
-      const x = MAP.x + MAP.w / 2, y = MAP.y + MAP.h * 0.758;
+      const x = MAP.x + MAP.w / 2 + (this.arrowDX || 0), y = MAP.y + MAP.h * 0.758;
       ctx.save();
       ctx.shadowColor = 'rgba(60,150,255,0.8)';
       ctx.shadowBlur = this.glow(10);

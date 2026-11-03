@@ -325,7 +325,7 @@
         const s = i != null && screens ? screens[+i] : null;
         if (what === 'test') openOn('test.html?out=1', 'test-out', s); else openOn('wall.html', 'wall', s);
       } else if (d.tone) tone(+d.tone);
-      else if ('voice' in d) new Audio('assets/audio/ecare_v4_02_agent.mp3').play();
+      else if ('voice' in d) new Audio('assets/audio/ecare_w_02_agent.mp3').play();
       else if (d.ck) { const [k, v] = d.ck.split(':'); const c = Object.assign({}, S.checks); c[k] = c[k] === v ? '' : v; set({ checks: c }); }
       else if ('copy' in d) copy();
       else if ('reset' in d) { if (confirm('설정과 체크리스트를 초기화할까요?')) { S = JSON.parse(JSON.stringify(DEF)); set({}); } }

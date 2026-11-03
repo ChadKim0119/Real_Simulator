@@ -641,23 +641,29 @@
    * passes the driver's window and pulls up in front of the car. It stays there, light
    * bar flashing, until the call is over; then the view closes back onto the dashboard.
    * plate: where the photo (IMG px) sits in the clip (clip px per photo px). */
-  const RESCUE = { src: 'assets/rescue_arrive.mp4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 4.6, stopAt: 5.6, playDelay: 1.6 };
+  // two filmed parts: the approach (A) up to switchAt, then the stop (B, which starts on that very
+  // frame): the truck pulls up right in front, then stays with its lights flashing while traffic
+  // keeps passing — B's tail from loopFrom repeats with a cross-fade for as long as the scene holds
+  const RESCUE = { src: 'assets/rescue_arrive.mp4', srcB: 'assets/rescue_stop.mp4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, switchAt: 5.0, stoppedAt: 2.0, loopFrom: 2.2, fade: 0.7, playDelay: 1.6, hold: 12 };
   const rescueEl = document.createElement('div');
   rescueEl.id = 'rescue';
-  rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video muted playsinline preload="auto"></video><i class="bar"></i></div><div class="cap">긴급출동 차량 도착</div>';
+  rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vb" muted playsinline preload="auto"></video><video class="vb" muted playsinline preload="auto"></video><i class="bar"></i></div><div class="cap">긴급출동 차량 도착</div>';
   document.body.appendChild(rescueEl);
-  const rVid = rescueEl.querySelector('video'), rFrame = rescueEl.querySelector('.frame'), rBg = rescueEl.querySelector('.bg');
-  rVid.src = RESCUE.src;
+  const [rVid, rB1, rB2] = rescueEl.querySelectorAll('video'), rFrame = rescueEl.querySelector('.frame'), rBg = rescueEl.querySelector('.bg');
+  rVid.src = RESCUE.src; rB1.src = RESCUE.srcB; rB2.src = RESCUE.srcB;
+  const rAll = [rVid, rB1, rB2];
+  const rShow = (v) => { rAll.forEach((x) => { x.style.opacity = x === v ? 1 : 0; x.style.zIndex = x === v ? 2 : 1; }); };
   let rescue = null;      // { phase: pull | fade | widen | hold | narrow | out, t0, stopped }
   function rescueStart() {
     if (rescue) return;
-    rescue = { phase: 'pull', t0: now(), played: false, stopped: 0 };
-    try { rVid.pause(); rVid.currentTime = 0; rVid.playbackRate = 1; } catch (e) { /* not loaded yet */ }
+    rescue = { phase: 'pull', t0: now(), played: false, stopped: 0, onB: null, xf: null };
+    rAll.forEach((v) => { try { v.pause(); v.currentTime = 0; } catch (e) { /* not loaded yet */ } });
+    rShow(rVid);
     focusPolicy(true);
   }
   function rescueStop(now_) {
     if (!rescue) return;
-    if (now_) { rescue = null; rescueEl.classList.remove('on', 'stopped', 'capon'); try { rVid.pause(); } catch (e) { /* */ } focusPolicy(true); return; }
+    if (now_) { rescue = null; rescueEl.classList.remove('on', 'stopped', 'capon'); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
     if (rescue.phase !== 'narrow' && rescue.phase !== 'out') { rescue.phase = 'narrow'; rescue.t0 = now(); rescue.from = rescue.cur; rescueEl.classList.remove('capon'); }
   }
   director.hooks.rescue = (c) => (c ? rescueStart() : rescueStop(true));
@@ -693,17 +699,32 @@
     else if (R.phase === 'widen' || R.phase === 'hold') {
       const w = ease(clamp(t / 3.4, 0, 1));
       v = R.phase === 'hold' ? rescueWide() : rescueBlend(R.from, rescueWide(), w);
-      if (R.phase === 'widen' && !R.played && t >= RESCUE.playDelay) { R.played = true; rVid.playbackRate = 1; rVid.play().catch(() => {}); }
+      if (R.phase === 'widen' && !R.played && t >= RESCUE.playDelay) { R.played = true; rVid.play().catch(() => {}); }
       if (R.phase === 'widen' && t >= 3.4) R.phase = 'hold';
-      // the truck brakes to a stop in front of the car
-      const ct = rVid.currentTime;
-      if (R.played && !R.stopped) {
-        if (ct >= RESCUE.stopAt) { rVid.pause(); R.stopped = now(); rescueEl.classList.add('stopped', 'capon'); }
-        else if (ct >= RESCUE.slowFrom) rVid.playbackRate = Math.max(0.12, 1 - 0.88 * (ct - RESCUE.slowFrom) / (RESCUE.stopAt - RESCUE.slowFrom));
+      // the approach hands over to the stop on the same frame
+      // (if the stop clip could not load, the approach plays to its end and stays there)
+      if (R.played && !R.onB && rB1.readyState < 2 && rVid.ended && !R.stopped) { R.stopped = now(); rescueEl.classList.add('stopped', 'capon'); }
+      if (R.played && !R.onB && rB1.readyState >= 2 && rVid.currentTime >= RESCUE.switchAt - 0.03) {
+        R.onB = rB1; rB1.currentTime = 0; rB1.play().catch(() => {}); rShow(rB1); rVid.pause();
       }
-      if (R.stopped && now() - R.stopped > 3.5) rescueEl.classList.remove('capon');
-      // after the call (and a moment on the truck) the view closes back onto the dashboard
-      if (R.stopped && now() - R.stopped > 8 && !onCall()) rescueStop(false);
+      if (R.onB) {
+        const cur = R.onB;
+        if (!R.stopped && cur === rB1 && cur.currentTime >= RESCUE.stoppedAt) { R.stopped = now(); rescueEl.classList.add('stopped', 'capon'); }
+        // the parked truck, lights flashing, traffic passing: B's tail again, cross-faded
+        if (!R.xf && cur.duration && cur.currentTime >= cur.duration - RESCUE.fade - 0.05) {
+          const nx = cur === rB1 ? rB2 : rB1;
+          nx.currentTime = RESCUE.loopFrom; nx.play().catch(() => {});
+          nx.style.zIndex = 3; R.xf = { from: cur, to: nx, t0: now() };
+        }
+        if (R.xf) {
+          const k = clamp((now() - R.xf.t0) / RESCUE.fade, 0, 1);
+          R.xf.to.style.opacity = k.toFixed(3);
+          if (k >= 1) { R.xf.from.pause(); R.onB = R.xf.to; rShow(R.xf.to); R.xf = null; }
+        }
+      }
+      if (R.stopped && now() - R.stopped > 4) rescueEl.classList.remove('capon');
+      // after the call (and a while on the truck) the view closes back onto the dashboard
+      if (R.stopped && now() - R.stopped > RESCUE.hold && !onCall()) rescueStop(false);
     } else if (R.phase === 'narrow') {
       const w = ease(clamp(t / 2.6, 0, 1));
       v = rescueBlend(R.from, rescueAligned(), w);

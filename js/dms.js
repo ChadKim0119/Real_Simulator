@@ -459,7 +459,8 @@
     if (mode !== 'office') return;
     if (camHold === 'office' || camHold === 'monitor') { camTo(camHold, 2400); return; }
     if (busyNow) quiet = 0; else if (!quiet) quiet = Date.now();
-    if (!busyNow && Date.now() - quiet >= 4000) { camTo(live ? 'monitor' : 'office', 2800); return; }
+    // idle: the whole desk, framed like the call center room (same photo-to-monitor proportion)
+    if (!busyNow && Date.now() - quiet >= 4000) { camTo('office', 2800); return; }
     const sel = focusSel(), r = sel && rectOf(sel);
     if (r) camTo('focus', cam.to === 'focus' ? 1600 : 2400, r); else camTo('monitor', 2400);
   }

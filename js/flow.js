@@ -232,7 +232,7 @@
     if (c.dms >= 0) return { i: 3, d: c.kind === 'emergency' ? '상담 메모 WAM-MEMO-001 → 서비스센터 DMS · 컨택대기' : `${K.label} 등급 · 상담원 없이 서비스센터 DMS로 직접 · SLA ${K.slaText}` };
     const call = c.call;
     if (c.dispatch >= 0 || (call && (call.state === 'connected' || call.state === 'ended'))) {
-      const d = c.dispatch >= 2 ? '긴급출동 차량 도착 · 고객 차량 앞 정차' : c.dispatch >= 0 ? `긴급출동 ${E.DISPATCH[c.dispatch]} · 상담원이 고객과 통화 유지` : '상담원 ↔ 고객 통화 · 차량 진단 정보 공유';
+      const d = c.dispatch >= 2 ? '긴급출동 차량 도착 · 고객 차량 앞 정차' : c.dispatch >= 0 ? `긴급출동 ${E.DISPATCH[c.dispatch]} · 출동 기사가 고객에게 직접 연락` : '상담원 ↔ 고객 통화 · 차량 진단 정보 공유';
       return { i: 2, d };
     }
     if (c.inbound || c.assign || (call && call.state === 'dialing') || Date.now() - c.at > 7000)
