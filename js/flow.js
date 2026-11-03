@@ -1,6 +1,6 @@
 /* e-Care data flow monitor. Draws the systems involved (vehicle, Japan server
- * VDP, Korea server TSP with VEP / WAM / OPW / SMS, the support center CCW with
- * CTI, dispatch, service center DMS, customer phone) and
+ * VDP, Korea server TSP with VEP / WAM / OPW / SMS, the support center CCW,
+ * dispatch, service center DMS, customer phone) and
  * animates every message the director records in snapshot.flows, labelled
  * with the interface name from the e-Care interface definition. */
 (function () {
@@ -24,8 +24,7 @@
     wam: { x: 1150, y: 290, w: 280, t: '업무 흐름 관리', s: 'WAM · 배정 · SLA', zone: 'kr' },
     opw: { x: 840, y: 768, w: 280, h: 88, t: '운영 관리', s: 'OPW · 정책', zone: 'kr' },
     sms: { x: 1150, y: 768, w: 280, h: 88, t: '문자 발송', s: 'SMS', zone: 'kr' },
-    ccw: { x: 1607, y: 318, w: 310, t: '상담원 화면', s: 'CCW', zone: 'res' },
-    cti: { x: 1607, y: 428, w: 310, h: 88, t: '전화 교환 · 상담원 배정', s: 'CTI', zone: 'res' },
+    ccw: { x: 1607, y: 340, w: 310, t: '상담원 화면', s: 'CCW', zone: 'res' },
     rescue: { x: 1607, y: 610, w: 310, t: '긴급출동', s: '마스터자동차', zone: 'res' },
     dms: { x: 1607, y: 760, w: 310, t: '서비스센터 (딜러)', s: 'DMS', zone: 'res' },
   };
@@ -39,7 +38,7 @@
   const W = 250, H = 104;
   const size = (n) => ({ w: n.w || W, h: n.h || H });
   // the backbone drawn at rest; other messages (calls, alerts) draw their path while they travel
-  const LINKS = [['car', 'vdp'], ['vdp', 'vep'], ['vep', 'wam'], ['wam', 'ccw'], ['wam', 'cti'], ['cti', 'ccw'], ['wam', 'dms'], ['ccw', 'rescue'], ['vdp', 'phone'], ['ccw', 'sms'], ['sms', 'phone']];
+  const LINKS = [['car', 'vdp'], ['vdp', 'vep'], ['vep', 'wam'], ['wam', 'ccw'], ['wam', 'dms'], ['ccw', 'rescue'], ['vdp', 'phone'], ['ccw', 'sms'], ['sms', 'phone']];
   const CASECOL = { A: '#ff4d5e', B: '#ffb02e', C: '#3fd0c9' };
   const BLUE = '#5aa2ff';
 
@@ -81,16 +80,30 @@
       el('text', { x: 12, y: 23, fill: z.col, 'font-size': 21, 'font-weight': 800, class: 'num' }, tg).textContent = z.tag;
     }
   });
-  el('rect', { x: 1355, y: 222, width: 505, height: 260, rx: 20, fill: 'rgba(61,220,132,0.05)', stroke: 'rgba(61,220,132,0.4)', 'stroke-width': 2, 'stroke-dasharray': '8 7' }, g('zones'));
+  el('rect', { x: 1355, y: 222, width: 505, height: 200, rx: 20, fill: 'rgba(61,220,132,0.05)', stroke: 'rgba(61,220,132,0.4)', 'stroke-width': 2, 'stroke-dasharray': '8 7' }, g('zones'));
   el('text', { x: 1378, y: 256, fill: '#8ff0b3', 'font-size': 22, 'font-weight': 800 }, g('zones')).textContent = 'e-Care 고객지원실';
 
   /* links run edge to edge as S-curves: sideways between columns, up/down
    * within one. SMS → phone dips under the bottom row so it clears OPW. */
   const UNDER = { 'phone|sms': 905 };     // key: the two ids sorted; the first is the left box
   const OVER = { 'vdp|wam': 214 };        // top edge to top edge, over the boxes between
-  const RIGHT = { 'ccw|rescue': 1838, 'ccw|dms': 1838, 'cti|rescue': 1838 };   // around the right of the column
+  const RIGHT = { 'ccw|rescue': 1838, 'ccw|dms': 1838 };   // around the right of the column
+  /* calls between the customer and the agent: the car's head unit (MM call) over the
+   * top of the boxes, the customer's phone along the corridor under the cards */
+  const VOICE = {
+    'car|ccw': 'M195,278 C195,240 210,228 250,228 L1560,228 C1600,228 1607,240 1607,288',
+    'ccw|phone': 'M325,700 C380,700 400,703 450,703 L1360,703 C1405,703 1410,690 1410,560 L1410,400 C1410,352 1420,340 1452,340',
+  };
+  const mid = (d) => { const t = document.createElementNS(NS, 'path'); t.setAttribute('d', d); svg.appendChild(t); const L = t.getTotalLength(); const m = t.getPointAtLength(L / 2); t.remove(); return m; };
   const path = (a, b) => {
     const key = [a, b].sort().join('|');
+    if (VOICE[key]) {
+      // walk the fixed route from a to b (the strings run from the customer side)
+      const fromCust = a === 'car' || a === 'phone';
+      const d = fromCust ? VOICE[key] : reversePath(VOICE[key]);
+      const m = mid(VOICE[key]);
+      return { d, mx: m.x, my: m.y };
+    }
     const flip = a > b;                         // draw one curve per pair, walk it either way
     const [p, q] = flip ? [b, a] : [a, b];
     const A = N[p], B = N[q], sa = size(A), sb = size(B);
@@ -121,6 +134,21 @@
     const mx = (P0[0] + 3 * P1[0] + 3 * P2[0] + P3[0]) / 8, my = (P0[1] + 3 * P1[1] + 3 * P2[1] + P3[1]) / 8;
     return { d: `M${P0[0]},${P0[1]} C${P1[0]},${P1[1]} ${P2[0]},${P2[1]} ${P3[0]},${P3[1]}`, mx, my };
   };
+  // reverse an SVG path of M / L / C segments (absolute coordinates)
+  function reversePath(d) {
+    const segs = d.match(/[MLC][^MLC]*/g).map((x) => ({ c: x[0], p: x.slice(1).trim().split(/[\s,]+/).map(Number) }));
+    const pts = []; let cur;
+    const out = [];
+    segs.forEach((sg) => {
+      if (sg.c === 'M') { cur = [sg.p[0], sg.p[1]]; return; }
+      if (sg.c === 'L') { out.push({ c: 'L', from: cur, to: [sg.p[0], sg.p[1]] }); cur = [sg.p[0], sg.p[1]]; }
+      if (sg.c === 'C') { out.push({ c: 'C', from: cur, c1: [sg.p[0], sg.p[1]], c2: [sg.p[2], sg.p[3]], to: [sg.p[4], sg.p[5]] }); cur = [sg.p[4], sg.p[5]]; }
+    });
+    let r = `M${cur[0]},${cur[1]}`;
+    out.reverse().forEach((x) => { r += x.c === 'L' ? ` L${x.from[0]},${x.from[1]}` : ` C${x.c2[0]},${x.c2[1]} ${x.c1[0]},${x.c1[1]} ${x.from[0]},${x.from[1]}`; });
+    void pts;
+    return r;
+  }
   const linkEls = {};
   LINKS.forEach(([a, b]) => {
     const p = path(a, b);
@@ -184,24 +212,44 @@
   const elapsedL = el('text', { x: 1860, y: 50, fill: '#7f93b0', 'font-size': 20, 'font-weight': 700, 'text-anchor': 'end' }, hud); elapsedL.textContent = '경고 발생 후 경과';
   const elapsed = el('text', { x: 1860, y: 112, fill: '#fff', 'font-size': 62, 'font-weight': 700, 'text-anchor': 'end', class: 'num' }, hud);
 
-  // footer: event log (left) and dialogue caption (right)
+  /* footer: the detailed message log, folded by default to one line (the newest
+   * message); a tap or the control panel unfolds it to the last six messages */
   const foot = g('foot');
-  el('rect', { x: 40, y: 880, width: 1840, height: 170, rx: 22, fill: 'rgba(8,14,26,0.85)', stroke: 'rgba(150,190,255,0.12)', 'stroke-width': 2 }, foot);
-  const logEls = [0, 1, 2, 3].map((i) => {
-    const row = el('g', { transform: `translate(70,${922 + i * 36})` }, foot);
+  let logOpen = false;
+  const fbg = el('rect', { x: 40, y: 892, width: 1840, height: 64, rx: 20, fill: 'rgba(8,14,26,0.85)', stroke: 'rgba(150,190,255,0.14)', 'stroke-width': 2 }, foot);
+  const fTitle = el('text', { x: 70, y: 934, fill: '#7f93b0', 'font-size': 22, 'font-weight': 800 }, foot); fTitle.textContent = '상세 데이터 흐름';
+  const fHint = el('text', { x: 1850, y: 934, fill: '#5d7090', 'font-size': 21, 'font-weight': 700, 'text-anchor': 'end' }, foot);
+  const ROWS = 6;
+  const logEls = [...Array(ROWS)].map((i) => {
+    const row = el('g', {}, foot);
     const tm = el('text', { x: 0, y: 0, fill: '#6f84a3', 'font-size': 22, 'font-weight': 600, class: 'num' }, row);
     const api = el('text', { x: 108, y: 0, fill: BLUE, 'font-size': 22, 'font-weight': 800 }, row);
     const lb = el('text', { x: 300, y: 0, fill: '#d4def0', 'font-size': 23, 'font-weight': 600 }, row);
     return { row, tm, api, lb };
   });
-  el('line', { x1: 1080, y1: 900, x2: 1080, y2: 1030, stroke: 'rgba(150,190,255,0.15)', 'stroke-width': 2 }, foot);
-  const capWho = el('text', { x: 1110, y: 930, fill: '#7f93b0', 'font-size': 22, 'font-weight': 700 }, foot);
-  const capT1 = el('text', { x: 1110, y: 976, fill: '#fff', 'font-size': 34, 'font-weight': 700 }, foot);
-  const capT2 = el('text', { x: 1110, y: 1020, fill: '#fff', 'font-size': 34, 'font-weight': 700 }, foot);
+  function layoutFoot() {
+    // folded: one line beside the title; open: six lines in two columns under it
+    fbg.setAttribute('y', logOpen ? 876 : 892);
+    fbg.setAttribute('height', logOpen ? 188 : 64);
+    fTitle.setAttribute('y', logOpen ? 914 : 934);
+    fHint.setAttribute('y', logOpen ? 914 : 934);
+    fHint.textContent = logOpen ? '▴ 접기' : '▾ 펼치기';
+    logEls.forEach((r, i) => {
+      const x = logOpen ? (i < 3 ? 70 : 990) : 290, y = logOpen ? 958 + (i % 3) * 38 : 934;
+      r.row.setAttribute('transform', `translate(${x},${y})`);
+      r.row.style.display = logOpen || i === 0 ? '' : 'none';
+    });
+    renderLog();
+  }
+  function setLog(open) { logOpen = !!open; layoutFoot(); }
+  foot.style.cursor = 'pointer';
+  foot.addEventListener('click', () => { setLog(!logOpen); Link.send('flow-log', { open: logOpen }); });
+  Link.on('flow-log', (d) => setLog(d.open));
 
   /* ---------------- link ---------------- */
   Link.on('ecare', (d) => { snap = d; ingest(); renderCards(); });
-  Link.on('say', (d) => { caption = { who: d.line.who, text: d.line.text, until: performance.now() + (d.line.dur || 4) * 1000 + 2500 }; });
+  // who speaks now (the call animation sends the voice that way)
+  Link.on('say', (d) => { caption = { who: d.line.who, until: performance.now() + (d.line.dur || 4) * 1000 + 700 }; });
   Link.send('hello', { screen: 'flow' });
 
   /* Messages play one at a time in arrival order (the director sends them in
@@ -212,8 +260,9 @@
   function ingest() {
     const fl = (snap && snap.flows) || [];
     if (!fl.length && seen) reset();                                 // scenario reset
-    for (const f of fl) {
-      if (f.id <= seen) continue;
+    for (const f0 of fl) {
+      if (f0.id <= seen) continue;
+      const f = f0.from === 'cti' || f0.to === 'cti' ? { ...f0, from: f0.from === 'cti' ? 'ccw' : f0.from, to: f0.to === 'cti' ? 'ccw' : f0.to } : f0;
       seen = f.id;
       if (f.type === 'skip') { if (!first) queue.push(f); continue; }
       // joining mid-scenario: show the paths and the log, do not replay
@@ -389,37 +438,83 @@
   }
 
   function renderLog() {
-    const fl = shown.slice(-4).reverse();
+    const fl = shown.slice(-ROWS).reverse();
+    const max = logOpen ? 34 : 70;
     logEls.forEach((r, i) => {
       const f = fl[i];
-      r.row.setAttribute('opacity', f ? 1 - i * 0.18 : 0);
+      r.row.setAttribute('opacity', f ? (logOpen ? 1 - i * 0.1 : 1) : 0);
       if (!f) return;
       r.tm.textContent = E.hm(f.t);
       r.api.textContent = f.api;
       r.api.setAttribute('fill', f.wcase ? CASECOL[f.wcase] : BLUE);
-      r.lb.textContent = f.label.length > 40 ? f.label.slice(0, 39) + '…' : f.label;
+      r.lb.textContent = f.label.length > max ? f.label.slice(0, max - 1) + '…' : f.label;
       r.lb.setAttribute('fill', i === 0 ? '#ffffff' : '#a9b8cf');            // the message playing now
     });
   }
-
-  /* ---------------- caption ---------------- */
-  function wrap(text, max) {
-    if (text.length <= max) return [text, ''];
-    const cut = text.lastIndexOf(' ', max);
-    const i = cut > max * 0.5 ? cut : max;
-    const rest = text.slice(i).trim();
-    return [text.slice(0, i).trim(), rest.length > max ? rest.slice(0, max - 1) + '…' : rest];
+  /* ---------------- the call ----------------
+   * While the customer talks with the agent, voice keeps flowing between the
+   * agent screen and the customer: the car (MM call from the head unit) or the
+   * phone (outbound and general calls). Packets run toward whoever listens. */
+  const VOICE_COL = '#3ddc84';
+  const callG = el('g', { opacity: 0 }, g('links'));
+  const callGlow = el('path', { fill: 'none', stroke: VOICE_COL, 'stroke-width': 16, 'stroke-opacity': 0.12, 'stroke-linecap': 'round' }, callG);
+  const callLine = el('path', { fill: 'none', stroke: VOICE_COL, 'stroke-width': 5, 'stroke-linecap': 'round', 'stroke-dasharray': '2 16' }, callG);
+  const callDotsG = el('g', {}, g('pk'));
+  const callLbl = el('g', { opacity: 0 }, g('chips'));
+  const callLblBg = el('rect', { rx: 16, fill: 'rgba(6,22,14,0.95)', stroke: VOICE_COL, 'stroke-width': 2.5 }, callLbl);
+  const callLblT = el('text', { fill: '#dfffe9', 'font-size': 24, 'font-weight': 800, 'text-anchor': 'middle', class: 'num' }, callLbl);
+  let callKey = '', callDots = [], lastVoice = 0, callA = 0;
+  function currentCall() {
+    if (!snap) return null;
+    const gc = snap.general;
+    if (gc && (gc.state === 'connected' || gc.state === 'ringing')) return { who: 'phone', live: gc.state === 'connected', at: gc.connectedAt, label: '일반 전화' };
+    const c = primary();
+    if (!c) return null;
+    if (c.call && (c.call.state === 'connected' || c.call.state === 'dialing')) return { who: c.call.dir === 'in' ? 'car' : 'phone', live: c.call.state === 'connected', at: c.call.connectedAt, label: c.call.dir === 'in' ? '차량 통화' : '휴대폰 통화' };
+    if (c.inbound && !c.call) return { who: 'car', live: false, label: 'MM 콜' };
+    return null;
   }
-  function tickCaption(now) {
-    if (caption && now < caption.until) {
-      capWho.textContent = caption.who === 'agent' ? 'e-Care 상담원' : `${E.CUSTOMER.name} 고객`;
-      capWho.setAttribute('fill', caption.who === 'agent' ? BLUE : '#c9d6ea');
-      const [a, b] = wrap(caption.text, 23);
-      capT1.textContent = a; capT2.textContent = b;
-    } else {
-      capWho.textContent = '상담 대화'; capWho.setAttribute('fill', '#4c5f7c');
-      capT1.textContent = ''; capT2.textContent = '';
+  function tickCall(now) {
+    const cc = currentCall();
+    callA += ((cc ? 1 : 0) - callA) * 0.12;
+    callG.setAttribute('opacity', callA.toFixed(3));
+    callLbl.setAttribute('opacity', callA.toFixed(3));
+    if (!cc) { if (callA < 0.02 && callDots.length) { callDots.forEach((d) => d.c.remove()); callDots = []; } return; }
+    const key = cc.who;
+    if (key !== callKey) {
+      callKey = key;
+      const d = path(cc.who, 'ccw').d;            // customer → agent
+      callLine.setAttribute('d', d); callGlow.setAttribute('d', d);
+      const L = callLine.getTotalLength(), m = callLine.getPointAtLength(L / 2);
+      callLbl.dataset.x = m.x; callLbl.dataset.y = m.y;
     }
+    const L = callLine.getTotalLength();
+    const speaking = caption && now < caption.until ? caption.who : null;     // 'agent' | 'customer'
+    const toAgent = speaking !== 'agent';
+    // the dashes crawl toward the listener; ringing just blinks
+    callLine.setAttribute('stroke-dashoffset', ((toAgent ? -1 : 1) * now / 28 % 18).toFixed(1));
+    callLine.setAttribute('stroke-opacity', cc.live ? 0.95 : (0.35 + 0.6 * (Math.sin(now / 160) > 0 ? 1 : 0)).toFixed(2));
+    if (cc.live && now - lastVoice > (speaking ? 240 : 650)) {
+      lastVoice = now;
+      const dir = speaking ? (speaking === 'agent' ? -1 : 1) : (Math.random() < 0.5 ? 1 : -1);
+      callDots.push({ c: el('circle', { r: speaking ? 8 : 6, fill: VOICE_COL, filter: 'url(#dot)' }, callDotsG), t0: now, dir });
+      flash(dir > 0 ? 'ccw' : cc.who, VOICE_COL, 0.3);
+    }
+    for (let i = callDots.length - 1; i >= 0; i--) {
+      const d = callDots[i];
+      const k = (now - d.t0) / 1700;
+      if (k >= 1) { d.c.remove(); callDots.splice(i, 1); continue; }
+      const pt = callLine.getPointAtLength((d.dir > 0 ? k : 1 - k) * L);
+      d.c.setAttribute('cx', pt.x); d.c.setAttribute('cy', pt.y);
+      d.c.setAttribute('opacity', (k < 0.1 ? k / 0.1 : k > 0.85 ? (1 - k) / 0.15 : 1).toFixed(2));
+    }
+    const sec = cc.live && cc.at ? Math.max(0, Math.floor((Date.now() - cc.at) / 1000)) : 0;
+    callLblT.textContent = cc.live ? `📞 ${cc.label} ${pad(Math.floor(sec / 60))}:${pad(sec % 60)}` : `📞 ${cc.label} · 연결 중…`;
+    const bb = callLblT.getBBox();
+    callLblBg.setAttribute('x', bb.x - 18); callLblBg.setAttribute('y', bb.y - 10); callLblBg.setAttribute('width', bb.width + 36); callLblBg.setAttribute('height', bb.height + 20);
+    // on the line, in the Japan-server column where nothing else sits at that height
+    const lx = 520, ly = cc.who === 'car' ? 228 : 703;
+    callLbl.setAttribute('transform', `translate(${lx},${ly - bb.y - bb.height / 2})`);
   }
 
   /* ---------------- frame ---------------- */
@@ -453,9 +548,11 @@
     }
     pump(now);
     if (snap) tickCards(Date.now());
-    tickCaption(now);
+    tickCall(now);
     requestAnimationFrame(frame);
   }
+  layoutFoot();
   requestAnimationFrame(frame);
-  setInterval(() => { if (!snap) { const t = new Date(); clock.textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`; elapsed.textContent = '00:00'; } }, 500);
+  // the clock always runs; the elapsed time only while there is a warning case
+  setInterval(() => { const t = new Date(); clock.textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`; if (!snap || !primary()) elapsed.textContent = '00:00'; }, 500);
 })();

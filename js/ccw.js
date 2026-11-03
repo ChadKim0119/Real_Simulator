@@ -41,11 +41,28 @@
   }
   tabIdentity();
 
-  /* ---------------- camera: office photo <-> monitor ---------------- */
+  /* ---------------- camera: office photo → monitor → a part of the screen ----------------
+   * Three framings: the room ('office'), the agent's monitor ('monitor') and, in
+   * the auto mode, the part of the agent screen the scenario is about ('focus':
+   * a rectangle of the 1920x960 screen). A move eases from wherever it is. */
   const stage = $('#stage');
-  const cam = { z: VIEW === 'monitor' ? 1 : 0, to: VIEW === 'monitor' ? 1 : 0, from: 0, t0: 0, dur: 0 };
+  const cam = { to: VIEW === 'monitor' ? 'monitor' : 'office', rect: null, from: null, cur: null, t0: 0, dur: 0 };
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-  function camTo(z, dur) { cam.from = cam.z; cam.to = z; cam.t0 = performance.now(); cam.dur = dur; }
+  const sameRect = (a, b) => (!a && !b) || (a && b && Math.abs(a.x - b.x) < 24 && Math.abs(a.y - b.y) < 24 && Math.abs(a.w - b.w) < 24 && Math.abs(a.h - b.h) < 24);
+  function camTo(kind, dur, rect) {
+    if (kind === cam.to && sameRect(rect, cam.rect)) return;
+    cam.from = cam.cur; cam.to = kind; cam.rect = rect || null; cam.t0 = performance.now(); cam.dur = cam.from ? dur : 0;
+  }
+  function viewOf(kind, rect, vw, vh, s0, s1) {
+    if (kind === 'office') return { s: s0, cx: IMG.w / 2, cy: IMG.h / 2 };
+    const mon = { s: s1, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 + 18 };
+    if (kind !== 'focus' || !rect) return mon;
+    // the rectangle (screen px) on the photo, filling about 80% of the view
+    const kx = SCR.w / 1920, ky = SCR.h / 960;
+    const r = { x: SCR.x + rect.x * kx, y: SCR.y + rect.y * ky, w: rect.w * kx, h: rect.h * ky };
+    const s = clamp(Math.min(vw / (r.w * 1.22), vh / (r.h * 1.3)), s1 * 1.15, s1 * 3.2);
+    return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 };
+  }
   function placeStage() {
     if (mode === 'app') {
       // the agent screen alone, filling the display (a dedicated TV)
@@ -53,24 +70,24 @@
       app.style.transform = `translate(${((innerWidth - 1920 * k) / 2).toFixed(1)}px, ${((innerHeight - 960 * k) / 2).toFixed(1)}px) scale(${k.toFixed(5)})`;
       return;
     }
-    if (cam.dur > 0) {
-      const p = clamp((performance.now() - cam.t0) / cam.dur, 0, 1);
-      cam.z = cam.from + (cam.to - cam.from) * ease(p);
-      if (p >= 1) cam.dur = 0;
-    }
     const vw = innerWidth, vh = innerHeight;
     // an upright screen (phone): the room fits the width (a blurred copy fills above
     // and below) and the monitor zooms to the width; otherwise the photo covers the view
     const tall = vw / vh < 1;
     const s0 = tall ? vw / IMG.w * 1.12 : Math.max(vw / IMG.w, vh / IMG.h);
-    // zoomed in, the monitor fills most of the view but the desk, the other
-    // screens and the office around it stay in frame
+    // the monitor fills most of the view but the desk, the other screens and the office stay in frame
     const s1 = Math.max(s0, Math.min(vw / SCR.w, vh / SCR.h) * (tall ? 0.97 : 0.74));
     document.body.classList.toggle('tall', tall);
-    const s = Math.exp(Math.log(s0) + (Math.log(s1) - Math.log(s0)) * cam.z);
-    const k = (s - s0) / (s1 - s0 || 1);
-    const cx = IMG.w / 2 + (SCR.x + SCR.w / 2 - IMG.w / 2) * k;
-    const cy = IMG.h / 2 + (SCR.y + SCR.h / 2 + 18 - IMG.h / 2) * k;
+    const target = viewOf(cam.to, cam.rect, vw, vh, s0, s1);
+    let v = target;
+    if (cam.dur > 0 && cam.from) {
+      const p = clamp((performance.now() - cam.t0) / cam.dur, 0, 1), e = ease(p);
+      const A = cam.from;
+      v = { s: Math.exp(Math.log(A.s) + (Math.log(target.s) - Math.log(A.s)) * e), cx: A.cx + (target.cx - A.cx) * e, cy: A.cy + (target.cy - A.cy) * e };
+      if (p >= 1) cam.dur = 0;
+    }
+    cam.cur = v;
+    const { s, cx, cy } = v;
     let tx = vw / 2 - cx * s, ty = vh / 2 - cy * s;
     tx = clamp(tx, Math.min(vw - IMG.w * s, 0), Math.max(vw - IMG.w * s, 0));
     ty = clamp(ty, Math.min(vh - IMG.h * s, 0), Math.max(vh - IMG.h * s, 0));
@@ -80,13 +97,13 @@
     if (stage.dataset.moving !== String(moving)) { stage.dataset.moving = String(moving); stage.style.willChange = moving ? 'transform' : 'auto'; }
     const tr = moving ? `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${s.toFixed(5)})` : `translate(${Math.round(tx)}px, ${Math.round(ty)}px) scale(${s.toFixed(5)})`;
     if (stage.style.transform !== tr) stage.style.transform = tr;
-    $('#viewBtn').textContent = cam.to > 0.5 ? '사무실 보기' : '상담원 화면';
+    $('#viewBtn').textContent = cam.to !== 'office' ? '사무실 보기' : '상담원 화면';
   }
 
   /* ---------------- link ---------------- */
   Link.on('ecare', (d) => { snap = d; render(); });
   Link.on('veh', (d) => { veh = d; lastVeh = Date.now(); });
-  Link.on('ccw-open-case', () => { if (VIEW !== 'transcript' && cam.to < 0.5 && camHold === 'auto') camTo(1, 2600); render(true); });
+  Link.on('ccw-open-case', () => { if (VIEW !== 'transcript' && cam.to === 'office' && camHold === 'auto') camTo('monitor', 2600); render(true); });
   // the control panel went back a step or reset: stop the voice, and stay quiet for
   // the rest of that call (a new call, line 0, speaks again)
   let hushed = null;
@@ -1001,13 +1018,13 @@
   const hudShow = () => { document.body.classList.add('hud-on'); clearTimeout(hudT); hudT = setTimeout(() => document.body.classList.remove('hud-on'), 4000); };
   ['pointermove', 'pointerdown', 'touchstart', 'keydown'].forEach((ev) => addEventListener(ev, hudShow, { passive: true }));
   hudShow();
-  $('#viewBtn').addEventListener('click', () => { camHold = cam.to > 0.5 ? 'office' : 'monitor'; camTo(cam.to > 0.5 ? 0 : 1, 2200); });
+  $('#viewBtn').addEventListener('click', () => { camHold = cam.to !== 'office' ? 'office' : 'monitor'; camTo(camHold, 2200); });
   $('#fsBtn').addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}));
   $('#noiseBtn').addEventListener('click', () => { unlock(); setNoise(!noise.on); });
   noiseUi();
   addEventListener('keydown', (e) => {
     if (e.target.matches && e.target.matches('textarea,input')) return;
-    if (e.code === 'KeyV') camTo(cam.to > 0.5 ? 0 : 1, 2200);
+    if (e.code === 'KeyV') { camHold = cam.to !== 'office' ? 'office' : 'monitor'; camTo(camHold, 2200); }
     if (e.code === 'KeyF') $('#fsBtn').click();
     if (e.code === 'KeyN') setNoise(!noise.on);
   });
@@ -1042,17 +1059,40 @@
     if (g && g.state !== 'ended') return true;
     return snap.cases.some((c) => now - c.at < 9000 || (c.inbound && !c.call) || (c.call && c.call.state !== 'ended' && c.call.state !== 'failed') || (c.sheet && !c.sheet.saved && c.sheet.open) || (c.assign && !c.call));
   }
+  /* what the agent screen is about now: a selector of the element to look at (auto mode) */
+  function focusTarget() {
+    if (!snap) return null;
+    const now = Date.now();
+    const c = active();
+    if (app.querySelector('.ov .pop')) return '.ov .pop';                       // call ringing, auto-assign popup
+    if (app.querySelector('.ov .dlg2')) return '.ov .dlg2';                     // consultation details
+    if (app.querySelector('.sheet:not(.closed)')) return '.sheet:not(.closed)'; // writing the memo
+    if (c && c.sheet && c.sheet.saved && now - c.sheet.saved < 9000) return '.box.hist';
+    if (c && c.dispatch >= 0 && c.dispatch < 3 && c.call && c.call.state !== 'connected') return '.box.loc';
+    if (c && c.call && c.call.state === 'connected') return c.dispatch >= 0 ? '.box.loc' : '.wpanel';
+    if (c && now - c.at < 9000 && app.querySelector('tr.hot')) return 'tr.hot';
+    return null;
+  }
+  function rectOf(sel) {
+    const e = app.querySelector(sel);
+    if (!e) return null;
+    const ar = app.getBoundingClientRect(), k = ar.width / 1920 || 1;
+    let er = e.getBoundingClientRect();
+    let r = { x: (er.left - ar.left) / k, y: (er.top - ar.top) / k, w: er.width / k, h: er.height / k };
+    if (sel === 'tr.hot') { const t = e.closest('table'); if (t) { const tr = t.getBoundingClientRect(); r = { x: (tr.left - ar.left) / k, y: r.y - 60, w: tr.width / k, h: r.h + 220 }; } }
+    if (r.w < 20 || r.h < 20) return null;
+    return r;
+  }
   function camPolicy() {
     if (mode !== 'office') return;
-    let z;
-    if (camHold === 'office') z = 0;
-    else if (camHold === 'monitor') z = 1;
-    else {
-      const b = busy();
-      if (b) quietSince = 0; else if (!quietSince) quietSince = Date.now();
-      z = b || Date.now() - quietSince < 4000 ? 1 : 0;
-    }
-    if (cam.to !== z && !cam.dur) camTo(z, z ? 2400 : 2800);
+    if (camHold === 'office' || camHold === 'monitor') { camTo(camHold, 2400); return; }
+    const b = busy();
+    if (b) quietSince = 0; else if (!quietSince) quietSince = Date.now();
+    if (!b && Date.now() - quietSince >= 4000) { camTo('office', 2800); return; }
+    const sel = focusTarget();
+    const r = sel && rectOf(sel);
+    if (r) camTo('focus', cam.to === 'focus' ? 1600 : 2400, r);
+    else camTo('monitor', 2400);
   }
   if (!camLocked) {
     Link.on('ccw-cam', (d) => {
@@ -1060,8 +1100,7 @@
       if (v === 'screen') { setMode('app'); return; }
       setMode('office');
       camHold = v === 'office' || v === 'monitor' ? v : 'auto';
-      if (camHold !== 'auto') camTo(camHold === 'monitor' ? 1 : 0, 2400);
-      else camPolicy();
+      camPolicy();
     });
     Link.send('ccw-hello', {});
   }

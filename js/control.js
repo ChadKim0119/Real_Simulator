@@ -33,6 +33,9 @@
   // the call-center room camera (office photo ↔ monitor ↔ screen only), kept for new screens
   let ccwCam = localStorage.getItem('control-ccwcam') || 'auto';
   Link.on('ccw-hello', () => Link.send('ccw-cam', { view: ccwCam }));
+  // the data flow panel's detailed log (folded by default)
+  let flowLog = false;
+  Link.on('flow-log', (d) => { flowLog = !!d.open; if (mtab === 'wall') manual(); });
   Link.on('@transport', linkText);
   Link.send('hello', { screen: 'control' });
   function linkText() { $('#link').textContent = `● ${Link.label()}`; }
@@ -238,6 +241,7 @@
         + chunk('일반 전화 (경고 없음)', b('data-a="inbound"', '고객 전화 오기') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))],
       wall: ['장면 · 화면', chunk('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join(''))
         + chunk('시연 화면 비율', b('data-wmode="21"', '21:9') + b('data-wmode="169"', '16:9'))
+        + chunk('데이터 흐름', b('data-flowlog', flowLog ? '상세 흐름 접기' : '상세 흐름 펼치기'))
         + chunk('시연 화면 배치', b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))
         + chunk('점검 · 열기', b('data-identify', '화면 번호 표시') + ['wall.html:시연 화면 열기', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))],
     };
@@ -281,6 +285,7 @@
     else if (d.scene) { send('scene', d.scene); manualState(); }
     else if ('identify' in d) Link.send('stage-identify', {});
     else if (d.cam) { camView = d.cam; Link.send('cam', { view: d.cam }); manualState(); }
+    else if ('flowlog' in d) { flowLog = !flowLog; Link.send('flow-log', { open: flowLog }); manual(); }
     else if (d.ccwcam) { ccwCam = d.ccwcam; localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: ccwCam }); manualState(); }
     else if (d.wmode) setWall({ mode: d.wmode });
     else if ('wedit' in d) setWall({ edit: !wall.edit });

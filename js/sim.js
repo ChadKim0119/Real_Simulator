@@ -285,6 +285,8 @@
   function stop() {
     audio.unlock();
     if (st.mode === 'accel' || st.mode === 'cruise') {
+      // pulling over while on the phone with the agent: the driver always puts the hazards on
+      if (onCall()) setHazard(true);
       st.mode = 'brake';
       st.cruise = false;
       cam.zoomAt = null;
@@ -514,8 +516,14 @@
   alive();
   setInterval(alive, 3000);
   // the customer has pulled over on the shoulder by the time the agent calls
-  director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차 · e-Care 상담센터 발신'); } };
-  director.hooks.stop = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); toast('고객 차량 갓길 정차'); } };
+  // a call with the e-Care agent in progress (the vehicle's case or a general call)
+  function onCall() {
+    const g = director.general;
+    if (g && (g.state === 'connected' || g.state === 'ringing')) return true;
+    return director.cases.some((c) => c.call && (c.call.state === 'connected' || c.call.state === 'dialing'));
+  }
+  director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); setHazard(true); toast('고객 차량 갓길 정차 · 비상등 · e-Care 상담센터 발신'); } };
+  director.hooks.stop = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); setHazard(true); toast('고객 차량 갓길 정차 · 비상등'); } };
   // hazard lights: on when the call says the customer switched them on (director), or from
   // the control panel; both turn arrows on the cluster, the console button and the relay tick
   const HAZ_BTN = { x: 1452, y: 491, w: 40, h: 48 };
