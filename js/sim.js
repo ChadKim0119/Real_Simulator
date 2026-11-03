@@ -641,16 +641,17 @@
    * passes the driver's window and pulls up in front of the car. It stays there, light
    * bar flashing, until the call is over; then the view closes back onto the dashboard.
    * plate: where the photo (IMG px) sits in the clip (clip px per photo px). */
-  // two filmed parts: the approach (A) up to switchAt, then the stop (B, which starts on that very
-  // frame): the truck pulls up right in front, then stays with its lights flashing while traffic
-  // keeps passing — B's tail from loopFrom repeats with a cross-fade for as long as the scene holds
-  const RESCUE = { src: 'assets/rescue_arrive.mp4', srcB: 'assets/rescue_stop.mp4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, switchAt: 5.0, stoppedAt: 2.0, loopFrom: 2.2, fade: 0.7, playDelay: 1.6, hold: 12 };
+  // three filmed parts: the approach (A) up to switchAt; the stop (B, which starts on that very
+  // frame): the truck straightens out right in front of the car and lowers its flatbed; then the
+  // parked truck (C, first frame = last frame = B's end) looping for as long as the scene holds —
+  // light bar flashing, traffic passing in the other lanes
+  const RESCUE = { src: 'assets/rescue_arrive.mp4', srcB: 'assets/rescue_stop.mp4', srcC: 'assets/rescue_hold.mp4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, switchAt: 5.6, stoppedAt: 2.4, playDelay: 1.6, hold: 12 };
   const rescueEl = document.createElement('div');
   rescueEl.id = 'rescue';
   rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vb" muted playsinline preload="auto"></video><video class="vb" muted playsinline preload="auto"></video><i class="bar"></i></div><div class="cap">긴급출동 차량 도착</div>';
   document.body.appendChild(rescueEl);
   const [rVid, rB1, rB2] = rescueEl.querySelectorAll('video'), rFrame = rescueEl.querySelector('.frame'), rBg = rescueEl.querySelector('.bg');
-  rVid.src = RESCUE.src; rB1.src = RESCUE.srcB; rB2.src = RESCUE.srcB;
+  rVid.src = RESCUE.src; rB1.src = RESCUE.srcB; rB2.src = RESCUE.srcC; rB2.loop = true;
   const rAll = [rVid, rB1, rB2];
   const rShow = (v) => { rAll.forEach((x) => { x.style.opacity = x === v ? 1 : 0; x.style.zIndex = x === v ? 2 : 1; }); };
   let rescue = null;      // { phase: pull | fade | widen | hold | narrow | out, t0, stopped }
@@ -710,16 +711,9 @@
       if (R.onB) {
         const cur = R.onB;
         if (!R.stopped && cur === rB1 && cur.currentTime >= RESCUE.stoppedAt) { R.stopped = now(); rescueEl.classList.add('stopped', 'capon'); }
-        // the parked truck, lights flashing, traffic passing: B's tail again, cross-faded
-        if (!R.xf && cur.duration && cur.currentTime >= cur.duration - RESCUE.fade - 0.05) {
-          const nx = cur === rB1 ? rB2 : rB1;
-          nx.currentTime = RESCUE.loopFrom; nx.play().catch(() => {});
-          nx.style.zIndex = 3; R.xf = { from: cur, to: nx, t0: now() };
-        }
-        if (R.xf) {
-          const k = clamp((now() - R.xf.t0) / RESCUE.fade, 0, 1);
-          R.xf.to.style.opacity = k.toFixed(3);
-          if (k >= 1) { R.xf.from.pause(); R.onB = R.xf.to; rShow(R.xf.to); R.xf = null; }
+        // parked: the seamless loop takes over on the stop clip's last frame
+        if (cur === rB1 && (rB1.ended || (rB1.duration && rB1.currentTime >= rB1.duration - 0.04)) && rB2.readyState >= 2) {
+          R.onB = rB2; rB2.currentTime = 0; rB2.play().catch(() => {}); rShow(rB2); rB1.pause();
         }
       }
       if (R.stopped && now() - R.stopped > 4) rescueEl.classList.remove('capon');
