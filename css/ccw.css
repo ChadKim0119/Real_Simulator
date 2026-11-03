@@ -5,6 +5,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0c0e; fon
 
 /* ---------- office scene ---------- */
 #viewport { position: fixed; inset: 0; overflow: hidden; background: #0b0c0e; }
+/* upright phone: the room is narrower than the screen, a dim blurred copy fills around it */
+body.tall #viewport::before { content: ''; position: absolute; inset: -40px; background: url(../assets/ccw_office.webp) center / cover; filter: blur(22px) brightness(0.4); }
+body.tall #stage { z-index: 1; }
 #stage { position: absolute; left: 0; top: 0; width: 1344px; height: 752px; transform-origin: 0 0; will-change: transform; }
 #office { position: absolute; inset: 0; width: 1344px; height: 752px; user-select: none; }
 /* the monitor's light falling on the desk and keyboard */
@@ -24,13 +27,14 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0c0e; fon
 }
 
 /* ---------- hud ---------- */
-#hud { position: fixed; right: 14px; bottom: 14px; display: flex; gap: 8px; align-items: center; z-index: 20; opacity: 0.35; transition: opacity 0.2s; }
-#hud:hover { opacity: 1; }
-#hud button, #hud span { font: 500 12px "Noto Sans KR", sans-serif; color: #e8ebef; background: rgba(20, 22, 26, 0.8); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 7px 11px; cursor: pointer; }
+/* demo buttons: shown on a touch or the pointer, gone after a few seconds */
+#hud { position: fixed; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); max-width: calc(100vw - 28px); display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; align-items: center; z-index: 20; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+body.hud-on #hud { opacity: 0.9; pointer-events: auto; }
+#hud button, #hud span { white-space: nowrap; font: 500 12px "Noto Sans KR", sans-serif; color: #e8ebef; background: rgba(20, 22, 26, 0.8); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 7px 11px; cursor: pointer; }
 #hud #sound.on { display: none; }
 #hud #conn { cursor: default; }
 #hud #noiseBtn.off { color: #ffb46b; }
-body.view-app #hud { right: auto; left: 14px; flex-direction: column; align-items: flex-start; }
+body.view-app #hud { background: rgba(0, 0, 0, 0.35); padding: 6px; border-radius: 12px; }
 body.view-app #office, body.view-app #deskGlow, body.view-app #glassFx, body.view-app #viewBtn { display: none; }
 body.view-app #stage { transform: none !important; width: 100vw; height: 100vh; }
 body.view-app #screen { position: fixed; inset: 0; width: 100vw; height: 100vh; background: #000; }

@@ -49,10 +49,14 @@
       if (p >= 1) cam.dur = 0;
     }
     const vw = innerWidth, vh = innerHeight;
-    const s0 = Math.max(vw / IMG.w, vh / IMG.h);
+    // an upright screen (phone): the room fits the width (a blurred copy fills above
+    // and below) and the monitor zooms to the width; otherwise the photo covers the view
+    const tall = vw / vh < 1;
+    const s0 = tall ? vw / IMG.w * 1.12 : Math.max(vw / IMG.w, vh / IMG.h);
     // zoomed in, the monitor fills most of the view but the desk, the other
     // screens and the office around it stay in frame
-    const s1 = Math.max(s0, Math.min(vw / SCR.w, vh / SCR.h) * 0.74);
+    const s1 = Math.max(s0, Math.min(vw / SCR.w, vh / SCR.h) * (tall ? 0.97 : 0.74));
+    document.body.classList.toggle('tall', tall);
     const s = Math.exp(Math.log(s0) + (Math.log(s1) - Math.log(s0)) * cam.z);
     const k = (s - s0) / (s1 - s0 || 1);
     const cx = IMG.w / 2 + (SCR.x + SCR.w / 2 - IMG.w / 2) * k;
@@ -983,6 +987,10 @@
   keepAwake();
 
   /* ---------------- controls ---------------- */
+  let hudT = 0;
+  const hudShow = () => { document.body.classList.add('hud-on'); clearTimeout(hudT); hudT = setTimeout(() => document.body.classList.remove('hud-on'), 4000); };
+  ['pointermove', 'pointerdown', 'touchstart', 'keydown'].forEach((ev) => addEventListener(ev, hudShow, { passive: true }));
+  hudShow();
   $('#viewBtn').addEventListener('click', () => { camHold = cam.to > 0.5 ? 'office' : 'monitor'; camTo(cam.to > 0.5 ? 0 : 1, 2200); });
   $('#fsBtn').addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}));
   $('#noiseBtn').addEventListener('click', () => { unlock(); setNoise(!noise.on); });
