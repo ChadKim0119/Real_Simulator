@@ -78,12 +78,13 @@
   }
   // text that matters on each panel, in the page's own design pixels
   // car: sizes in the photo's pixels at the overview; zoomed views enlarge them
+  // 'cap': the step caption over the CCW / DMS panel, sized to the panel (2.4% of its width, 14–40 px)
   const TEXT = {
     car: [['계기판 속도 (확대 시)', 120], ['HU 팝업 문구 (HU 확대 시)', 27]],
-    flow: [['상자 이름', 32], ['통화 표시', 24], ['로그 · 패킷 라벨', 22]],
-    ccw: [['팝업 제목', 18], ['화면 본문', 13], ['표 글자', 11]],
+    flow: [['진행 단계 설명 (레일 아래)', 31], ['상자 이름', 32], ['메시지 라벨', 26], ['통화 표시', 24]],
+    ccw: [['단계 자막', 0, 'cap'], ['팝업 제목 (확대 시)', 18], ['화면 본문 (확대 시)', 13]],
     talk: [['대화 말풍선', 22], ['보조 글자', 14]],
-    dms: [['차량번호', 24], ['SLA · 단계 정보', 13], ['표 글자', 14]],
+    dms: [['단계 자막', 0, 'cap'], ['차량번호 (확대 시)', 24], ['SLA · 단계 정보 (확대 시)', 13]],
   };
   // zoom of the car panel's camera for a row (cluster ≈ 3.4x the overview, the HU screen ≈ 0.26 x 4.1)
   const CAR_ZOOM = [3.4 * 0.42, 0.255 * 4.1];
@@ -93,8 +94,9 @@
       const [, , w, h] = L[k];
       const d = PANELS[k].design;
       const scale = d ? Math.min(w / d[0], h / d[1]) : 1;
-      const rows = TEXT[k].map(([what, px], i) => {
-        const cm = px * scale * (k === 'car' ? CAR_ZOOM[i] : 1) * p.px * 100;
+      const rows = TEXT[k].map(([what, px0, kind], i) => {
+        const px = kind === 'cap' ? Math.round(Math.max(14, Math.min(40, w * 0.024))) : px0;
+        const cm = kind === 'cap' ? px * p.px * 100 : px * scale * (k === 'car' ? CAR_ZOOM[i] : 1) * p.px * 100;
         const v = cm / 100 >= good() ? 'ok' : cm / 100 >= need() ? 'mid' : 'bad';
         return { what, px, cm, v };
       });
@@ -243,8 +245,8 @@
     <div class="g"><b>비율이 다를 때</b><p>디스플레이 비율이 모드(21:9 · 16:9)와 조금 다르면 위아래나 좌우에 검은 여백이 생깁니다. 배치 편집(<code>wall.html</code>에서 E): 경계선을 끌면 옆 패널이 함께 줄고, 패널을 끌어 자리를 바꿉니다.</p></div>`;
   const CHECKS = [
     ['연결 · 신호', ['맥이 인식하는 해상도 · 비율 기록', '패턴의 원이 동그랗다 (늘어남 없음)', '네 모서리 · 노란 점선 · 패널 테두리가 다 보임', '흰 막대가 왼쪽 끝에서 오른쪽 끝까지 끊김 없이 지나감', '색 막대 · 회색 단계 구분됨']],
-    ['구성 · 가독성', ['패널 배치 확정 (필요하면 배치 편집)', '맨 뒷줄에서 HU · 흐름 자막 읽힘', '맨 뒷줄에서 흐름 상자 이름 읽힘', '상담원 화면(CCW)에서 보여 줄 부분이 보임', '조명 아래 밝기 · 반사']],
-    ['소리 · 진행', ['왼쪽 · 오른쪽 톤 위치 맞음', '상담원 · 고객 음성 크기 적당', '컨트롤 패널 연결 (같은 PC 또는 릴레이)', '① 인바운드 시나리오 끝까지', '② 아웃바운드 시나리오 끝까지']],
+    ['구성 · 가독성', ['패널 배치 확정 (5개 · 필요하면 배치 편집)', '맨 뒷줄에서 데이터 흐름 진행 단계 · 설명 읽힘', '맨 뒷줄에서 CCW · DMS 단계 자막 읽힘', 'CCW · DMS 확대 화면에서 보여 줄 부분이 보임', '조명 아래 밝기 · 반사']],
+    ['소리 · 진행', ['왼쪽 · 오른쪽 톤 위치 맞음', '상담원 · 고객 음성 크기 적당', '컨트롤 패널 연결 (같은 PC 또는 릴레이)', '① 인바운드: 여성 운전자 손 → 통화 → 긴급출동 차량 정차 · 경광등', '① 이어서 DMS 컨택 · 예약 확정 → 입고 → 정비 → 종결', '② 아웃바운드 시나리오 끝까지']],
   ];
 
   function renderConsole() {
