@@ -404,6 +404,19 @@
       this.sub(34.65, 0.9, 0.13, 0.5, 3.8);
     }
 
+    /* The e-Care task is complete: a low swell, a broad D-flat chord that opens slowly,
+     * a rising fifth in quiet bells and a soft low gong under the check mark. */
+    finale() {
+      if (!this.ctx) return;
+      this.sub(34.65, 0, 0.17, 1.4, 7.5);
+      this.pad([[69.3, 1], [103.8, 0.8], [138.6, 0.75], [174.6, 0.55], [207.7, 0.5], [277.2, 0.35]], 0.2, { attack: 1.8, hold: 2.2, release: 4.2, level: 0.075, lp: [160, 1700], sweep: 2.6 });
+      this.pad([[349.2, 0.45], [415.3, 0.4], [554.4, 0.3]], 1.6, { attack: 1.4, hold: 1.4, release: 3.6, level: 0.026, lp: [500, 2600], sweep: 1.8 });
+      this.softBell(415.3, 1.2, 0.028, 3.6);
+      this.softBell(554.4, 1.75, 0.03, 3.8);
+      this.softBell(830.6, 2.5, 0.024, 4.2);                                  // as the check is drawn
+      this.softBell(69.3, 2.5, 0.06, 5.5);                                    // low gong
+    }
+
     stopRepeat() {
       if (this.repeat) { clearInterval(this.repeat); this.repeat = null; }
     }

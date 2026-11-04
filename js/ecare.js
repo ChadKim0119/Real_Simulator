@@ -60,7 +60,7 @@
     // WNG case grades: A Malfunction = 긴급, B Maintenance = 경고, C Notification = 알림
     A: { label: '긴급', en: 'Malfunction', kind: '주행불가', owner: 'e-Care 고객지원실', sla: 25 * 60 * 1000, slaText: '25분' },
     B: { label: '경고', en: 'Maintenance', kind: '주행가능 · 점검 필요', owner: '서비스센터 (DMS)', sla: 24 * 3600 * 1000, slaText: '1일' },
-    C: { label: '알림', en: 'Notification', kind: '정비 안내', owner: '서비스센터 · 고객 (DMS · App/MM)', sla: 7 * 24 * 3600 * 1000, slaText: '7일' },
+    C: { label: '알림', en: 'Notification', kind: '정비 안내', owner: '서비스센터 · 고객 (DMS · App/헤드유닛)', sla: 7 * 24 * 3600 * 1000, slaText: '7일' },
   };
 
   const CUSTOMER = { name: '김지현', phone: '010-1234-5678', grade: 'Lexus Premium' };
@@ -270,14 +270,14 @@
         ['vdp', 'vep', 'VDP 이벤트', 'WNG 이벤트 전달 (VDP → TSP)', { messageId: String(Date.now()).slice(-10), wngInfo: [info] }],
         ['vep', 'vep', '필터 검사', 'VIN · 정비 · 중복 필터 통과', { vinFilter: 'pass', maintenanceFilter: 'pass', duplicateFilter: 'pass' }, 650],
         ['vep', 'vep', 'Case 판정', `WNG master ${wng.code} → ${CASE[wng.case].label}(Case ${wng.case}) · ${CASE[wng.case].kind}`, { dataLabel: wng.code, warningName: wng.name, case: wng.case, owner: CASE[wng.case].owner, source: wng.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master v8.2' }, 700],
-        ['vep', 'wam', '그룹 ID', `workflowId 발급 · ${group.slice(0, 8)}`, { workflowId: group, case: wng.case }],
+        ['vep', 'wam', 'Case 전달', `${CASE[wng.case].label}(Case ${wng.case}) → 업무 흐름 시작`, { case: wng.case }],
       ];
       if (wng.case === 'A') steps.push(['wam', 'ccw', 'e-Care 이벤트', 'CCW 긴급 케이스 등록 · 인바운드 대기 25:00', { caseId: id, workflowId: group, case: 'A' }]);
       steps.push(
         ['wam', 'dms', 'WAM-EVT-001', `경고 이벤트 전달 · ${CASE[wng.case].label}`, { workflowId: group, vin: VEHICLE.vin, wngInfo: [{ wngId: wng.code, wngName: wng.name, grade: wng.case }] }, 300],
         ['wam', 'dms', 'WAM-SLA-001', `SLA 기준 전달 · ${CASE[wng.case].slaText}`, { workflowId: group, case: wng.case, thresholdMinutes: CASE[wng.case].sla / 60000 }, 300],
-        ['wam', 'vdp', '고객 알림', wng.case === 'A' ? 'MM 팝업 "고객 지원실로 연결하시겠습니까?" · 앱 푸시' : 'MM 팝업 "지정된 서비스센터로 연결하시겠습니까?" · 앱 푸시', { channel: ['MM', 'Global App'], case: wng.case }, 300],
-        ['vdp', 'car', 'MM 알림', 'HU 경고 팝업 표시', null, 400],
+        ['wam', 'vdp', '고객 알림', wng.case === 'A' ? '헤드유닛 팝업 "고객 지원실로 연결하시겠습니까?" · 앱 푸시' : '헤드유닛 팝업 "지정된 서비스센터로 연결하시겠습니까?" · 앱 푸시', { channel: ['헤드유닛', 'Global App'], case: wng.case }, 300],
+        ['vdp', 'car', '헤드유닛 알림', 'HU 경고 팝업 표시', null, 400],
         ['vdp', 'phone', '앱 푸시', '고객 앱 경고 알림', null, 0],
       );
       this.flow(c, steps);
@@ -369,6 +369,7 @@
         case 'dmsStop': return this.dmsStopCase(this.find(args.id), args.reason);
         case 'dmsAdvance': { const k = args.id && this.find(args.id); return this.dmsAdvance(k && k.dms >= 0 ? k : this.cases.find((x) => x.dms >= 0 && !x.dmsStop && x.dms < 7)); }
         case 'accept': return this.accept(c);
+        case 'finishCall': return this.finishCall(c);
         case 'hangup': if (this.general && this.general.state === 'connected') return this.endGeneral(); return this.hangup(c);
         case 'hold': if (c && c.call) { c.call.hold = !c.call.hold; this.publish(); } return;
         case 'redial': return this.redial(c);
@@ -419,9 +420,9 @@
         c.inbound = { at: Date.now(), agent: idle.id };
         c.agent = idle.id;
         c.assign = null;
-        this.log(c, `고객 인바운드 콜 (MM 콜 · CTI) · ${CUSTOMER.phone} → ${idle.name} 상담원`, 'call');
+        this.log(c, `고객 인바운드 콜 (헤드유닛 콜 · CTI) · ${CUSTOMER.phone} → ${idle.name} 상담원`, 'call');
         this.flow(c, [
-          ['car', 'cti', 'MM 콜', 'HU [전화연결] · 인바운드 콜', { from: 'MM', vin: VEHICLE.vin }, 0],
+          ['car', 'cti', '헤드유닛 콜', 'HU [전화연결] · 인바운드 콜', { from: '헤드유닛', vin: VEHICLE.vin }, 0],
           ['cti', 'ccw', '콜 배정', `유휴 상담원 ${idle.name} 자동 할당 · 전화 수신 팝업`, { agent: idle.name }],
           ['cti', 'wam', '자동 할당 취소', '인바운드 발생 → 25분 아웃바운드 배정 취소', null],
         ]);
@@ -526,7 +527,7 @@
       // the car pulls over during the call when the script says so
       if (this.hooks.accept && !this.setFor('in').some((l) => l.stop)) this.hooks.accept(c);
       this.log(c, `${agent.name} 상담원 수신 · 통화 연결 (인바운드)`, 'call');
-      this.flow(c, [['ccw', 'cti', '수신', '상담원 응답 · 통화 연결 (녹취)', null, 0], ['cti', 'car', '음성', '차량 MM ↔ 상담원 통화', null]]);
+      this.flow(c, [['ccw', 'cti', '수신', '상담원 응답 · 통화 연결 (녹취)', null, 0], ['cti', 'car', '음성', '차량 헤드유닛 ↔ 상담원 통화', null]]);
       this.publish();
       this.nextLine(c, 0, this.setFor('in'));
     }
@@ -607,6 +608,7 @@
         return;
       }
       call.line = i;
+      call.script = script;
       call.lines.push({ ...script[i], t: Date.now() });
       this.publish();
       Link.send('say', { caseId: c.id, line: script[i], index: i });
@@ -617,6 +619,23 @@
       if (script[i].arrive) this.arrive(c);
       if (this.hooks.hazard && hazardOn(script, i)) this.hooks.hazard(c, true);
       this.after(script[i].dur * 1000 + 700, () => { if (c.call === call) this.nextLine(c, i + 1, script); });
+    }
+
+    /** The presenter moves on during a call: the rest of the conversation is settled at
+     *  once (its lines go to the transcript, its stop / dispatch flags take effect) and the
+     *  call ends; the voice is cut by the control panel. */
+    finishCall(c) {
+      const call = c && c.call;
+      if (!call || call.state !== 'connected') return;
+      const script = call.script || [];
+      for (let i = (call.line == null ? -1 : call.line) + 1; i < script.length; i++) {
+        call.lines.push({ ...script[i], t: Date.now() });
+        if (script[i].stop && this.hooks.stop) this.hooks.stop(c);
+        if (this.hooks.hazard && hazardOn(script, i)) this.hooks.hazard(c, true);
+      }
+      call.line = script.length;
+      this.dispatch(c, true);
+      this.hangup(c);
     }
 
     hangup(c) {
@@ -674,7 +693,7 @@
     dispatchStep(c, k, text) {
       if (c.dispatch >= k) return;
       c.dispatch = k; this.log(c, text, 'alert'); this.publish();
-      this.flow(c, [['rescue', 'ccw', '출동 상태', `${DISPATCH[k]}`, { status: DISPATCH[k] }, 0], ...(k === 1 ? [['ccw', 'car', 'MM 알림', '긴급출동 차량 출발 · 곧 도착', null]] : [])]);
+      this.flow(c, [['rescue', 'ccw', '출동 상태', `${DISPATCH[k]}`, { status: DISPATCH[k] }, 0], ...(k === 1 ? [['ccw', 'car', '헤드유닛 알림', '긴급출동 차량 출발 · 곧 도착', null]] : [])]);
     }
 
     /** The truck comes into view: the car panel pulls back and shows it pass the driver's window. */

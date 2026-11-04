@@ -1,11 +1,13 @@
 /* One-screen demo wall (wall.html): the car (cockpit with the head unit in
- * the centre display), the data flow, the conversation and the support center
- * (CCW) as four tiled panels, for a 21:9 (2560x1080) or 16:9 (1920x1080)
- * display. The mode is chosen on a first screen (or ?mode=21 / ?mode=169),
+ * the centre display), the data flow, the support center (CCW), the service
+ * center DMS and the conversation as five tiled panels, for a 21:9 (2560x1080),
+ * 16:9 (1920x1080) or 63:9 (7560x1080) display. The mode is chosen on a first
+ * screen (or ?mode=21 / 169 / 63),
  * and can be changed from the top bar or the control panel.
  *
  *   E  edit layout: drag a split to resize (neighbours give way, splits snap
- *      to each panel's own ratio), drag a panel onto another to swap, R reset
+ *      to each panel's own ratio), drag a panel onto another to swap (the
+ *      splits then move so both keep their ratio), R reset
  *   M  screen mode   L  labels   F  full screen
  *
  * The car panel runs the vehicle and the e-Care director, so open one wall
@@ -35,7 +37,7 @@
     const p = document.createElement('div');
     p.className = 'panel';
     p.dataset.k = k;
-    p.innerHTML = `<span class="tag">${esc(PANELS[k].t)}</span><div class="grab"><b>${esc(PANELS[k].t)}</b><small></small><em>끌어서 다른 패널과 자리 바꾸기</em></div>`;
+    p.innerHTML = `<span class="tag">${esc(PANELS[k].t)}</span><div class="grab"><b>${esc(PANELS[k].t)}</b><small></small></div>`;
     host.appendChild(p);
     frames[k] = p;
   }
@@ -48,13 +50,16 @@
       frames[k].prepend(f);
     }
   }
-  // split handles (edit mode): the outer split and one inner split per part
-  for (const k of ['o', 'i0', 'i1', 'i2']) {
+  // split handles (edit mode): one per cut of the layout tree, made as needed
+  const handles = {};
+  function handle(id) {
+    if (handles[id]) return handles[id];
     const d = document.createElement('div');
     d.className = 'split';
-    d.dataset.s = k;
+    d.dataset.s = id;
     d.innerHTML = '<i></i><span class="badge"></span>';
     host.appendChild(d);
+    return (handles[id] = d);
   }
 
   let scale = 1;
@@ -65,7 +70,6 @@
     ratioNotice();
   }
   const ratioText = (w, h) => `${(w / h).toFixed(2)}:1`;
-  const cols = () => L.dir === 'cols';
   function place() {
     const R = D.rects(L, mode || '21');
     for (const k in frames) {
@@ -75,12 +79,16 @@
       const ok = !ideal || Math.abs(w / h - ideal) / ideal < 0.04;
       $('small', frames[k]).innerHTML = `${w} × ${h} · ${ratioText(w, h)}${ideal ? ` <span class="${ok ? 'ok' : 'off'}">권장 ${ratioText(ideal, 1)} ${ok ? '✓' : ''}</span>` : ''}`;
     }
-    const [o, a, b, c2] = host.querySelectorAll('.split');
-    const V = (el, x, y, h) => { el.className = 'split v'; Object.assign(el.style, { left: `${x - 9}px`, top: `${y}px`, width: '18px', height: `${h}px` }); };
-    const Hh = (el, x, y, w) => { el.className = 'split h'; Object.assign(el.style, { left: `${x}px`, top: `${y - 9}px`, width: `${w}px`, height: '18px' }); };
-    if (L.dir === 'wide') { V(a, L.i0, 0, H); V(b, L.i1, 0, H); V(o, L.o, 0, H); Hh(c2, L.o, L.i2, W - L.o); }
-    else if (cols()) { V(o, L.o, 0, H); Hh(a, 0, L.i0, L.o); Hh(b, L.o, L.i1, W - L.o); V(c2, L.i2, L.i0, H - L.i0); }
-    else { Hh(o, 0, L.o, W); V(a, L.i0, 0, L.o); V(b, L.i1, L.o, H - L.o); V(c2, L.i2, L.o, H - L.o); }
+    const C = D.cuts(L, mode || '21'), live = new Set();
+    for (const c of C) {
+      const el = handle(c.id);
+      live.add(c.id);
+      const [x0, y0, x1, y1] = c.r;
+      el.style.display = '';
+      if (c.d === 'x') { el.className = 'split v'; Object.assign(el.style, { left: `${c.at - 9}px`, top: `${y0}px`, width: '18px', height: `${y1 - y0}px` }); }
+      else { el.className = 'split h'; Object.assign(el.style, { left: `${x0}px`, top: `${c.at - 9}px`, width: `${x1 - x0}px`, height: '18px' }); }
+    }
+    for (const id in handles) if (!live.has(id)) handles[id].style.display = 'none';
   }
   function render() {
     fit();
@@ -90,7 +98,7 @@
     $('[data-edit]').classList.toggle('on', edit);
     $('[data-labels]').classList.toggle('on', labels);
     $('[data-mode]').textContent = `화면 ${MODES[mode || '21'].name}`;
-    $('#hint').textContent = edit ? '경계선을 끌어 크기 조절 (옆 패널이 함께 줄어듦 · 권장 비율에 자석처럼 붙음) · 패널을 끌어 자리 바꾸기 · R 기본 배치 · E 끝내기' : `${MODES[mode || '21'].name} · M 화면 모드 · E 배치 편집 · L 라벨 · F 전체화면`;
+    $('#hint').textContent = edit ? 'R 기본 배치 · E 끝내기' : `${MODES[mode || '21'].name} · M 화면 모드 · E 배치 편집 · L 라벨 · F 전체화면`;
   }
   addEventListener('resize', fit);
 
@@ -127,6 +135,7 @@
     document.body.classList.remove('modes-open');
     loadPages();
     render();
+    if (typeof sceneRender === 'function' && scene !== 'live') sceneRender();
     if (!quiet && changed) Link.send('wall', { mode: m });
   }
   // the first screen: pick 21:9, 16:9 or 63:9 (a miniature of each layout, the detected screen)
@@ -148,34 +157,31 @@
   /* ---------------- editing: splits ---------------- */
   // positions of a split where a panel next to it reaches its own ratio (found
   // numerically for any layout), and the line of the other part's inner split
-  // does split k move along x, and how far may it go (63:9: the column splits keep their order)
-  const horizOf = (k) => (L.dir === 'wide' ? k !== 'i2' : k === 'o' ? cols() : k === 'i2' ? true : !cols());
-  function bounds(k) {
-    if (L.dir === 'wide') {
-      if (k === 'i0') return [MIN, L.i1 - MIN];
-      if (k === 'i1') return [L.i0 + MIN, L.o - MIN];
-      if (k === 'o') return [L.i1 + MIN, W - MIN];
-      return [MIN, H - MIN];
-    }
-    return [MIN, (horizOf(k) ? W : H) - MIN];
-  }
-  function magnets(k) {
-    const [lo, hi] = bounds(k);
-    const ratios = (v) => { const T = Object.assign({}, L, { [k]: v }); const R = D.rects(T, mode); return Object.keys(R).map((p) => [p, R[p][2] / R[p][3]]); };
+  // positions of a cut where a panel next to it reaches its own ratio (found
+  // numerically), and the other cuts along the same axis to line up with
+  const cutOf = (id) => D.cuts(L, mode).find((c) => c.id === id);
+  function magnets(id) {
+    const c = cutOf(id);
+    if (!c) return [];
+    const n = c.node, keep = n.at;
+    const ratios = () => { const R = D.rects(L, mode); return Object.keys(R).map((p) => [p, R[p][2] / R[p][3]]); };
     const out = [];
-    let prev = ratios(lo);
-    for (let v = lo + 4; v <= hi; v += 4) {
-      const cur = ratios(v);
+    n.at = c.lo;
+    let prev = ratios();
+    for (let v = c.lo + 4; v <= c.hi; v += 4) {
+      n.at = v;
+      const cur = ratios();
       cur.forEach(([p, r], i) => {
-        const id = PANELS[p].ideal;
-        if (!id) return;
-        const a = prev[i][1] - id, b = r - id;
+        const idl = PANELS[p].ideal;
+        if (!idl) return;
+        const a = prev[i][1] - idl, b = r - idl;
         if (a === b || Math.sign(a) === Math.sign(b)) return;
-        out.push({ v: v - 4 + 4 * (a / (a - b)), label: `${PANELS[p].t} ${ratioText(id, 1)}` });
+        out.push({ v: v - 4 + 4 * (a / (a - b)), label: `${PANELS[p].t} ${ratioText(idl, 1)}` });
       });
       prev = cur;
     }
-    if (L.dir !== 'wide' && (k === 'i0' || k === 'i1')) out.push({ v: k === 'i0' ? L.i1 : L.i0, label: '다른 줄과 정렬' });
+    n.at = keep;
+    for (const o of D.cuts(L, mode)) if (o.id !== id && o.d === c.d && o.at > c.lo && o.at < c.hi) out.push({ v: o.at, label: '다른 경계와 정렬' });
     return out;
   }
   let drag = null;
@@ -195,14 +201,15 @@
     const r = canvas.getBoundingClientRect();
     const cx = (e.clientX - r.left) / scale, cy = (e.clientY - r.top) / scale;
     if (drag.split) {
-      const k = drag.split;
-      const horiz = horizOf(k);   // the split moves along x
-      const [lo, hi] = bounds(k);
+      const c = cutOf(drag.split);
+      if (!c) return;
+      const horiz = c.d === 'x', lo = c.lo, hi = c.hi;
       let v = Math.max(lo, Math.min(hi, Math.round((horiz ? cx : cy) / SNAP) * SNAP));
       let hit = null;
       for (const m of drag.mags) if (Math.abs(m.v - v) < MAGNET && m.v >= lo && m.v <= hi && (!hit || Math.abs(m.v - v) < Math.abs(hit.v - v))) hit = m;
       if (hit) v = Math.round(hit.v);
-      L[k] = v;
+      c.node.at = v;
+      D.normalize(L, mode);
       const b = $('.badge', drag.el);
       b.textContent = hit ? `⦿ ${hit.label}` : '';
       drag.el.classList.toggle('snapped', !!hit);
@@ -225,10 +232,8 @@
       drag.el.classList.remove('lift');
       drag.el.style.translate = '';
       for (const k in frames) frames[k].classList.remove('target');
-      if (drag.over) {
-        const S = L.slots, a = Object.keys(S).find((s) => S[s] === drag.panel), b = Object.keys(S).find((s) => S[s] === drag.over);
-        [S[a], S[b]] = [S[b], S[a]];
-      }
+      // swap the two panels; the cuts move so each keeps its own ratio and size
+      if (drag.over) L = D.swap(L, mode, drag.panel, drag.over);
     }
     drag = null;
     commit();
@@ -263,7 +268,7 @@
   // the control panel (or another wall) changes layout, labels, editing
   Link.on('wall', (d) => {
     if (d.mode && d.mode !== mode) setMode(d.mode, true);
-    if (d.layout && (!d.mode || d.mode === mode)) { L = d.layout; D.save(mode, L); place(); }
+    if (d.layout && D.valid(d.layout) && (!d.mode || d.mode === mode)) { L = D.normalize(d.layout, mode); D.save(mode, L); place(); }
     if (d.reset) reset();
     if (typeof d.labels === 'boolean') { labels = d.labels; store.set('wall-labels', labels); render(); }
     if (typeof d.edit === 'boolean') { edit = d.edit; render(); }
@@ -273,7 +278,31 @@
 
   /* ---------------- scenes: opening / closing over the whole wall ---------------- */
   let snap = null, scene = 'live';
-  Link.on('ecare', (d) => { snap = d; if (scene === 'closing') sceneRender(); });
+  Link.on('ecare', (d) => { snap = d; if (scene === 'closing') sceneRender(); finCheck(d); });
+  /* the e-Care task is done (the repair closed in DMS): a short, solemn ceremony over the
+   * whole wall so the room sees that the journey has ended. Cases already closed when the
+   * wall opens do not replay it. */
+  const finSeen = new Set();
+  let finFirst = true, finT = 0;
+  function finCheck(d) {
+    for (const c of d.cases || []) {
+      if (c.dms >= 7 && !finSeen.has(c.id)) { finSeen.add(c.id); if (!finFirst) ceremony(c); }
+      if (c.dms < 7) finSeen.delete(c.id);        // [이전] went back before the close
+    }
+    if (!(d.cases || []).length) finSeen.clear();
+    finFirst = false;
+  }
+  function ceremony(c) {
+    const el = $('#fin');
+    const steps = ['경고 감지', '고객 연결', c.kind === 'emergency' ? '상담 · 긴급출동' : '경고 판정', '서비스센터 이관', '예약 · 입고', '정비 · 종결'];
+    el.innerHTML = `<div class="fx"><svg viewBox="0 0 200 200" class="ring"><circle cx="100" cy="100" r="86" class="bg"/><circle cx="100" cy="100" r="86" class="fg"/><path d="M64 102 L90 128 L140 76" class="ck"/></svg>
+      <b>e-Care 과업 종료</b><span>${steps.map((t) => `<i>${esc(t)}</i>`).join('<em>›</em>')}</span>
+      <small>${esc(c.dealer || '서비스센터')} 정비 종결 · 모든 단계가 고객 앱과 상담원 화면에 반영되었습니다</small></div>`;
+    el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+    clearTimeout(finT);
+    finT = setTimeout(() => el.classList.remove('on'), 8500);
+  }
+  Link.on('stage', (d) => { if (d.scene && d.scene !== 'live') $('#fin').classList.remove('on'); });
   Link.on('stage', (d) => { if (d.scene !== scene) { scene = d.scene; sceneRender(); } });
   Link.send('stage-hello', { screen: 'wall' });
   const pad = (n) => String(n).padStart(2, '0');
@@ -296,12 +325,13 @@
       <div><b>${kpi[2]}</b><span>경고 → 서비스센터 이관</span></div></div>
       <p>고객 차량 · 일본측 서버 [VDP] · 한국측 서버 [TSP] · e-Care 고객지원실 · 긴급출동 · 서비스센터</p><div class="thanks">감사합니다</div></div>`;
   }
+  const OPENING = '<div class="op"><b>Real Simulator 시연</b><span>e-Care에 대한 고객의 경험 여정 및 업무 flow</span><small>본 시연에 사용되는 화면, 이미지, UI 디자인은 일부 변경될 수 있습니다.</small></div>';
   function sceneRender() {
     const el = $('#scene');
     el.className = scene === 'live' ? '' : `on ${scene}`;
     // opening: three lines over e-Care's key colours drifting slowly behind
     el.innerHTML = scene === 'opening' ? '<div class="aur" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i></div>'
-        + '<div class="op"><b>Real Simulator 시연</b><span>e-Care에 대한 고객의 경험 여정 및 업무 flow</span><small>본 시연에 사용되는 화면, 이미지, UI 디자인은 일부 변경될 수 있습니다.</small></div>'
+        + (mode === '63' ? `<div class="op3">${OPENING.replace('class="op"', 'class="op side"')}${OPENING}${OPENING.replace('class="op"', 'class="op side"')}</div>` : OPENING)
       : scene === 'closing' ? closing() : '';
   }
 

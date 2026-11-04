@@ -52,6 +52,19 @@ body.ready #stage { opacity: 1; }
 #stage > * { position: absolute; display: block; }
 #plate, #ambient, #focusShade { left: 0; top: 0; width: 2300px; height: 941px; pointer-events: none; }
 #exterior { filter: blur(1.4px) saturate(0.95); }
+/* the driver's side window: tinted side glass, the roadside a motion-blurred smear */
+#sideGlass { left: 0; top: 0; width: 250px; height: 236px; pointer-events: none; transition: opacity 0.8s;
+  -webkit-backdrop-filter: blur(7px) saturate(0.6) brightness(0.72); backdrop-filter: blur(7px) saturate(0.6) brightness(0.72);
+  background: linear-gradient(100deg, rgba(12, 16, 22, 0.5), rgba(24, 30, 40, 0.28) 70%, rgba(24, 30, 40, 0.18)); }
+/* the windshield: the tinted band at the top, a shade along the A-pillars and a faint
+   veiling glare of the dashboard where the glass meets it */
+#screenShade { left: 0; top: 0; width: 2300px; height: 240px; pointer-events: none; transition: opacity 0.8s;
+  background:
+    linear-gradient(to bottom, rgba(16, 22, 32, 0.5) 0, rgba(16, 22, 32, 0.16) 52px, rgba(16, 22, 32, 0) 104px),
+    linear-gradient(to right, rgba(10, 13, 18, 0.55) 300px, rgba(10, 13, 18, 0.18) 420px, rgba(10, 13, 18, 0) 560px),
+    linear-gradient(to left, rgba(10, 13, 18, 0.42) 0, rgba(10, 13, 18, 0.1) 190px, rgba(10, 13, 18, 0) 320px),
+    linear-gradient(to top, rgba(150, 160, 172, 0.16) 0, rgba(150, 160, 172, 0) 36%); }
+body.rescue #sideGlass, body.rescue #screenShade { opacity: 0; }
 
 /* the switched-off display: black glass with a faint reflection of the cabin.
    Slightly larger than the hole in the plate so nothing behind it shows. */
@@ -509,5 +522,7 @@ body.stage #showUi, body.stage #toast { display: none !important; }
 
 /* while the filmed wide shot is behind it, the cabin photo's sides blend into the film */
 body.rescue #plate, body.rescue #ambient, body.rescue #footShade, body.rescue #focusShade {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 110px, #000 calc(100% - 110px), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 110px, #000 calc(100% - 110px), transparent 100%); }
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 110px, #000 calc(100% - 110px), transparent 100%), linear-gradient(to bottom, transparent 0, #000 46px);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, #000 110px, #000 calc(100% - 110px), transparent 100%), linear-gradient(to bottom, transparent 0, #000 46px);
+  mask-composite: intersect; }

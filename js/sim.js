@@ -658,7 +658,7 @@
   // two filmed parts of the same truck: the approach (A), slowing to a stop centred in front of
   // the car at switchAt; then the parked truck (C, first frame = last frame = A at switchAt)
   // looping for as long as the scene holds — light bar flashing, traffic passing in the other lanes
-  const RESCUE = { src: 'assets/rescue_arrive.mp4', srcC: 'assets/rescue_hold.mp4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 5.7, switchAt: 6.6, playDelay: 1.6, hold: 12 };
+  const RESCUE = { src: 'assets/rescue_arrive.mp4?v=2', srcC: 'assets/rescue_hold.mp4?v=2', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 5.7, switchAt: 6.6, playDelay: 1.6, hold: 12 };
   const rescueEl = document.createElement('div');
   rescueEl.id = 'rescue';
   rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vc" muted playsinline preload="auto" loop></video><i class="bar"></i></div>';
@@ -842,10 +842,21 @@
     clock: st.clock, coolant: st.coolant, outside: st.outside, hazard: st.hazard, engine: audio.engId,
   }), 250);
   let careT = 0;
+  // the e-Care task closes (repair finished in DMS): the finale sounds once per case
+  const closedSeen = new Set();
+  let closedFirst = true;
+  function finaleCheck() {
+    for (const k of director.cases) {
+      if (k.dms >= 7 && !closedSeen.has(k.id)) { closedSeen.add(k.id); if (!closedFirst) { audio.unlock(); audio.finale(); } }
+      if (k.dms < 7) closedSeen.delete(k.id);
+    }
+    closedFirst = false;
+  }
   function updateCare(dt) {
     careT -= dt;
     if (careT > 0) return;
     careT = 0.5;
+    finaleCheck();
     const c = director.find();
     const el = $('#careState');
     const lk = $('#linkState');

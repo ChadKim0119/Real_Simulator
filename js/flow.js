@@ -17,16 +17,17 @@
    * (TSP: VEP + WAM) → response (e-Care support center with CTI, dispatch,
    * service center). */
   const N = {
-    car: { x: 195, y: 330, w: 260, t: '고객 차량', s: 'DCM · 헤드유닛 (MM)', zone: 'cust' },
-    phone: { x: 195, y: 700, w: 260, t: '고객 휴대폰', s: 'Global App · 문자', zone: 'cust' },
-    vdp: { x: 520, y: 330, w: 240, t: '차량 신호 수집', s: 'VDP', zone: 'jp' },
-    vep: { x: 840, y: 290, w: 280, t: '경고 판정', s: 'VEP · Case 판정', zone: 'kr' },
-    wam: { x: 1150, y: 290, w: 280, t: '업무 흐름 관리', s: 'WAM · 배정 · SLA', zone: 'kr' },
-    opw: { x: 840, y: 768, w: 280, h: 88, t: '운영 관리', s: 'OPW · 정책', zone: 'kr' },
-    sms: { x: 1150, y: 768, w: 280, h: 88, t: '문자 발송', s: 'SMS', zone: 'kr' },
-    ccw: { x: 1607, y: 340, w: 310, t: '상담원 화면', s: 'CCW', zone: 'res' },
-    rescue: { x: 1607, y: 610, w: 310, t: '긴급출동', s: '마스터자동차', zone: 'res' },
-    dms: { x: 1607, y: 760, w: 310, t: '서비스센터 (딜러)', s: 'DMS', zone: 'res' },
+    // three rows: the main path on top, support systems in the middle, the phone and DMS below
+    car: { x: 195, y: 330, w: 270, t: '고객 차량', s: 'DCM · 헤드유닛', zone: 'cust' },
+    phone: { x: 195, y: 735, w: 270, t: '고객 휴대폰', s: 'Global App · 문자', zone: 'cust' },
+    vdp: { x: 520, y: 330, w: 250, t: '차량 신호 수집', s: 'VDP', zone: 'jp' },
+    vep: { x: 845, y: 330, w: 290, t: '경고 판정', s: 'VEP · Case 판정', zone: 'kr' },
+    wam: { x: 1155, y: 330, w: 290, t: '업무 흐름 관리', s: 'WAM · 배정 · SLA', zone: 'kr' },
+    opw: { x: 845, y: 560, w: 290, t: '운영 관리', s: 'OPW · 정책', zone: 'kr' },
+    sms: { x: 1155, y: 560, w: 290, t: '문자 발송', s: 'SMS', zone: 'kr' },
+    ccw: { x: 1607, y: 330, w: 320, t: '상담원 화면', s: 'CCW', zone: 'res' },
+    rescue: { x: 1607, y: 560, w: 320, t: '긴급출동', s: '마스터자동차', zone: 'res' },
+    dms: { x: 1607, y: 735, w: 320, t: '서비스센터 (딜러)', s: 'DMS', zone: 'res' },
   };
   const ZONES = [
     { k: 'cust', x: 40, w: 310, t: '고객', tag: '', col: '#9fb6d6' },
@@ -70,7 +71,7 @@
 
   // zones, and the support center group (CCW + CTI) inside the response zone
   ZONES.forEach((z) => {
-    el('rect', { x: z.x, y: 150, width: z.w, height: 712, rx: 26, fill: 'rgba(120,160,220,0.035)', stroke: 'rgba(140,180,240,0.12)', 'stroke-width': 2 }, g('zones'));
+    el('rect', { x: z.x, y: 150, width: z.w, height: 700, rx: 26, fill: 'rgba(120,160,220,0.035)', stroke: 'rgba(140,180,240,0.12)', 'stroke-width': 2 }, g('zones'));
     el('rect', { x: z.x + 24, y: 172, width: 6, height: 30, rx: 3, fill: z.col }, g('zones'));
     const t = el('text', { x: z.x + 42, y: 197, fill: '#dfe7f3', 'font-size': 27, 'font-weight': 800 }, g('zones'));
     t.textContent = z.t;
@@ -80,19 +81,19 @@
       el('text', { x: 12, y: 23, fill: z.col, 'font-size': 21, 'font-weight': 800, class: 'num' }, tg).textContent = z.tag;
     }
   });
-  el('rect', { x: 1355, y: 222, width: 505, height: 200, rx: 20, fill: 'rgba(61,220,132,0.05)', stroke: 'rgba(61,220,132,0.4)', 'stroke-width': 2, 'stroke-dasharray': '8 7' }, g('zones'));
+  el('rect', { x: 1355, y: 222, width: 505, height: 186, rx: 20, fill: 'rgba(61,220,132,0.05)', stroke: 'rgba(61,220,132,0.4)', 'stroke-width': 2, 'stroke-dasharray': '8 7' }, g('zones'));
   el('text', { x: 1378, y: 256, fill: '#8ff0b3', 'font-size': 22, 'font-weight': 800 }, g('zones')).textContent = 'e-Care 고객지원실';
 
   /* links run edge to edge as S-curves: sideways between columns, up/down
    * within one. SMS → phone dips under the bottom row so it clears OPW. */
-  const UNDER = { 'phone|sms': 905 };     // key: the two ids sorted; the first is the left box
+  const UNDER = { 'phone|sms': 820 };     // key: the two ids sorted; the first is the left box
   const OVER = { 'vdp|wam': 214 };        // top edge to top edge, over the boxes between
   const RIGHT = { 'ccw|rescue': 1838, 'ccw|dms': 1838 };   // around the right of the column
   /* calls between the customer and the agent: the car's head unit (MM call) over the
    * top of the boxes, the customer's phone along the corridor under the cards */
   const VOICE = {
-    'car|ccw': 'M195,278 C195,240 210,228 250,228 L1560,228 C1600,228 1607,240 1607,288',
-    'ccw|phone': 'M325,700 C380,700 400,703 450,703 L1360,703 C1405,703 1410,690 1410,560 L1410,400 C1410,352 1420,340 1452,340',
+    'car|ccw': 'M195,278 C195,240 210,228 250,228 L1560,228 C1600,228 1607,240 1607,278',
+    'ccw|phone': 'M330,735 C380,735 400,830 450,830 L1360,830 C1405,830 1410,815 1410,700 L1410,400 C1410,345 1420,330 1447,330',
   };
   const mid = (d) => { const t = document.createElementNS(NS, 'path'); t.setAttribute('d', d); svg.appendChild(t); const L = t.getTotalLength(); const m = t.getPointAtLength(L / 2); t.remove(); return m; };
   const path = (a, b) => {
@@ -194,7 +195,6 @@
   const slaCard = card(1005, 382, 290, 300, '처리 기한 · SLA');
   slaCard.style.display = 'none';
   const sc = {
-    group: el('text', { x: 22, y: 76, fill: '#9fb6d6', 'font-size': 21, 'font-weight': 600, class: 'num' }, slaCard),
     ringBg: el('circle', { cx: 92, cy: 178, r: 62, fill: 'none', stroke: '#1e2b40', 'stroke-width': 14 }, slaCard),
     ring: el('circle', { cx: 92, cy: 178, r: 62, fill: 'none', stroke: CASECOL.A, 'stroke-width': 14, 'stroke-linecap': 'round', transform: 'rotate(-90 92 178)', 'stroke-dasharray': `${2 * Math.PI * 62}`, 'stroke-dashoffset': 0 }, slaCard),
     left: el('text', { x: 92, y: 190, fill: '#fff', 'font-size': 34, 'font-weight': 700, 'text-anchor': 'middle', class: 'num' }, slaCard),
@@ -251,7 +251,7 @@
       return { i: 2, d };
     }
     if (c.inbound || c.assign || (call && call.state === 'dialing') || Date.now() - c.at > 7000)
-      return { i: 1, d: c.inbound ? '고객 HU [전화연결] → MM 콜 · 유휴 상담원 배정' : c.assign ? '25분 경과 · 상담원 자동 배정 · 고객에게 발신' : '고객 연락 대기 · HU 팝업 · 앱 푸시' };
+      return { i: 1, d: c.inbound ? '고객 HU [전화연결] → 헤드유닛 콜 · 유휴 상담원 배정' : c.assign ? '25분 경과 · 상담원 자동 배정 · 고객에게 발신' : '고객 연락 대기 · HU 팝업 · 앱 푸시' };
     return { i: 0, d: `${w.code} 경고 → VDP → VEP 판정 · ${K.label}(Case ${w.case})` };
   }
   let railKey = '';
@@ -277,7 +277,7 @@
    * message); a tap or the control panel unfolds it to the last six messages */
   const foot = g('foot');
   let logOpen = false;
-  const fbg = el('rect', { x: 40, y: 892, width: 1840, height: 64, rx: 20, fill: 'rgba(8,14,26,0.85)', stroke: 'rgba(150,190,255,0.14)', 'stroke-width': 2 }, foot);
+  const fbg = el('rect', { x: 40, y: 872, width: 1840, height: 64, rx: 20, fill: 'rgba(8,14,26,0.85)', stroke: 'rgba(150,190,255,0.14)', 'stroke-width': 2 }, foot);
   const fTitle = el('text', { x: 70, y: 934, fill: '#7f93b0', 'font-size': 22, 'font-weight': 800 }, foot); fTitle.textContent = '상세 데이터 흐름';
   const fHint = el('text', { x: 1850, y: 934, fill: '#5d7090', 'font-size': 21, 'font-weight': 700, 'text-anchor': 'end' }, foot);
   const ROWS = 6;
@@ -290,15 +290,16 @@
   });
   function layoutFoot() {
     // folded: one line beside the title; open: six lines in two columns under it
-    fbg.setAttribute('y', logOpen ? 876 : 892);
-    fbg.setAttribute('height', logOpen ? 188 : 64);
-    fTitle.setAttribute('y', logOpen ? 914 : 934);
-    fHint.setAttribute('y', logOpen ? 914 : 934);
+    const open = logOpen && !replay;              // a replay shows the whole-journey bar instead
+    fbg.setAttribute('y', open ? 872 : 872);
+    fbg.setAttribute('height', open ? 196 : 64);
+    fTitle.setAttribute('y', open ? 912 : 914);
+    fHint.setAttribute('y', open ? 912 : 914);
     fHint.textContent = logOpen ? '▴ 접기' : '▾ 펼치기';
     logEls.forEach((r, i) => {
-      const x = logOpen ? (i < 3 ? 70 : 990) : 290, y = logOpen ? 958 + (i % 3) * 38 : 934;
+      const x = open ? (i < 3 ? 70 : 990) : 290, y = open ? 958 + (i % 3) * 38 : 914;
       r.row.setAttribute('transform', `translate(${x},${y})`);
-      r.row.style.display = logOpen || i === 0 ? '' : 'none';
+      r.row.style.display = open || i === 0 ? '' : 'none';
     });
     renderLog();
   }
@@ -306,6 +307,56 @@
   foot.style.cursor = 'pointer';
   foot.addEventListener('click', () => { setLog(!logOpen); Link.send('flow-log', { open: logOpen }); });
   Link.on('flow-log', (d) => setLog(d.open));
+
+  /* the whole journey while replaying: every message as a dot on one bar, grouped
+   * by the six steps; played dots fill in, the one playing now is ringed */
+  const prog = el('g', { style: 'display:none' }, g('foot'));
+  el('rect', { x: 40, y: 948, width: 1840, height: 116, rx: 20, fill: 'rgba(8,14,26,0.92)', stroke: 'rgba(150,190,255,0.18)', 'stroke-width': 2 }, prog);
+  const progT = el('text', { x: 70, y: 986, fill: '#9fb6d6', 'font-size': 21, 'font-weight': 800 }, prog);
+  const progN = el('text', { x: 1850, y: 986, fill: '#fff', 'font-size': 24, 'font-weight': 800, 'text-anchor': 'end', class: 'num' }, prog);
+  const progBody = el('g', {}, prog);
+  let progKey = '';
+  function renderProg() {
+    prog.style.display = replay ? '' : 'none';
+    if (!replay) { progKey = ''; return; }
+    const L = replay.list, done = replay.i;
+    const key = L.length + '|' + done;
+    if (key === progKey) return;
+    progKey = key;
+    // the step of each message, never going back
+    let mx = 0;
+    const stg = L.map((f) => (mx = Math.max(mx, stepOfFlow(f))));
+    const cnt = STEPS.map((_, k) => stg.filter((x) => x === k).length);
+    const X0 = 70, X1 = 1850, GAPS = 14, MINS = 110;
+    const used = cnt.filter((n) => n).length;
+    const free = X1 - X0 - GAPS * (used - 1) - MINS * used;
+    const total = L.length || 1;
+    progBody.innerHTML = '';
+    let x = X0;
+    const col = replay.last ? CASECOL[replay.last.wcase] || BLUE : BLUE;
+    const cur = done - 1;
+    STEPS.forEach((t, k) => {
+      if (!cnt[k]) return;
+      const w = MINS + free * cnt[k] / total;
+      const idx = stg.map((s2, i) => (s2 === k ? i : -1)).filter((i) => i >= 0);
+      const playedAll = idx.every((i) => i < done), playing = idx.includes(cur);
+      el('text', { x, y: 1018, fill: playing ? '#fff' : playedAll ? '#a9b8cf' : '#5d7090', 'font-size': 18, 'font-weight': 800 }, progBody).textContent = `${k + 1} ${t}`;
+      el('rect', { x, y: 1032, width: w, height: 10, rx: 5, fill: 'rgba(120,160,220,0.12)' }, progBody);
+      const pd = idx.filter((i) => i < done).length;
+      const dotX = (j) => x + (idx.length === 1 ? w / 2 : 6 + (w - 12) * j / (idx.length - 1));
+      if (pd) el('rect', { x, y: 1032, width: playedAll ? w : Math.max(10, dotX(pd - 1) - x + 5), height: 10, rx: 5, fill: col, 'fill-opacity': playedAll ? 0.55 : 0.9 }, progBody);
+      idx.forEach((i, j) => {
+        const cx = dotX(j);
+        if (i === cur) {
+          el('circle', { cx, cy: 1037, r: 11, fill: 'none', stroke: '#fff', 'stroke-width': 3 }, progBody);
+          el('circle', { cx, cy: 1037, r: 6, fill: '#fff' }, progBody);
+        } else el('circle', { cx, cy: 1037, r: 3, fill: i < done ? '#0b1422' : 'rgba(160,190,230,0.45)' }, progBody);
+      });
+      x += w + GAPS;
+    });
+    progT.textContent = replay.step ? '전체 과정 · 한 단계씩' : '전체 과정 · 다시 보기';
+    progN.textContent = `${done} / ${L.length}`;
+  }
 
   /* ---------------- replay (this panel only) ---------------- */
   let replay = null;                 // { list, i, step, maxStep, last }
@@ -335,8 +386,11 @@
     shown.push(f);
     launch(f);
     renderLog();
+    renderProg();
   }
   function btnState() {
+    renderProg();
+    layoutFoot();
     const mode = !replay ? 'live' : replay.step ? 'step' : 'replay';
     for (const k in btnEls) {
       const on = k === mode;
@@ -353,8 +407,8 @@
     const a = f.api || '';
     if (a === 'DMS-SVC-002') { const st = (f.payload && f.payload.repairStatus) || ''; return /CONTACT/.test(st) ? 3 : /RESERVED|RECEIVED/.test(st) ? 4 : 5; }
     if (/WAM-MEMO|상담 메모|통화 종료/.test(a)) return 3;
-    if (/긴급출동|출동 상태|음성|수신/.test(a) || (f.to === 'car' && /MM 알림/.test(a) && /출동/.test(f.label))) return 2;
-    if (/MM 콜|콜 배정|발신|응답|미응답|SMS|상담원 조회|IDLE|자동 할당|상태 전환|WNG 콜 팝업|일반 전화/.test(a)) return 1;
+    if (/긴급출동|출동 상태|음성|수신/.test(a) || (f.to === 'car' && /헤드유닛 알림/.test(a) && /출동/.test(f.label))) return 2;
+    if (/헤드유닛 콜|콜 배정|발신|응답|미응답|SMS|상담원 조회|IDLE|자동 할당|상태 전환|WNG 콜 팝업|일반 전화/.test(a)) return 1;
     return 0;
   }
 
@@ -530,13 +584,12 @@
     const c = primary();
     const circ = 2 * Math.PI * 62;
     if (!c) {
-      sc.group.textContent = '그룹 ID —'; sc.left.textContent = '—'; sc.l1.textContent = ''; sc.v1.textContent = ''; sc.l2.textContent = ''; sc.v2.textContent = ''; sc.foot.textContent = '';
+      sc.left.textContent = '—'; sc.l1.textContent = ''; sc.v1.textContent = ''; sc.l2.textContent = ''; sc.v2.textContent = ''; sc.foot.textContent = '';
       sc.ring.setAttribute('stroke-dashoffset', circ);
       return;
     }
     const w = c.wng || { case: 'A' };
     const K = E.CASE[w.case];
-    sc.group.textContent = `그룹 ID ${(c.group || '').slice(0, 13)}…`;
     sc.ring.setAttribute('stroke', CASECOL[w.case]);
     if (w.case === 'A') {
       const contacted = c.contact > 0;
@@ -599,7 +652,7 @@
     const c = primary();
     if (!c) return null;
     if (c.call && (c.call.state === 'connected' || c.call.state === 'dialing')) return { who: c.call.dir === 'in' ? 'car' : 'phone', live: c.call.state === 'connected', at: c.call.connectedAt, label: c.call.dir === 'in' ? '차량 통화' : '휴대폰 통화' };
-    if (c.inbound && !c.call) return { who: 'car', live: false, label: 'MM 콜' };
+    if (c.inbound && !c.call) return { who: 'car', live: false, label: '헤드유닛 콜' };
     return null;
   }
   function tickCall(now) {

@@ -41,7 +41,7 @@
   // the wall may run on another PC: follow its screen mode and layout
   const adopt = (d) => {
     if (d.mode && WallDef.MODES[d.mode]) WallDef.setMode(d.mode);
-    if (d.layout && d.layout.slots) WallDef.save(d.mode || wmode(), d.layout);
+    if (d.layout && WallDef.valid(d.layout)) WallDef.save(d.mode || wmode(), d.layout);
     setTimeout(render, 100);
   };
   Link.on('wall', (d) => { if (d.layout || d.reset || d.mode) adopt(d); });

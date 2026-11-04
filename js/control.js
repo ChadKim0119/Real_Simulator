@@ -51,6 +51,8 @@
 
   /* ---------------- ops ---------------- */
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  // a step's own pauses end early once the presenter pressed [다음]
+  async function waitOrSkip(ms) { const t0 = Date.now(); while (!skip && Date.now() - t0 < ms) await wait(Math.min(120, ms)); }
   function send(kind, a, b) {
     if (kind === 'scene') { scene = a; Link.send('stage', { scene: a }); }
     else if (kind === 'act') Link.send('act', { name: a, args: b || {} });
@@ -71,7 +73,7 @@
   async function run(ops, tok) {
     for (const [kind, a, b] of ops) {
       if (tok != null && tok !== token) return;
-      if (kind === 'wait') await wait(a);
+      if (kind === 'wait') await waitOrSkip(a);
       else if (kind === 'ign') { if (!veh || (veh.ign === 'on') !== a) { send('act', 'ign'); await wait(a ? 6500 : 4000); } }
       else if (kind === 'reset') {
         Link.send('hush', {}); send('act', 'clear'); send('act', 'careReset'); send('cmd', 'noAnswer', { on: false });
@@ -99,10 +101,11 @@
     closed: () => { const c = active(); return !!(c && c.dms >= 7); },
   };
   // the service center (DMS) works the transferred case: contact, reservation, then the repair
-  const DMS_CONTACT = { t: '서비스센터 · 고객 컨택 · 예약 확정', cue: '“서비스센터 DMS에 컨택대기로 들어온 건을 서비스 어드바이저가 열어 고객에게 전화하고, 입고 예약을 확정합니다. 결과는 CCW와 데이터 흐름에 바로 돌아옵니다.”', run: [['dms', 'open'], ['wait', 3000], ['cmd', 'dmsContact', { method: '전화', result: '컨택', reply: '예약확정', memo: '견인 입고 · 내일 10시 예약 확정', agent: '이정비' }], ['wait', 3500], ['dms', 'close']], until: 'resv', pause: 3500 };
-  const DMS_REPAIR = { t: '입고 → 정비 → 종결', cue: '“견인 차량이 서비스센터에 도착해 입고되고, 정비를 마치고 종결됩니다. 단계마다 DMS-SVC-002로 상태가 돌아옵니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 3500], ['cmd', 'dmsAdvance'], ['wait', 3500], ['cmd', 'dmsAdvance'], ['wait', 3500], ['cmd', 'dmsAdvance']], until: 'closed', pause: 3000 };
+  const DMS_RESULT = { method: '전화', result: '컨택', reply: '예약확정', memo: '견인 입고 · 내일 10시 예약 확정', agent: '이정비' };
+  const DMS_CONTACT = { t: '서비스센터 · 고객 컨택 · 예약 확정', cue: '“서비스센터 DMS에 컨택대기로 들어온 건을 서비스 어드바이저가 열어 고객에게 전화하고, 입고 예약을 확정합니다. 결과는 CCW와 데이터 흐름에 바로 돌아옵니다.”', run: [['dms', 'open'], ['wait', 2000], ['cmd', 'dmsContact', DMS_RESULT], ['wait', 2400], ['dms', 'close']], until: 'resv', pause: 2200 };
+  const DMS_REPAIR = { t: '입고 → 정비 → 종결', cue: '“견인 차량이 서비스센터에 도착해 입고되고, 정비를 마치고 종결됩니다. 단계마다 DMS-SVC-002로 상태가 돌아옵니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance']], until: 'closed', pause: 9000 };
   // the rescue truck the agent called pulls up in front of the customer's car (car panel scene)
-  const ARRIVE = { t: '긴급출동 차량 도착', cue: '“상담원이 요청한 긴급출동 차량이 도착합니다. 출동 기사가 고객에게 직접 연락하고, 운전석 옆을 지나 고객 차 앞에 정차합니다.”', run: [], until: 'arrived', pause: 9000, timeout: 40000 };
+  const ARRIVE = { t: '긴급출동 차량 도착', cue: '“상담원이 요청한 긴급출동 차량이 도착합니다. 출동 기사가 고객에게 직접 연락하고, 운전석 옆을 지나 고객 차 앞에 정차합니다.”', run: [], until: 'arrived', pause: 6500, timeout: 40000 };
   const PREP = { t: '준비 · 초기화 · 시동', cue: '경고와 상담 기록을 지우고 라이브 화면에서 시동을 켭니다.', run: [['reset'], ['scene', 'live'], ['ign', true]] };
   const DRIVE = { t: '주행 시작', cue: '“고객이 GX 550으로 주행 중입니다.” 가운데 화면은 차량에서 콜센터 · 딜러까지 연결된 시스템입니다.', run: [['act', 'drive']], pause: 5000 };
   const SCENARIOS = [
@@ -110,10 +113,10 @@
       id: 'in', n: '1', title: '긴급 경고 → 고객 전화', sub: '메인 · 고객이 HU로 상담센터에 전화', sets: true,
       steps: [PREP, DRIVE,
         { t: '긴급 경고 · HU 팝업', cue: '“주행불가 경고가 발생했습니다. VEP가 긴급(Case A)으로 판정하고, 헤드유닛에 ‘고객 지원실로 연결하시겠습니까?’ 팝업을 띄웁니다.” 경고등은 고른 대화 세트에 맞춰 나옵니다.', run: [['warn', '@in']], until: 'case', pause: 4000 },
-        { t: '고객 HU [전화연결]', cue: '“고객이 화면의 전화연결 버튼을 누릅니다. MM 콜이 CTI를 거쳐 유휴 상담원에게 배정되고, 25분 자동 아웃바운드는 취소됩니다.”', run: [['hu', 'press']], until: 'inbound', pause: 2500 },
+        { t: '고객 HU [전화연결]', cue: '“고객이 화면의 전화연결 버튼을 누릅니다. 헤드유닛 콜이 CTI를 거쳐 유휴 상담원에게 배정되고, 25분 자동 아웃바운드는 취소됩니다.”', run: [['hu', 'press']], until: 'inbound', pause: 2500 },
         { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 위치와 진단 정보가 이미 화면에 있습니다.” 위치 확인 → 정차 · 비상등 안내 → 긴급출동 요청 → 선호 서비스센터 진행 동의 · 연락처 확인 · 추가 전달 사항 → 출동 기사와 서비스센터가 연락드린다는 안내로 통화를 마칩니다. 통화가 끝나면 출동 차량이 도착합니다.', run: [['cmd', 'ack']], until: 'callEnd', pause: 2500, long: true },
         ARRIVE,
-        { t: '상담 완료 · 서비스센터 이관', cue: '“상담 메모가 WAM-MEMO-001로 서비스센터 DMS에 전달됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 6000 },
+        { t: '상담 완료 · 서비스센터 이관', cue: '“상담 메모가 WAM-MEMO-001로 서비스센터 DMS에 전달됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 3000 },
         DMS_CONTACT, DMS_REPAIR,
       ],
     },
@@ -180,7 +183,7 @@
   let token = 0;
   const cpKey = (i) => `${sc.id}:${i}`;
   async function go(i) {
-    if (busy) { skip = true; return; }             // next while waiting: stop waiting
+    if (busy) { skip = true; finishNow(); return; }   // next while a step runs: settle it, then go on
     if (i < 0 || i >= sc.steps.length) return;
     const tok = ++token;
     busy = true;
@@ -214,6 +217,22 @@
       waiting = '';
       if (auto && cur === i) go(i + 1);
     } else if (auto && i + 1 >= sc.steps.length) { auto = false; steps(); }
+  }
+  /* [다음] while a step is still playing: the voice stops and what the step waits for is
+   * brought about at once (the call is settled, the truck pulls up, the DMS steps finish),
+   * so the next step starts from the situation it expects */
+  const FINISH = {
+    callEnd: () => send('cmd', 'finishCall'),
+    genEnd: () => send('cmd', 'endGeneral'),
+    arrived: () => send('cmd', 'arrive'),
+    dmsIn: () => send('act', 'complete'),
+    resv: () => send('cmd', 'dmsContact', DMS_RESULT),
+    closed: () => [0, 1, 2, 3, 4].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 180)),
+  };
+  function finishNow() {
+    Link.send('hush', {});
+    const s = sc.steps[cur];
+    if (s && s.until && FINISH[s.until] && !UNTIL[s.until]()) FINISH[s.until]();
   }
   /** [이전]: back to the state just before the current step, as it was before it was pressed. */
   function back() {
@@ -252,9 +271,12 @@
     scenarios(); steps();
   }
 
+  // chip labels (the full title and description are on hover)
+  const SHORT = { show: '전체 발표', in: '고객 전화', out: '상담원 발신', noans: '미응답 → SMS', caseb: '경고 → DMS 직행', gen: '일반 전화' };
+  const SET_SHORT = { in2: '메인 · 여성 · 엔진', in: '보조 · 남성 · 브레이크' };
   function scenarios() {
-    $('#scenarios').innerHTML = SCENARIOS.map((x) => `<button class="sc ${x === sc ? 'on' : ''}" data-sc="${x.id}" title="${esc(x.title)} — ${esc(x.sub)}"><i>${x.n}</i><b>${esc(x.title)}</b><small>${esc(x.sub)}</small></button>`).join('')
-      + `<div class="sets"><h3>인바운드 대화 세트</h3>${E.SCRIPT_SETS.in.keys.map((k) => `<button data-pick="in:${k}">${esc(E.SCRIPT_NAMES[k])}</button>`).join('')}</div>`;
+    $('#scenarios').innerHTML = SCENARIOS.map((x) => `<button class="sc ${x === sc ? 'on' : ''}" data-sc="${x.id}" title="${esc(x.title)} — ${esc(x.sub)}"><i>${x.n}</i><b>${esc(SHORT[x.id] || x.title)}</b><small>${esc(x.sub)}</small></button>`).join('')
+      + `<div class="sets"><h3>인바운드 대화</h3>${E.SCRIPT_SETS.in.keys.map((k) => `<button data-pick="in:${k}" title="${esc(E.SCRIPT_NAMES[k])}">${esc(SET_SHORT[k] || E.SCRIPT_NAMES[k])}</button>`).join('')}</div>`;
     manualState();
   }
   function steps() {
@@ -271,7 +293,7 @@
     set('.cue', s ? s.cue : `첫 단계: ${sc.steps[0].t}`);
     set('.wait', waiting ? `⏳ ${waiting}` : '');
     $('.wait', now).style.visibility = waiting ? 'visible' : 'hidden';
-    set('#next b', busy ? '대기 건너뛰고 다음 ▶' : next ? '다음 ▶' : '끝');
+    set('#next b', busy ? '마무리하고 다음 ▶' : next ? '다음 ▶' : '끝');
     set('#next small', next ? next.t : '');
     set('#auto', auto ? '■ 멈춤' : '▶▶ 자동');
     $('#auto').classList.toggle('on', auto);
@@ -282,6 +304,9 @@
       grp = x.grp || grp;
       return `${head}<button data-step="${i}" class="${i < cur ? 'done' : ''} ${i === cur ? 'cur' : ''}"><i>${i < cur ? '✓' : i + 1}</i><span class="t" title="${esc(x.t)}">${esc(x.t)}</span>${x.long ? '<small>통화</small>' : ''}</button>`;
     }).join('');
+    // the list scrolls inside its column: keep the step playing (or the next one) in view
+    const at = $(`#steps [data-step="${Math.max(0, cur)}"]`);
+    if (at && at.scrollIntoView) at.scrollIntoView({ block: 'nearest' });
   }
 
   /* ---------------- status ---------------- */

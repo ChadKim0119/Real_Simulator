@@ -1101,7 +1101,7 @@
     if (g && g.state !== 'ended' && !c) return ['일반 전화 상담', '경고 없는 고객 재문의'];
     const W = c ? `${c.warn.sys} · ${E.CASE[c.wcase] ? E.CASE[c.wcase].label : ''}` : '';
     switch (sel) {
-      case '.ov .pop': return c.inbound ? ['고객 전화 수신 · 상담원 배정', `HU [전화연결] → MM 콜 · ${W}`, true] : ['25분 경과 · 상담원 자동 배정', `고객 미연락 · ${W}`, true];
+      case '.ov .pop': return c.inbound ? ['고객 전화 수신 · 상담원 배정', `HU [전화연결] → 헤드유닛 콜 · ${W}`, true] : ['25분 경과 · 상담원 자동 배정', `고객 미연락 · ${W}`, true];
       case '.wpanel': return ['통화 중 · 차량 진단 정보 확인', `${W} · 고객 안전 확인`, true];
       case '.box.loc': return c.dispatch >= 2 ? ['긴급출동 차량 도착', '고객 차량 앞 정차 · 견인 준비', true] : ['긴급출동 요청 · 위치 확인', `출동 상태 ${E.DISPATCH[Math.max(0, c.dispatch)]}`, true];
       case '.sheet:not(.closed)': return ['상담 메모 작성', '통화 후 처리 · 서비스센터 전달 선택'];
