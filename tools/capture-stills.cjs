@@ -17,9 +17,9 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const BASE = process.argv[2] || 'http://127.0.0.1:8787';
-const MODE = process.argv[3] === '169' ? '169' : '21';
-const OUT = path.join(__dirname, '..', 'assets', 'test', MODE === '21' ? 'stills' : 'stills-169');
-const W = MODE === '21' ? 2560 : 1920;
+const MODE = ['169', '63'].includes(process.argv[3]) ? process.argv[3] : '21';
+const OUT = path.join(__dirname, '..', 'assets', 'test', MODE === '21' ? 'stills' : `stills-${MODE}`);
+const W = { 21: 2560, 169: 1920, 63: 7560 }[MODE];
 
 // [press "next" this many times (each once the panel is idle), wait ms, then capture id/title/what]
 const PLAN = [

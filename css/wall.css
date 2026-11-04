@@ -37,19 +37,37 @@ body.edit .split { display: block; }
 /* top bar, shown with the pointer */
 #bar { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; background: rgba(8, 12, 20, 0.92); border: 1px solid #263246; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.25s; z-index: 10; }
 body.cur #bar, body.edit #bar { opacity: 1; pointer-events: auto; }
-#bar b { margin-right: 6px; }
-#bar button { border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.05); color: #dfe6ee; font: 600 13px "Pretendard", sans-serif; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+#bar { max-width: calc(100vw - 24px); }
+#bar b { margin-right: 6px; white-space: nowrap; flex: none; }
+#bar button { flex: none; white-space: nowrap; word-break: keep-all; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.05); color: #dfe6ee; font: 600 13px "Pretendard", sans-serif; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
 #bar button.on { background: #173a6b; border-color: #4f8cff; color: #fff; }
-#hint { color: #8b97a9; margin-left: 6px; }
+/* the hint gives way to the buttons: one line, cut with … rather than squeezing them */
+#hint { color: #8b97a9; margin-left: 6px; min-width: 0; flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* opening / closing over the whole wall */
 #scene { position: absolute; inset: 0; z-index: 5; display: none; place-content: center; text-align: center; background: radial-gradient(ellipse 60% 70% at 50% 50%, #0c1a33, #02040a 75%); }
 #scene.on { display: grid; animation: fade 1s ease both; }
 #scene.black { background: #000; }
 @keyframes fade { from { opacity: 0; } }
-.op small { display: block; font: 700 40px "Barlow", sans-serif; letter-spacing: 0.3em; color: #7fa6e8; }
-.op b { display: block; margin-top: 20px; font: 800 190px/1 "Barlow", sans-serif; letter-spacing: 0.03em; background: linear-gradient(180deg, #fff, #b9cdf5); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.op span { display: block; margin-top: 34px; font-size: 64px; font-weight: 700; color: #cfdcf5; }
+.op { position: relative; z-index: 1; }
+.op b { display: block; font: 800 168px/1.05 "Pretendard", "Barlow", sans-serif; letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #ffffff 30%, #cfe3ff); -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 0 60px rgba(79, 140, 255, 0.12); animation: opIn 1.2s cubic-bezier(.2,.7,.2,1) both; }
+.op span { display: block; margin-top: 38px; font-size: 56px; font-weight: 600; letter-spacing: -0.01em; color: #d6e3f5; animation: opIn 1.2s 0.25s cubic-bezier(.2,.7,.2,1) both; }
+.op small { display: block; margin-top: 130px; font-size: 24px; font-weight: 500; letter-spacing: 0.01em; color: #7f93b0; animation: opIn 1.2s 0.5s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes opIn { from { opacity: 0; transform: translateY(18px); } }
+/* e-Care key colours (green · teal · blue) drifting as soft light behind the words */
+#scene.opening { background: radial-gradient(ellipse 70% 80% at 50% 50%, #0a1426, #03050b 80%); overflow: hidden; }
+.aur { position: absolute; inset: 0; filter: blur(80px); opacity: 0.55; }
+.aur i { position: absolute; border-radius: 50%; mix-blend-mode: screen; will-change: transform; }
+.aur .a1 { left: 8%; top: 10%; width: 46%; height: 70%; background: radial-gradient(closest-side, rgba(61, 220, 132, 0.55), transparent); animation: aur1 22s ease-in-out infinite alternate; }
+.aur .a2 { right: 6%; top: 22%; width: 42%; height: 66%; background: radial-gradient(closest-side, rgba(79, 140, 255, 0.6), transparent); animation: aur2 26s ease-in-out infinite alternate; }
+.aur .a3 { left: 34%; bottom: -12%; width: 40%; height: 60%; background: radial-gradient(closest-side, rgba(63, 208, 201, 0.5), transparent); animation: aur3 30s ease-in-out infinite alternate; }
+.aur .a4 { left: 40%; top: -16%; width: 26%; height: 44%; background: radial-gradient(closest-side, rgba(143, 211, 255, 0.35), transparent); animation: aur2 34s ease-in-out infinite alternate-reverse; }
+@keyframes aur1 { to { transform: translate(14%, 10%) scale(1.15); } }
+@keyframes aur2 { to { transform: translate(-16%, -8%) scale(1.1); } }
+@keyframes aur3 { to { transform: translate(10%, -14%) scale(1.2); } }
+@media (prefers-reduced-motion: reduce) { .aur i { animation: none; } }
 .cl h2 { margin: 0 0 40px; font-size: 54px; color: #8fa8cf; }
 .cl .kpis { display: flex; gap: 90px; justify-content: center; }
 .cl .kpis b { display: block; font: 800 120px/1 "Barlow", sans-serif; }
@@ -66,6 +84,7 @@ body.cur #bar, body.edit #bar { opacity: 1; pointer-events: auto; }
 #modes p b { color: #fff; }
 #modes .opts { display: grid; grid-template-columns: 1.35fr 1fr; gap: 24px; align-items: end; }
 #modes button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px; border-radius: 18px; border: 2px solid #26354d; background: #0b1422; color: #fff; cursor: pointer; font: inherit; transition: border-color 0.15s, transform 0.15s; }
+#modes button[data-pick="63"] { grid-column: 1 / -1; }
 #modes button:hover { border-color: #4f8cff; transform: translateY(-2px); }
 #modes button.best { border-color: #3ddc84; }
 #modes button.cur { box-shadow: 0 0 0 3px #4f8cff inset; }

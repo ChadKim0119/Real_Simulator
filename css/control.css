@@ -23,11 +23,12 @@ h2 { margin: 0 0 10px; font-size: 15px; color: #cfd6e2; }
 h3 { margin: 0 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700; }
 
 /* ---------- 1. current step ---------- */
-#now .hd { padding: 4px 4px 12px; }
+/* the buttons stay on top and never move: the step text below has a fixed height */
+#now .hd { height: 200px; overflow-y: auto; padding: 12px 4px 4px; overscroll-behavior: contain; }
 #now small { color: #7fb1ff; font-size: 13px; font-weight: 700; }
 #now .hd > b { display: block; margin-top: 6px; font-size: clamp(19px, 2.2vw, 24px); }
 #now p { margin: 8px 0 0; font-size: 15.5px; line-height: 1.6; color: #cfd6e2; }
-#now .wait { display: inline-block; margin-top: 10px; font-style: normal; font-size: 13px; color: #ffd28a; background: rgba(255, 176, 46, 0.1); padding: 5px 10px; border-radius: 8px; }
+#now .wait { display: inline-block; min-height: 1.2em; margin-top: 10px; font-style: normal; font-size: 13px; color: #ffd28a; background: rgba(255, 176, 46, 0.1); padding: 5px 10px; border-radius: 8px; }
 #now .btns { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; }
 #now .btns button { min-height: 68px; padding: 8px 14px; font-size: 16px; font-weight: 800; border-radius: 14px; white-space: nowrap; }
 #now #next { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; min-width: 0; overflow: hidden; }
@@ -92,6 +93,8 @@ h3 { margin: 0 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700; }
 #dock button span { display: block; }
 #dock button.on { background: #173a6b; border-color: var(--blue); color: #fff; }
 #dock button.warn { border-color: rgba(255, 93, 108, 0.6); color: #ff9aa4; padding: 16px 4px; }
+#dock button.op { border-color: rgba(120, 200, 255, 0.5); color: #bfe6ff; }
+#dock button.op.on { background: #0f3550; border-color: #5ec8ff; color: #fff; }
 #dock hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
 
 /* ---------- screen sizes ---------- */
@@ -113,6 +116,7 @@ h3 { margin: 0 0 6px; font-size: 12.5px; color: var(--mut); font-weight: 700; }
   .col { padding: 12px; border-radius: 14px; }
   #now .btns button { min-height: 60px; padding: 8px 10px; font-size: 15px; }
   #now p { font-size: 14.5px; }
+  #now .hd { height: 170px; }
   #manual .tabs { width: 100%; }
   #manual .tabs button { flex: 1; padding: 8px 4px; }
   #dock { top: auto; bottom: 0; left: 0; right: 0; transform: none; width: auto; max-height: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; border: 1px solid var(--line); border-bottom: 0; }

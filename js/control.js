@@ -68,8 +68,9 @@
   }
   let reachAck = false;
   Link.on('hu', (d) => { if (d.action === 'reaching') reachAck = true; });
-  async function run(ops) {
+  async function run(ops, tok) {
     for (const [kind, a, b] of ops) {
+      if (tok != null && tok !== token) return;
       if (kind === 'wait') await wait(a);
       else if (kind === 'ign') { if (!veh || (veh.ign === 'on') !== a) { send('act', 'ign'); await wait(a ? 6500 : 4000); } }
       else if (kind === 'reset') {
@@ -158,7 +159,7 @@
   SCENARIOS.unshift({
     id: 'show', n: '★', title: '전체 발표', sub: '오프닝 → 1 · 2 · 4 → 클로징', sets: true,
     steps: [
-      { t: '3면 오프닝', cue: '“Global South 개발 진척 보고회를 시작하겠습니다.”', run: [['reset'], ['scene', 'opening']] },
+      { t: '오프닝', cue: '“Real Simulator 시연 — e-Care에 대한 고객의 경험 여정과 업무 flow를 보여 드리겠습니다.”', run: [['reset'], ['scene', 'opening']] },
       { t: '라이브 · 시동', cue: '라이브 화면으로 전환하며 시동을 켭니다.', run: [['scene', 'live'], ['wait', 900], ['ign', true]] },
       ...SCENARIOS[0].steps.slice(1).map((s) => ({ ...s, grp: '1막 · 고객 인바운드' })),
       { t: '다른 상황 · 다시 주행', cue: '“이번에는 고객이 전화하지 못하는 상황입니다.”', run: [['act', 'clear'], ['wait', 600], ['act', 'drive']], pause: 2500, grp: '2막 · 상담원 아웃바운드' },
@@ -173,21 +174,31 @@
   let sc = SCENARIOS.find((x) => x.id === (localStorage.getItem('control-scenario') || 'in')) || SCENARIOS[1];
   let cur = -1, busy = false, auto = false, waiting = '', skip = false;
 
+  /* A step runs its ops, then may wait for its condition. Every step first saves a checkpoint
+   * of the whole demo on the car panel; [이전] puts that back (the state before the step) and
+   * abandons whatever is still running (token). */
+  let token = 0;
+  const cpKey = (i) => `${sc.id}:${i}`;
   async function go(i) {
     if (busy) { skip = true; return; }             // next while waiting: stop waiting
     if (i < 0 || i >= sc.steps.length) return;
+    const tok = ++token;
     busy = true;
     skip = false;
     cur = i;
     waiting = '';
     steps();
     const s = sc.steps[i];
-    await run(s.run);
+    Link.send('act', { name: 'checkpoint', args: { k: cpKey(i) } });
+    screenOnly();
+    await run(s.run, tok);
+    if (tok !== token) return;
     if (s.until) {
       waiting = s.long ? '통화 진행 중 · 끝나면 다음' : '반영 대기';
       steps();
       const t0 = Date.now();
-      while (!skip && !UNTIL[s.until]() && Date.now() - t0 < (s.timeout || (s.long ? 180000 : 15000))) await wait(300);
+      while (tok === token && !skip && !UNTIL[s.until]() && Date.now() - t0 < (s.timeout || (s.long ? 180000 : 15000))) await wait(300);
+      if (tok !== token) return;
     }
     waiting = '';
     busy = false;
@@ -199,9 +210,40 @@
       waiting = '자동 진행 · 잠시 후 다음';
       steps();
       await wait(s.pause || 1500);
+      if (tok !== token) return;
       waiting = '';
       if (auto && cur === i) go(i + 1);
     } else if (auto && i + 1 >= sc.steps.length) { auto = false; steps(); }
+  }
+  /** [이전]: back to the state just before the current step, as it was before it was pressed. */
+  function back() {
+    if (cur < 0) return;
+    token++;
+    busy = false; skip = false; auto = false; waiting = '';
+    Link.send('hush', {});
+    Link.send('act', { name: 'restore', args: { k: cpKey(cur) } });
+    cur -= 1;
+    steps();
+  }
+  /** 초기화: no question, everything at once — the car stops and switches off. */
+  function resetAll() {
+    token++;
+    busy = false; skip = false; auto = false; waiting = ''; cur = -1;
+    Link.send('hush', {});
+    Link.send('act', { name: 'fullReset', args: {} });
+    send('cmd', 'noAnswer', { on: false });
+    scene = 'live'; Link.send('stage', { scene: 'live' });
+    camView = 'auto'; Link.send('cam', { view: 'auto' });
+    ccwManual = false; localStorage.removeItem('control-ccwcam-manual');
+    ccwCam = 'auto'; localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: 'auto' });
+    steps(); manualState();
+  }
+  /* the call center and DMS panels show the screen alone (화면만) once a scenario runs,
+   * until the presenter picks a view for them on the dock */
+  let ccwManual = localStorage.getItem('control-ccwcam-manual') === '1';
+  function screenOnly() {
+    if (ccwManual || ccwCam === 'screen') return;
+    ccwCam = 'screen'; Link.send('ccw-cam', { view: 'screen' }); manualState();
   }
   function pick(id) {
     sc = SCENARIOS.find((x) => x.id === id);
@@ -218,10 +260,22 @@
   function steps() {
     const s = cur >= 0 ? sc.steps[cur] : null;
     const next = sc.steps[cur + 1];
-    $('#now').innerHTML = `<div class="hd"><small>${esc(sc.n)} · ${esc(sc.title)}</small><b>${s ? `${cur + 1}/${sc.steps.length} · ${esc(s.t)}` : '시작 전'}</b>
-        <p>${s ? esc(s.cue) : `첫 단계: ${esc(sc.steps[0].t)}`}</p>${waiting ? `<em class="wait">⏳ ${esc(waiting)}</em>` : ''}</div>
-      <div class="btns"><button id="prev">◀ 이전</button><button id="next" class="pri"><b>${busy ? '대기 건너뛰고 다음 ▶' : next ? '다음 ▶' : '끝'}</b>${next ? `<small>${esc(next.t)}</small>` : ''}</button>
-        <button id="auto" class="${auto ? 'on' : ''}">${auto ? '■ 멈춤' : '▶▶ 자동'}</button></div>`;
+    const now = $('#now');
+    if (!now.firstElementChild) {
+      now.innerHTML = `<div class="btns"><button id="prev">◀ 이전</button><button id="next" class="pri"><b></b><small></small></button><button id="auto"></button></div>
+        <div class="hd"><small class="sn"></small><b class="st"></b><p class="cue"></p><em class="wait"></em></div>`;
+    }
+    const set = (sel, txt) => { const e = $(sel, now); if (e.textContent !== txt) e.textContent = txt; };
+    set('.sn', `${sc.n} · ${sc.title}`);
+    set('.st', s ? `${cur + 1}/${sc.steps.length} · ${s.t}` : '시작 전');
+    set('.cue', s ? s.cue : `첫 단계: ${sc.steps[0].t}`);
+    set('.wait', waiting ? `⏳ ${waiting}` : '');
+    $('.wait', now).style.visibility = waiting ? 'visible' : 'hidden';
+    set('#next b', busy ? '대기 건너뛰고 다음 ▶' : next ? '다음 ▶' : '끝');
+    set('#next small', next ? next.t : '');
+    set('#auto', auto ? '■ 멈춤' : '▶▶ 자동');
+    $('#auto').classList.toggle('on', auto);
+    $('#prev').disabled = cur < 0;
     let grp = '';
     $('#steps').innerHTML = sc.steps.map((x, i) => {
       const head = x.grp && x.grp !== grp ? `<div class="grp">${esc(x.grp)}</div>` : '';
@@ -262,7 +316,7 @@
         + chunk('서비스센터 (DMS)', b('data-dms="open"', 'DMS 상세 열기') + b('data-dms="close"', '닫기') + b('data-c="dmsAdvance"', '다음 단계 진행'), '예약 → 입고 → 정비 → 종결')
         + chunk('일반 전화 (경고 없음)', b('data-a="inbound"', '고객 전화 오기') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))],
       wall: ['장면 · 화면', chunk('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join(''))
-        + chunk('시연 화면 비율', b('data-wmode="21"', '21:9') + b('data-wmode="169"', '16:9'))
+        + chunk('시연 화면 비율', b('data-wmode="21"', '21:9') + b('data-wmode="169"', '16:9') + b('data-wmode="63"', '63:9'))
         + chunk('데이터 흐름', b('data-flowlog', flowLog ? '상세 흐름 접기' : '상세 흐름 펼치기'))
         + chunk('시연 화면 배치', b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))
         + chunk('점검 · 열기', b('data-identify', '화면 번호 표시') + ['wall.html:시연 화면 열기', 'dms.html:DMS 열기', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))],
@@ -280,6 +334,8 @@
     if (we) we.classList.toggle('on', !!wall.edit);
     if (wl) wl.classList.toggle('on', !!wall.labels);
     document.querySelectorAll('[data-scene]').forEach((x) => x.classList.toggle('on', x.dataset.scene === scene));
+    const op = $('[data-opening]');
+    if (op) { op.classList.toggle('on', scene === 'opening'); op.textContent = scene === 'opening' ? '오프닝 끄기' : '오프닝'; }
     document.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('on', x.dataset.pick === `in:${(snap && snap.pick && snap.pick.in) || 'in'}`));
     const hz = $('[data-a="hazard"]');
     if (hz) hz.classList.toggle('on', !!(veh && veh.hazard));
@@ -298,7 +354,8 @@
     if (!t || t.disabled) return;
     const d = t.dataset;
     if (t.id === 'next') go(cur + 1);
-    else if (t.id === 'prev') { Link.send('hush', {}); cur = Math.max(-1, cur - 1); steps(); }
+    else if (t.id === 'prev') back();
+    else if ('opening' in d) { const on = scene !== 'opening'; send('scene', on ? 'opening' : 'live'); manualState(); }
     else if (t.id === 'auto') { auto = !auto; steps(); if (auto && !busy) go(cur + 1); }
     else if (d.mtab) { mtab = d.mtab; localStorage.setItem('control-mtab', mtab); manual(); }
     else if (d.sc) pick(d.sc);
@@ -309,7 +366,7 @@
     else if (d.cam) { camView = d.cam; Link.send('cam', { view: d.cam }); manualState(); }
     else if (d.dms) Link.send(d.dms === 'open' ? 'dms-open' : 'dms-close', {});
     else if ('flowlog' in d) { flowLog = !flowLog; Link.send('flow-log', { open: flowLog }); manual(); }
-    else if (d.ccwcam) { ccwCam = d.ccwcam; localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: ccwCam }); manualState(); }
+    else if (d.ccwcam) { ccwCam = d.ccwcam; ccwManual = true; localStorage.setItem('control-ccwcam-manual', '1'); localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: ccwCam }); manualState(); }
     else if (d.wmode) setWall({ mode: d.wmode });
     else if ('wedit' in d) setWall({ edit: !wall.edit });
     else if ('wlabels' in d) setWall({ labels: !wall.labels });
@@ -320,12 +377,12 @@
     else if (d.hu) send('hu', d.hu);
     else if (d.c) send('cmd', d.c, d.c === 'closeGeneral' ? {} : undefined);
     else if ('noans' in d) send('cmd', 'noAnswer', { on: !(snap && snap.noAnswer) });
-    else if ('reset' in d) { if (confirm('차량 경고 · e-Care 시나리오를 초기화할까요?')) { Link.send('hush', {}); run([['reset']]); cur = -1; auto = false; camView = 'auto'; Link.send('cam', { view: 'auto' }); ccwCam = 'auto'; localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: 'auto' }); steps(); manualState(); } }
+    else if ('reset' in d) resetAll();
   });
   addEventListener('keydown', (e) => {
     if (e.target.matches('input,textarea')) return;
     if (e.code === 'ArrowRight' || e.code === 'Space' || e.code === 'PageDown') { e.preventDefault(); go(cur + 1); }
-    if (e.code === 'ArrowLeft' || e.code === 'PageUp') { e.preventDefault(); cur = Math.max(-1, cur - 1); steps(); }
+    if (e.code === 'ArrowLeft' || e.code === 'PageUp') { e.preventDefault(); back(); }
   });
 
   scenarios();

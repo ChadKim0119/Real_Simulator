@@ -491,7 +491,9 @@ body.stage #showUi, body.stage #toast { display: none !important; }
 #dupSim.on { display: block; }
 
 /* the rescue truck arrives: a filmed wide shot of the cockpit over the photo */
-#rescue { position: fixed; inset: 0; z-index: 6; pointer-events: none; overflow: hidden; display: none; }
+/* behind the stage: the live cabin is drawn over the film, only the windows and the area around
+   the photo show it */
+#rescue { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; display: none; }
 #rescue.on { display: block; }
 #rescue .bg { position: absolute; inset: -60px; background: #0b0d10 url(../assets/rescue_first.webp) center / cover; filter: blur(26px) brightness(0.45); opacity: 0; }
 #rescue .frame { position: absolute; left: 0; top: 0; width: 2560px; height: 1086px; transform-origin: 0 0; will-change: transform, opacity; opacity: 0; }
@@ -501,6 +503,11 @@ body.stage #showUi, body.stage #toast { display: none !important; }
   background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(255, 196, 70, 0.95), rgba(255, 150, 20, 0.45) 38%, rgba(255, 140, 0, 0) 72%); }
 #rescue.stopped .bar { animation: rescueBar 0.62s steps(1, end) infinite; }
 @keyframes rescueBar { 0% { opacity: 0.95; } 50% { opacity: 0.08; } }
-#rescue .cap { position: absolute; left: 50%; bottom: 7%; transform: translate(-50%, 12px); padding: 0.55em 1.2em; border-radius: 999px; font: 700 clamp(15px, 2.1vw, 30px) "Noto Sans KR", sans-serif; color: #1c1205;
+#rescueCap { position: fixed; z-index: 8; pointer-events: none; left: 50%; bottom: 7%; transform: translate(-50%, 12px); padding: 0.55em 1.2em; border-radius: 999px; font: 700 clamp(15px, 2.1vw, 30px) "Noto Sans KR", sans-serif; color: #1c1205;
   background: rgba(255, 184, 40, 0.94); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45); opacity: 0; transition: opacity 0.5s, transform 0.5s; white-space: nowrap; }
-#rescue.capon .cap { opacity: 1; transform: translate(-50%, 0); }
+#rescueCap.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* while the filmed wide shot is behind it, the cabin photo's sides blend into the film */
+body.rescue #plate, body.rescue #ambient, body.rescue #footShade, body.rescue #focusShade {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 110px, #000 calc(100% - 110px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 110px, #000 calc(100% - 110px), transparent 100%); }

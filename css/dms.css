@@ -17,6 +17,9 @@ body.tall #stage { z-index: 1; }
 body.view-office #app { width: 2026px; transform: scale(0.24729); }
 #glassFx { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
   background: linear-gradient(118deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 34%, rgba(255, 255, 255, 0) 52%), radial-gradient(ellipse 120% 90% at 50% 50%, transparent 70%, rgba(0, 0, 0, 0.12) 100%); }
+/* 화면만: the room fades out (eased) while the camera settles on the monitor */
+#office, #deskGlow, #glassFx, body.tall #viewport::before { transition: opacity 0.9s cubic-bezier(.65,0,.35,1); }
+body.screen-only #office, body.screen-only #deskGlow, body.screen-only #glassFx, body.screen-only.tall #viewport::before { opacity: 0; }
 /* the DMS alone (a dedicated screen) */
 body.view-app #office, body.view-app #deskGlow, body.view-app #glassFx { display: none; }
 body.view-app #stage { transform: none !important; width: 100vw; height: 100vh; }

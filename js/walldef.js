@@ -3,6 +3,8 @@
  *   21  — 21:9, 2560x1080: two columns split into rows; the left column's
  *         bottom row split once more (conversation | service center DMS)
  *   169 — 16:9, 1920x1080: two rows split into columns; the bottom row in three
+ *   63  — 63:9 (7:1), 7560x1080: four full-height columns (splits i0 < i1 < o
+ *         along x); the last column split once along y (i2)
  * A layout is { dir, o, i0, i1, i2, slots }: the outer split o (x for columns,
  * y for rows), the inner splits i0 / i1 inside the first / second part, i2 the
  * extra split (always along x), and which panel sits in each cell (s00, s01,
@@ -31,6 +33,11 @@
       // top: the car (wide) beside the conversation; bottom: the data flow, the CCW and the DMS
       layout: { dir: 'rows', o: 540, i0: 1310, i1: 640, i2: 1280, slots: { s00: 'car', s01: 'talk', s10: 'flow', s11: 'ccw', s02: 'dms' } },
     },
+    63: {
+      W: 7560, name: '63:9', desc: '초광폭 LED 월 7560×1080',
+      // one row: the car, the data flow (16:9), the CCW (2:1), then the DMS (16:9) over the conversation
+      layout: { dir: 'wide', i0: 2570, i1: 4490, o: 6660, i2: 515, slots: { s00: 'car', s01: 'flow', s02: 'ccw', s10: 'dms', s11: 'talk' } },
+    },
   };
   const clone = (v) => JSON.parse(JSON.stringify(v));
 
@@ -54,6 +61,14 @@
     const W = MODES[m].W, g = GAP / 2;
     const MINW = 160;
     // the extra split stays inside its row: left column (cols) / right of the CCW (rows)
+    if (L.dir === 'wide') {
+      const i0 = Math.max(MINW, Math.min(W - MINW * 3, L.i0)), i1 = Math.max(i0 + MINW, Math.min(W - MINW * 2, L.i1)), o = Math.max(i1 + MINW, Math.min(W - MINW, L.o));
+      const y = Math.max(MINW, Math.min(H - MINW, L.i2));
+      const c = { s00: [0, 0, i0 - g, H], s01: [i0 + g, 0, i1 - i0 - g * 2, H], s02: [i1 + g, 0, o - i1 - g * 2, H], s10: [o + g, 0, W - o - g, y - g], s11: [o + g, y + g, W - o - g, H - y - g] };
+      const out = {};
+      for (const s in L.slots) out[L.slots[s]] = c[s].map(Math.round);
+      return out;
+    }
     const i2 = L.dir === 'cols' ? Math.max(MINW, Math.min(L.o - MINW, L.i2)) : Math.max(L.i1 + MINW, Math.min(W - MINW, L.i2));
     const c = L.dir === 'cols'
       ? { s00: [0, 0, L.o - g, L.i0 - g], s01: [0, L.i0 + g, i2 - g, H - L.i0 - g], s02: [i2 + g, L.i0 + g, L.o - i2 - g * 2, H - L.i0 - g], s10: [L.o + g, 0, W - L.o - g, L.i1 - g], s11: [L.o + g, L.i1 + g, W - L.o - g, H - L.i1 - g] }

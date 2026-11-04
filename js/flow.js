@@ -181,6 +181,7 @@
     return grp;
   };
   const caseCard = card(700, 382, 290, 300, '경고 등급 · WNG master');
+  caseCard.style.display = 'none';      // removed: the step rail tells where the case is
   const cc = {
     code: el('text', { x: 22, y: 104, fill: '#eef3fb', 'font-size': 54, 'font-weight': 800, class: 'num' }, caseCard),
     name: el('text', { x: 22, y: 146, fill: '#c9d6ea', 'font-size': 26, 'font-weight': 700 }, caseCard),
@@ -191,6 +192,7 @@
     src: el('text', { x: 22, y: 284, fill: '#5f7392', 'font-size': 17, 'font-weight': 600 }, caseCard),
   };
   const slaCard = card(1005, 382, 290, 300, '처리 기한 · SLA');
+  slaCard.style.display = 'none';
   const sc = {
     group: el('text', { x: 22, y: 76, fill: '#9fb6d6', 'font-size': 21, 'font-weight': 600, class: 'num' }, slaCard),
     ringBg: el('circle', { cx: 92, cy: 178, r: 62, fill: 'none', stroke: '#1e2b40', 'stroke-width': 14 }, slaCard),
@@ -206,7 +208,20 @@
   // header
   const hud = g('hud');
   const tt = el('text', { x: 52, y: 72, fill: '#eef3fb', 'font-size': 38, 'font-weight': 800 }, hud); tt.textContent = 'e-Care 데이터 흐름';
-  const ts = el('text', { x: 52, y: 106, fill: '#7f93b0', 'font-size': 20, 'font-weight': 600 }, hud); ts.textContent = 'Toyota Global South · 실시간 시스템 연동';
+  /* replay of the scenario just run, on this panel only: [다시 보기] plays every message again
+   * in order, [한 단계씩] shows one message per press, [실시간] goes back to the live feed */
+  const BTN = [['replay', '↻ 다시 보기'], ['step', '한 단계씩 ▶'], ['live', '● 실시간']];
+  const btnEls = {};
+  BTN.reduce((x, [k, label]) => {
+    const grp = el('g', { transform: `translate(${x},88)`, class: 'fbtn', 'data-k': k, style: 'cursor:pointer' }, hud);
+    const t = el('text', { x: 16, y: 23, fill: '#cfe1ff', 'font-size': 18, 'font-weight': 700 }, grp); t.textContent = label;
+    const w = t.getBBox().width + 32;
+    const r = el('rect', { width: w, height: 34, rx: 17, fill: 'rgba(90,162,255,0.10)', stroke: 'rgba(140,180,240,0.35)', 'stroke-width': 1.5 }, grp);
+    grp.insertBefore(r, t);
+    btnEls[k] = { grp, r, t };
+    grp.addEventListener('click', () => onBtn(k));
+    return x + w + 10;
+  }, 52);
   const elapsedL = el('text', { x: 1868, y: 44, fill: '#7f93b0', 'font-size': 19, 'font-weight': 700, 'text-anchor': 'end' }, hud); elapsedL.textContent = '경고 발생 후 경과';
   const elapsed = el('text', { x: 1868, y: 98, fill: '#fff', 'font-size': 52, 'font-weight': 700, 'text-anchor': 'end', class: 'num' }, hud);
   const clock = el('text', { x: 1868, y: 128, fill: '#6f84a3', 'font-size': 20, 'font-weight': 700, 'text-anchor': 'end', class: 'num' }, hud);
@@ -242,9 +257,9 @@
   let railKey = '';
   function tickRail() {
     const c = primary();
-    const st = stepOf(c);
+    const st = replay ? { i: replay.maxStep, d: replay.last ? `${replay.step ? '한 단계씩' : '다시 보기'} · ${replay.last.label}` : (replay.step ? '한 단계씩 — 버튼을 누를 때마다 다음 메시지' : '다시 보기') } : stepOf(c);
     const col = c ? CASECOL[(c.wng && c.wng.case) || c.wcase || 'A'] : BLUE;
-    const key = st.i + '|' + st.d + '|' + col;
+    const key = st.i + '|' + st.d + '|' + col + '|' + !!replay;
     if (key === railKey) return;
     railKey = key;
     rail.forEach((r, i) => {
@@ -292,6 +307,57 @@
   foot.addEventListener('click', () => { setLog(!logOpen); Link.send('flow-log', { open: logOpen }); });
   Link.on('flow-log', (d) => setLog(d.open));
 
+  /* ---------------- replay (this panel only) ---------------- */
+  let replay = null;                 // { list, i, step, maxStep, last }
+  const norm = (f0) => (f0.from === 'cti' || f0.to === 'cti' ? { ...f0, from: f0.from === 'cti' ? 'ccw' : f0.from, to: f0.to === 'cti' ? 'ccw' : f0.to } : f0);
+  function clearBoard() {
+    queue.length = 0;
+    shown = [];
+    for (const k in touched) delete touched[k];
+    for (const k in used) { const l = used[k]; if (l.dataset.extra) l.remove(); else l.setAttribute('class', ''); delete used[k]; }
+    packets.splice(0).forEach((p) => { p.tail.remove(); p.dot.remove(); });
+    chips.splice(0).forEach((c) => c.grp.remove());
+    renderLog();
+  }
+  function onBtn(k) {
+    const list = ((snap && snap.flows) || []).filter((f) => f.type !== 'skip').map(norm);
+    if (k === 'live') { replay = null; railKey = ''; btnState(); return; }
+    if (!list.length) return;
+    if (k === 'replay' || !replay || !replay.step) { clearBoard(); replay = { list, i: 0, step: k === 'step', maxStep: -1, last: null }; railKey = ''; lastLaunch = 0; }
+    if (k === 'step') stepOnce();
+    btnState();
+  }
+  function stepOnce() {
+    if (!replay || replay.i >= replay.list.length) return;
+    const f = replay.list[replay.i++];
+    replay.last = f;
+    replay.maxStep = Math.max(replay.maxStep, stepOfFlow(f));
+    shown.push(f);
+    launch(f);
+    renderLog();
+  }
+  function btnState() {
+    const mode = !replay ? 'live' : replay.step ? 'step' : 'replay';
+    for (const k in btnEls) {
+      const on = k === mode;
+      btnEls[k].r.setAttribute('fill', on ? 'rgba(90,162,255,0.32)' : 'rgba(90,162,255,0.10)');
+      btnEls[k].r.setAttribute('stroke', on ? '#5aa2ff' : 'rgba(140,180,240,0.35)');
+    }
+    if (replay && replay.step) btnEls.step.t.textContent = `한 단계씩 ▶  ${replay.i}/${replay.list.length}`;
+    else btnEls.step.t.textContent = '한 단계씩 ▶';
+    const w = btnEls.step.t.getBBox().width + 32; btnEls.step.r.setAttribute('width', w);
+    btnEls.live.grp.setAttribute('transform', `translate(${52 + (btnEls.replay.t.getBBox().width + 32) + 10 + w + 10},88)`);
+  }
+  /** which step of the journey a message belongs to (replay: the rail follows the film) */
+  function stepOfFlow(f) {
+    const a = f.api || '';
+    if (a === 'DMS-SVC-002') { const st = (f.payload && f.payload.repairStatus) || ''; return /CONTACT/.test(st) ? 3 : /RESERVED|RECEIVED/.test(st) ? 4 : 5; }
+    if (/WAM-MEMO|상담 메모|통화 종료/.test(a)) return 3;
+    if (/긴급출동|출동 상태|음성|수신/.test(a) || (f.to === 'car' && /MM 알림/.test(a) && /출동/.test(f.label))) return 2;
+    if (/MM 콜|콜 배정|발신|응답|미응답|SMS|상담원 조회|IDLE|자동 할당|상태 전환|WNG 콜 팝업|일반 전화/.test(a)) return 1;
+    return 0;
+  }
+
   /* ---------------- link ---------------- */
   Link.on('ecare', (d) => { snap = d; ingest(); renderCards(); });
   // who speaks now (the call animation sends the voice that way)
@@ -305,7 +371,13 @@
   let lastLaunch = 0;
   function ingest() {
     const fl = (snap && snap.flows) || [];
-    if (!fl.length && seen) reset();                                 // scenario reset
+    if (!fl.length && seen) { replay = null; btnState(); reset(); }    // scenario reset
+    // the presenter went back a step: the feed is shorter now, draw it again as it stands
+    if (fl.length && seen && fl[fl.length - 1].id < seen) { reset(); first = true; }
+    if (replay) {                                                     // replaying: the live feed waits
+      for (const f0 of fl) if (f0.id > seen) seen = f0.id;
+      return;
+    }
     for (const f0 of fl) {
       if (f0.id <= seen) continue;
       const f = f0.from === 'cti' || f0.to === 'cti' ? { ...f0, from: f0.from === 'cti' ? 'ccw' : f0.from, to: f0.to === 'cti' ? 'ccw' : f0.to } : f0;
@@ -328,8 +400,15 @@
     renderLog();
   }
   function pump(now) {
+    if (replay && !replay.step) {
+      if (replay.i >= replay.list.length) { if (now - lastLaunch > 6000) { replay = null; btnState(); } return; }
+      if (now - lastLaunch < 1900) return;
+      lastLaunch = now;
+      stepOnce();
+      return;
+    }
     if (!queue.length) return;
-    const gap = queue.length > 5 ? 650 : 1100;
+    const gap = queue.length > 6 ? 1300 : 1900;          // slow enough to follow from the room
     if (now - lastLaunch < gap) return;
     lastLaunch = now;
     const f = queue.shift();
@@ -362,23 +441,23 @@
     const col = f.wcase ? CASECOL[f.wcase] : BLUE;
     touched[f.from] = touched[f.to] = true;
     counts[f.to] = (counts[f.to] || 0) + 1;
-    if (f.from === f.to) { flash(f.to, col); chip(f, N[f.to].x, N[f.to].y - 92, col, 4200, null, [{ x: N[f.to].x, y: N[f.to].y - 92 }, { x: N[f.to].x, y: N[f.to].y + 92 }, { x: N[f.to].x - 150, y: N[f.to].y - 92 }]); return; }
+    if (f.from === f.to) { flash(f.to, col); chip(f, N[f.to].x, N[f.to].y - 92, col, 5600, null, [{ x: N[f.to].x, y: N[f.to].y - 92 }, { x: N[f.to].x, y: N[f.to].y + 92 }, { x: N[f.to].x - 150, y: N[f.to].y - 92 }]); return; }
     const p0 = path(f.from, f.to);
     const p = p0;
     const tail = el('path', { d: p.d, fill: 'none', stroke: col, 'stroke-width': 6, 'stroke-linecap': 'round', opacity: 0.9 }, g('pk'));
     const L = tail.getTotalLength();
     tail.setAttribute('stroke-dasharray', `0 ${L}`);
     const dot = el('circle', { r: 13, fill: col, filter: 'url(#dot)' }, g('pk'));
-    const pk = { f, tail, dot, L, t0: performance.now(), dur: Math.min(1400, 520 + L * 0.9), col };
+    const pk = { f, tail, dot, L, t0: performance.now(), dur: Math.min(2300, 950 + L * 1.3), col };
     packets.push(pk);
-    chip(f, p.mx, p.my, col, 4200, pk);
+    chip(f, p.mx, p.my, col, 5600, pk);
     keep(f.from, f.to, col);
     flash(f.from, col, 0.35);
   }
   // label chips: placed along the message's path where they cover no system
   // box and no other label
   const boxes = () => Object.keys(N).map((k) => { const n = N[k]; const { w: w0, h: h0 } = size(n); const w = w0 + 16, h = h0 + 16; return { x: n.x - w / 2, y: n.y - h / 2, w, h }; })
-    .concat([{ x: 692, y: 374, w: 306, h: 316 }, { x: 997, y: 374, w: 306, h: 316 }, { x: 1370, y: 230, w: 260, h: 36 }])
+    .concat([{ x: 1370, y: 230, w: 260, h: 36 }])
     .concat(ZONES.map((z) => ({ x: z.x, y: 160, w: z.w, h: 52 })));        // zone titles
   const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
   const MAX_CHIPS = 1;        // only the message playing now has a label; the log has the rest
@@ -514,7 +593,7 @@
   const callLblT = el('text', { fill: '#dfffe9', 'font-size': 24, 'font-weight': 800, 'text-anchor': 'middle', class: 'num' }, callLbl);
   let callKey = '', callDots = [], lastVoice = 0, callA = 0;
   function currentCall() {
-    if (!snap) return null;
+    if (!snap || replay) return null;
     const gc = snap.general;
     if (gc && (gc.state === 'connected' || gc.state === 'ringing')) return { who: 'phone', live: gc.state === 'connected', at: gc.connectedAt, label: '일반 전화' };
     const c = primary();
@@ -602,6 +681,7 @@
     requestAnimationFrame(frame);
   }
   layoutFoot();
+  btnState();
   requestAnimationFrame(frame);
   // the clock always runs; the elapsed time only while there is a warning case
   setInterval(() => { const t = new Date(); clock.textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`; if (!snap || !primary()) elapsed.textContent = '00:00'; }, 500);

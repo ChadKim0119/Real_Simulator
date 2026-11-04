@@ -296,19 +296,112 @@
       o.stop(t0 + len + 0.02);
     }
 
-    /* rising, shimmering arpeggio under the welcome words */
-    welcome() {
-      if (!this.ctx) return;
-      [[523.3, 0], [659.3, 0.14], [784, 0.28], [1046.5, 0.46], [1318.5, 0.72]].forEach(([f, at], i) =>
-        this.bell(f, at, 0.06 + i * 0.008, 2.2, [[1, 1], [2, 0.18], [3.01, 0.05]]));
-      this.bell(2093, 1.5, 0.035, 2.4, [[1, 1], [1.5, 0.3]]);   // sparkle as the subtitle lands
+    /* a dark hall for the start/stop signatures (built once) */
+    hall() {
+      if (this._hall) return this._hall;
+      const ctx = this.ctx, sec = 3.2, n = ctx.sampleRate * sec;
+      const buf = ctx.createBuffer(2, n, ctx.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const d = buf.getChannelData(c);
+        for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3.2);
+      }
+      const cv = ctx.createConvolver();
+      cv.buffer = buf;
+      const tone = this.filter('lowpass', 2600, 0.5);
+      const wet = this.gain(0.42);
+      cv.connect(tone).connect(wet).connect(this.master);
+      this._hall = cv;
+      return cv;
     }
 
-    /* soft falling farewell at switch-off */
+    /* A slow, warm pad: two detuned triangles per note through a low-pass that
+     * opens (or closes) over the swell, plus a dry and a hall send. */
+    pad(notes, at, o) {
+      const ctx = this.ctx, t0 = ctx.currentTime + at;
+      const { attack = 0.9, hold = 0.8, release = 3.2, level = 0.05, lp = [260, 1800], sweep = 1.6 } = o || {};
+      const end = t0 + attack + hold + release;
+      const lpf = this.filter('lowpass', lp[0], 0.6);
+      lpf.frequency.setValueAtTime(lp[0], t0);
+      lpf.frequency.exponentialRampToValueAtTime(lp[1], t0 + sweep);
+      const g = this.gain(0);
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(level, t0 + attack);
+      g.gain.setValueAtTime(level, t0 + attack + hold);
+      g.gain.exponentialRampToValueAtTime(0.0003, end);
+      lpf.connect(g);
+      g.connect(this.master);
+      g.connect(this.hall());
+      notes.forEach(([f, amp = 1]) => {
+        for (const det of [-5, 5]) {
+          const osc = ctx.createOscillator();
+          osc.type = 'triangle';
+          osc.frequency.value = f;
+          osc.detune.value = det;
+          const og = this.gain(amp * 0.5);
+          osc.connect(og).connect(lpf);
+          osc.start(t0);
+          osc.stop(end + 0.1);
+        }
+      });
+    }
+
+    /* a felt-soft low sine swell under the chord */
+    sub(f, at, level, attack, len) {
+      const ctx = this.ctx, t0 = ctx.currentTime + at;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      const g = this.gain(0);
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(level, t0 + attack);
+      g.gain.exponentialRampToValueAtTime(0.0003, t0 + len);
+      osc.connect(g).connect(this.master);
+      osc.start(t0);
+      osc.stop(t0 + len + 0.1);
+    }
+
+    /* a restrained, warm bell with a hall tail */
+    softBell(f, at, level, decay) {
+      const ctx = this.ctx, t0 = ctx.currentTime + at;
+      const g = this.gain(0);
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(level, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0004, t0 + decay);
+      const lp = this.filter('lowpass', 2400, 0.5);
+      g.connect(lp);
+      lp.connect(this.master);
+      lp.connect(this.hall());
+      for (const [mul, amp] of [[1, 1], [2.0, 0.12], [3.0, 0.03]]) {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = f * mul;
+        const og = this.gain(amp);
+        osc.connect(og).connect(g);
+        osc.start(t0);
+        osc.stop(t0 + decay + 0.05);
+      }
+    }
+
+    /* Start-up signature: a deep, slowly opening D-flat major 9 chord over a
+     * sub swell, then two quiet bells as the welcome words land. */
+    welcome() {
+      if (!this.ctx) return;
+      this.sub(34.65, 0, 0.16, 0.7, 4.6);                                     // Db1
+      this.pad([[69.3, 1], [103.8, 0.8], [138.6, 0.7], [174.6, 0.5], [207.7, 0.45]], 0, { attack: 1.1, hold: 0.9, release: 3.4, level: 0.07, lp: [180, 1500], sweep: 1.8 });
+      this.pad([[277.2, 0.6], [311.1, 0.5], [415.3, 0.4]], 0.7, { attack: 1.0, hold: 0.6, release: 3.0, level: 0.03, lp: [400, 2200], sweep: 1.4 });
+      this.softBell(554.4, 1.25, 0.032, 3.6);                                 // Db5
+      this.softBell(830.6, 1.7, 0.022, 3.4);                                  // Ab5
+    }
+
+    /* Switch-off signature: the chord settles downward and closes, like a
+     * door shutting on a quiet cabin. */
     goodbye() {
       if (!this.ctx) return;
-      [[1046.5, 0], [784, 0.2], [659.3, 0.42], [523.3, 0.68]].forEach(([f, at]) =>
-        this.bell(f, at, 0.06, 1.8, [[1, 1], [2, 0.15]]));
+      this.softBell(622.3, 0, 0.026, 2.8);                                    // Eb5
+      this.softBell(415.3, 0.38, 0.026, 3.0);                                 // Ab4
+      this.pad([[103.8, 0.9], [138.6, 0.7], [207.7, 0.5], [277.2, 0.35]], 0.1, { attack: 0.5, hold: 0.4, release: 2.6, level: 0.055, lp: [1400, 220], sweep: 2.4 });
+      this.pad([[69.3, 1], [103.8, 0.6], [174.6, 0.4]], 0.9, { attack: 0.6, hold: 0.3, release: 2.8, level: 0.05, lp: [700, 160], sweep: 2.6 });
+      this.sub(34.65, 0.9, 0.13, 0.5, 3.8);
     }
 
     stopRepeat() {

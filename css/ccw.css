@@ -26,6 +26,12 @@ body.tall #stage { z-index: 1; }
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
+/* 화면만: the room fades out (eased) while the camera settles on the monitor */
+#office, #deskGlow, #glassFx { transition: opacity 0.9s cubic-bezier(.65,0,.35,1); }
+body.screen-only #office, body.screen-only #deskGlow, body.screen-only #glassFx { opacity: 0; }
+body.tall #viewport::before { transition: opacity 0.9s cubic-bezier(.65,0,.35,1); }
+body.screen-only.tall #viewport::before { opacity: 0; }
+
 /* step caption: what the call center is doing now (the main flow), office view only */
 #cap { position: fixed; left: 2.2vw; top: 2.2vw; z-index: 15; display: flex; align-items: center; gap: 0.7em; max-width: 92vw; padding: 0.55em 1.1em 0.55em 0.8em; border-radius: 0.8em;
   background: rgba(10, 18, 30, 0.88); color: #fff; font: 700 clamp(14px, 2.4vw, 40px) "Noto Sans KR", sans-serif; box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.45);

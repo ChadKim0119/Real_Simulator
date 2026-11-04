@@ -78,7 +78,8 @@
     const [o, a, b, c2] = host.querySelectorAll('.split');
     const V = (el, x, y, h) => { el.className = 'split v'; Object.assign(el.style, { left: `${x - 9}px`, top: `${y}px`, width: '18px', height: `${h}px` }); };
     const Hh = (el, x, y, w) => { el.className = 'split h'; Object.assign(el.style, { left: `${x}px`, top: `${y - 9}px`, width: `${w}px`, height: '18px' }); };
-    if (cols()) { V(o, L.o, 0, H); Hh(a, 0, L.i0, L.o); Hh(b, L.o, L.i1, W - L.o); V(c2, L.i2, L.i0, H - L.i0); }
+    if (L.dir === 'wide') { V(a, L.i0, 0, H); V(b, L.i1, 0, H); V(o, L.o, 0, H); Hh(c2, L.o, L.i2, W - L.o); }
+    else if (cols()) { V(o, L.o, 0, H); Hh(a, 0, L.i0, L.o); Hh(b, L.o, L.i1, W - L.o); V(c2, L.i2, L.i0, H - L.i0); }
     else { Hh(o, 0, L.o, W); V(a, L.i0, 0, L.o); V(b, L.i1, L.o, H - L.o); V(c2, L.i2, L.o, H - L.o); }
   }
   function render() {
@@ -103,7 +104,7 @@
     const r = screen.width / screen.height;
     const off = mode && full && Math.abs(r - W / H) / (W / H) > 0.04 && !noticeHidden;
     n.classList.toggle('on', !!off);
-    if (off) n.innerHTML = `<b>화면 모드(${MODES[mode].name})와 출력 비율이 다릅니다</b> · 지금 ${screen.width}×${screen.height} (${r.toFixed(2)}:1). 위아래나 좌우에 여백이 생깁니다. ${Math.abs(r - 16 / 9) < 0.05 ? '이 출력에는 <em>16:9 모드</em>가 맞습니다' : Math.abs(r - 2560 / 1080) < 0.1 ? '이 출력에는 <em>21:9 모드</em>가 맞습니다' : ''}${mode === '21' && Math.abs(r - 16 / 9) < 0.05 ? ' — 21:9 디스플레이라면 맥 <em>시스템 설정 › 디스플레이</em>에서 2560×1080을 고르세요 (16:9로 나가면 디스플레이가 가로로 늘려 글자가 넓적해집니다)' : ''}. <em>M</em> 화면 모드 · 클릭하면 닫힘`;
+    if (off) n.innerHTML = `<b>화면 모드(${MODES[mode].name})와 출력 비율이 다릅니다</b> · 지금 ${screen.width}×${screen.height} (${r.toFixed(2)}:1). 위아래나 좌우에 여백이 생깁니다. ${Math.abs(r - 16 / 9) < 0.05 ? '이 출력에는 <em>16:9 모드</em>가 맞습니다' : Math.abs(r - 2560 / 1080) < 0.1 ? '이 출력에는 <em>21:9 모드</em>가 맞습니다' : Math.abs(r - 7) < 0.3 ? '이 출력에는 <em>63:9 모드</em>가 맞습니다' : ''}${mode === '21' && Math.abs(r - 16 / 9) < 0.05 ? ' — 21:9 디스플레이라면 맥 <em>시스템 설정 › 디스플레이</em>에서 2560×1080을 고르세요 (16:9로 나가면 디스플레이가 가로로 늘려 글자가 넓적해집니다)' : ''}. <em>M</em> 화면 모드 · 클릭하면 닫힘`;
   }
   document.addEventListener('fullscreenchange', fit);
   $('#notice').addEventListener('click', () => { noticeHidden = true; ratioNotice(); });
@@ -128,17 +129,17 @@
     render();
     if (!quiet && changed) Link.send('wall', { mode: m });
   }
-  // the first screen: pick 21:9 or 16:9 (a miniature of each layout, the detected screen)
+  // the first screen: pick 21:9, 16:9 or 63:9 (a miniature of each layout, the detected screen)
   function modeScreen() {
     const r = screen.width / screen.height;
-    const best = Math.abs(r - 16 / 9) < 0.05 ? '169' : r > 2.2 ? '21' : null;
+    const best = Math.abs(r - 16 / 9) < 0.05 ? '169' : r > 5 ? '63' : r > 2.2 ? '21' : null;
     const mini = (m) => {
       const R = D.rects(D.load(m), m), w = MODES[m].W;
       return `<div class="mini" style="aspect-ratio:${w}/${H}">${Object.keys(R).map((k) => { const [x, y, ww, hh] = R[k]; return `<i style="left:${x / w * 100}%;top:${y / H * 100}%;width:${ww / w * 100}%;height:${hh / H * 100}%"><span>${esc(PANELS[k].t)}</span></i>`; }).join('')}</div>`;
     };
     const el = $('#modes');
     el.innerHTML = `<div class="box"><h1>시연 화면 모드</h1><p>이 화면(${screen.width}×${screen.height} · ${r.toFixed(2)}:1)에 맞는 모드를 고르세요. 나중에 위쪽 막대나 컨트롤 패널, <b>M</b> 키로 바꿀 수 있습니다.</p>
-      <div class="opts">${['21', '169'].map((m) => `<button data-pick="${m}" class="${m === best ? 'best' : ''} ${m === mode ? 'cur' : ''}">${mini(m)}<b>${MODES[m].name}</b><span>${MODES[m].desc}</span>${m === best ? '<em>이 화면에 맞음</em>' : ''}</button>`).join('')}</div></div>`;
+      <div class="opts">${['21', '169', '63'].map((m) => `<button data-pick="${m}" class="${m === best ? 'best' : ''} ${m === mode ? 'cur' : ''}">${mini(m)}<b>${MODES[m].name}</b><span>${MODES[m].desc}</span>${m === best ? '<em>이 화면에 맞음</em>' : ''}</button>`).join('')}</div></div>`;
     el.classList.add('on');
     document.body.classList.add('modes-open');
   }
@@ -147,8 +148,19 @@
   /* ---------------- editing: splits ---------------- */
   // positions of a split where a panel next to it reaches its own ratio (found
   // numerically for any layout), and the line of the other part's inner split
+  // does split k move along x, and how far may it go (63:9: the column splits keep their order)
+  const horizOf = (k) => (L.dir === 'wide' ? k !== 'i2' : k === 'o' ? cols() : k === 'i2' ? true : !cols());
+  function bounds(k) {
+    if (L.dir === 'wide') {
+      if (k === 'i0') return [MIN, L.i1 - MIN];
+      if (k === 'i1') return [L.i0 + MIN, L.o - MIN];
+      if (k === 'o') return [L.i1 + MIN, W - MIN];
+      return [MIN, H - MIN];
+    }
+    return [MIN, (horizOf(k) ? W : H) - MIN];
+  }
   function magnets(k) {
-    const lo = MIN, hi = (k === 'o' ? (cols() ? W : H) : k === 'i2' ? W : (cols() ? H : W)) - MIN;
+    const [lo, hi] = bounds(k);
     const ratios = (v) => { const T = Object.assign({}, L, { [k]: v }); const R = D.rects(T, mode); return Object.keys(R).map((p) => [p, R[p][2] / R[p][3]]); };
     const out = [];
     let prev = ratios(lo);
@@ -163,7 +175,7 @@
       });
       prev = cur;
     }
-    if (k === 'i0' || k === 'i1') out.push({ v: k === 'i0' ? L.i1 : L.i0, label: '다른 줄과 정렬' });
+    if (L.dir !== 'wide' && (k === 'i0' || k === 'i1')) out.push({ v: k === 'i0' ? L.i1 : L.i0, label: '다른 줄과 정렬' });
     return out;
   }
   let drag = null;
@@ -184,8 +196,8 @@
     const cx = (e.clientX - r.left) / scale, cy = (e.clientY - r.top) / scale;
     if (drag.split) {
       const k = drag.split;
-      const horiz = k === 'o' ? cols() : k === 'i2' ? true : !cols();   // the split moves along x
-      const lo = MIN, hi = (horiz ? W : H) - MIN;
+      const horiz = horizOf(k);   // the split moves along x
+      const [lo, hi] = bounds(k);
       let v = Math.max(lo, Math.min(hi, Math.round((horiz ? cx : cy) / SNAP) * SNAP));
       let hit = null;
       for (const m of drag.mags) if (Math.abs(m.v - v) < MAGNET && m.v >= lo && m.v <= hi && (!hit || Math.abs(m.v - v) < Math.abs(hit.v - v))) hit = m;
@@ -287,7 +299,9 @@
   function sceneRender() {
     const el = $('#scene');
     el.className = scene === 'live' ? '' : `on ${scene}`;
-    el.innerHTML = scene === 'opening' ? '<div class="op"><small>TOYOTA · LEXUS CONNECT</small><b>Global South</b><span>개발 진척 보고회 · e-Care</span></div>'
+    // opening: three lines over e-Care's key colours drifting slowly behind
+    el.innerHTML = scene === 'opening' ? '<div class="aur" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i></div>'
+        + '<div class="op"><b>Real Simulator 시연</b><span>e-Care에 대한 고객의 경험 여정 및 업무 flow</span><small>본 시연에 사용되는 화면, 이미지, UI 디자인은 일부 변경될 수 있습니다.</small></div>'
       : scene === 'closing' ? closing() : '';
   }
 

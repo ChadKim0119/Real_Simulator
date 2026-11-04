@@ -366,8 +366,17 @@
     if (kind === cam.to && same(rect, cam.rect)) return;
     cam.from = cam.cur; cam.to = kind; cam.rect = rect || null; cam.t0 = performance.now(); cam.dur = cam.from ? dur : 0;
   }
+  let screenOnly = false;       // 화면만: the room fades, the monitor fills the view, focus still zooms
   function viewOf(kind, rect, vw, vh, s0, s1) {
     if (kind === 'office') return { s: s0, cx: IMG.w / 2, cy: IMG.h / 2 };
+    const sScr = Math.min(vw / SCR.w, vh / SCR.h);
+    if (kind === 'screen') return { s: sScr, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 };
+    if (kind === 'focus' && rect && screenOnly) {
+      const k = SCR.w / OW;
+      const r = { x: SCR.x + rect.x * k, y: SCR.y + rect.y * k, w: rect.w * k, h: rect.h * k };
+      const s = clamp(Math.min(vw / (r.w * 1.1), vh / (r.h * 1.18)), sScr * 1.05, sScr * 3.6);
+      return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 };
+    }
     const mon = { s: s1, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 + 14 };
     if (kind !== 'focus' || !rect) return mon;
     const k = SCR.w / OW;
@@ -457,6 +466,11 @@
     capEl.classList.toggle('on', !!st && (busyNow || camHold !== 'auto'));
     if (st) { $('b', capEl).textContent = st[0]; $('small', capEl).textContent = st[1] || ''; }
     if (mode !== 'office') return;
+    if (screenOnly) {
+      const sel = focusSel(), r = sel && rectOf(sel);
+      if (r) camTo('focus', cam.to === 'focus' ? 1600 : 2200, r); else camTo('screen', 2200);
+      return;
+    }
     if (camHold === 'office' || camHold === 'monitor') { camTo(camHold, 2400); return; }
     if (busyNow) quiet = 0; else if (!quiet) quiet = Date.now();
     // idle: the whole desk, framed like the call center room (same photo-to-monitor proportion)
@@ -466,8 +480,9 @@
   }
   Link.on('ccw-cam', (d) => {
     const v = d.view || 'auto';
-    const m = v === 'screen' ? 'app' : 'office';
-    if (m !== mode) { mode = m; setBody(); }
+    if (mode !== 'office' && params.get('view') !== 'app') { mode = 'office'; setBody(); }
+    screenOnly = v === 'screen';
+    document.body.classList.toggle('screen-only', screenOnly);
     camHold = v === 'office' || v === 'monitor' ? v : 'auto';
     camPolicy();
   });

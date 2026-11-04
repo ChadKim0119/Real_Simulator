@@ -141,7 +141,7 @@
     };
     let V = blend(L.full, L.zoom, z);
     if (cam.h > 0.0005) V = blend(V, L.hu, cam.h);
-    const { s, cx, cy, vx, vy } = V;
+    let { s, cx, cy, vx, vy } = V;
     if (huShade) huShade.style.opacity = smooth(0.15, 1, cam.h).toFixed(3);
     // body vibration from the road; a touch of engine shake at idle
     const vf = clamp(st.speed / 100, 0, 1.2);
@@ -162,8 +162,14 @@
     if (IMG_H * s >= vh) ty = clamp(ty, vh - IMG_H * s, 0);
     else ty = clamp(ty, 0, Math.max(0, L.area.y1 - IMG_H * s));   // short picture: no gap at the top
     if (still) { tx = Math.round(tx); ty = Math.round(ty); shakeX = Math.round(shakeX); shakeY = Math.round(shakeY); }
+    stageView.tx = tx + shakeX; stageView.ty = ty + shakeY; stageView.s = s;     // the camera's own view
+    // the rescue scene: the live cabin (photo, cluster, head unit) rides on the filmed wide shot,
+    // lined up with it, so only the world outside the glass comes from the film
+    if (rescue && rescue.cur) {
+      const v = rescue.cur;
+      s = v.k * RESCUE.plate.s; tx = v.x + v.k * RESCUE.plate.x; ty = v.y + v.k * RESCUE.plate.y; shakeX = shakeY = 0;
+    }
     stage.style.transform = `translate3d(${(tx + shakeX).toFixed(2)}px, ${(ty + shakeY).toFixed(2)}px, 0) scale(${s.toFixed(5)})`;
-    stageView.tx = tx + shakeX; stageView.ty = ty + shakeY; stageView.s = s;
     // the head unit sits outside the stage layer (which is rasterized once, at one scale),
     // so it stays sharp when the camera closes in: it follows the same transform here
     if (huLayer) {
@@ -547,7 +553,13 @@
     if (on) { toast('비상등 점등'); hazLookUntil = Date.now() + 4200; }
   }
   director.hooks.hazard = (c, on) => setHazard(on);
+  // standing still for a minute with the flashers on: they go off (the driver is out of danger)
+  let stoppedSince = 0;
   function hazardTick(t) {
+    if (st.hazard && st.speed < 0.5) {
+      if (!stoppedSince) stoppedSince = t;
+      else if (t - stoppedSince > 60) { setHazard(false); stoppedSince = 0; toast('정차 1분 경과 · 비상등 끔'); }
+    } else stoppedSince = 0;
     const lit = st.hazard && ((t - st.hazT0) % 0.76) < 0.4;
     if (lit === st.hazOn) return;
     st.hazOn = lit;
@@ -649,8 +661,14 @@
   const RESCUE = { src: 'assets/rescue_arrive.mp4', srcC: 'assets/rescue_hold.mp4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 5.7, switchAt: 6.6, playDelay: 1.6, hold: 12 };
   const rescueEl = document.createElement('div');
   rescueEl.id = 'rescue';
-  rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vc" muted playsinline preload="auto" loop></video><i class="bar"></i></div><div class="cap">긴급출동 차량 도착</div>';
-  document.body.appendChild(rescueEl);
+  rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vc" muted playsinline preload="auto" loop></video><i class="bar"></i></div>';
+  $('#viewport').insertBefore(rescueEl, stage);
+  // the caption sits over everything (the cabin is drawn over the film)
+  const rCap = document.createElement('div');
+  rCap.id = 'rescueCap';
+  rCap.textContent = '긴급출동 차량 도착';
+  document.body.appendChild(rCap);
+  const capOn = (on) => rCap.classList.toggle('on', !!on);
   const [rVid, rC] = rescueEl.querySelectorAll('video'), rFrame = rescueEl.querySelector('.frame'), rBg = rescueEl.querySelector('.bg');
   rVid.src = RESCUE.src; rC.src = RESCUE.srcC;
   const rAll = [rVid, rC];
@@ -665,8 +683,8 @@
   }
   function rescueStop(now_) {
     if (!rescue) return;
-    if (now_) { rescue = null; rescueEl.classList.remove('on', 'stopped', 'capon'); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
-    if (rescue.phase !== 'narrow' && rescue.phase !== 'out') { rescue.phase = 'narrow'; rescue.t0 = now(); rescue.from = rescue.cur; rescueEl.classList.remove('capon'); }
+    if (now_) { rescue = null; extCanvas.style.opacity = ''; document.body.classList.remove('rescue'); rescueEl.classList.remove('on', 'stopped'); capOn(false); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
+    if (rescue.phase !== 'narrow' && rescue.phase !== 'out') { rescue.phase = 'narrow'; rescue.t0 = now(); rescue.from = rescue.cur; capOn(false); }
   }
   director.hooks.rescue = (c) => (c ? rescueStart() : rescueStop(true));
   // the clip's framing that lines up with the photo where it is now / that fills the view
@@ -708,7 +726,7 @@
       if (R.played && !R.onC) {
         const ct = rVid.currentTime;
         if (ct >= RESCUE.switchAt - 0.02 || rVid.ended) {
-          R.stopped = now(); rescueEl.classList.add('stopped', 'capon');
+          R.stopped = now(); rescueEl.classList.add('stopped'); capOn(true);
           // the same truck on the same frame: a 0.25 s dissolve hides the films' small difference
           if (rC.readyState >= 2) { rC.currentTime = 0; rC.play().catch(() => {}); rC.style.zIndex = 3; rC.style.opacity = 0; R.xC = now(); }
           rVid.pause();
@@ -716,7 +734,7 @@
         } else if (ct >= RESCUE.slowFrom) rVid.playbackRate = Math.max(0.25, 1 - 0.75 * (ct - RESCUE.slowFrom) / (RESCUE.switchAt - RESCUE.slowFrom));
       }
       if (R.xC) { const k = clamp((now() - R.xC) / 0.25, 0, 1); rC.style.opacity = k.toFixed(3); if (k >= 1) { R.xC = 0; rShow(rC); } }
-      if (R.stopped && now() - R.stopped > 4) rescueEl.classList.remove('capon');
+      if (R.stopped && now() - R.stopped > 4) capOn(false);
       // after the call (and a while on the truck) the view closes back onto the dashboard
       if (R.stopped && now() - R.stopped > RESCUE.hold && !onCall()) rescueStop(false);
     } else if (R.phase === 'narrow') {
@@ -729,7 +747,8 @@
     }
     if (!v) return;
     R.cur = v;
-    rescueEl.classList.add('on');
+    rescueEl.classList.add('on'); document.body.classList.add('rescue');
+    extCanvas.style.opacity = (1 - op).toFixed(3);      // the film shows through the windows
     rFrame.style.transform = `translate3d(${v.x.toFixed(2)}px, ${v.y.toFixed(2)}px, 0) scale(${v.k.toFixed(5)})`;
     rFrame.style.opacity = op.toFixed(3);
     // a soft blurred copy fills the view where the clip does not reach (an upright or 4:3 screen)
@@ -843,6 +862,43 @@
     el.textContent = `${c.id.slice(-4)} · ${contact}${call}${memo}${disp}${c.contact === 0 && !c.assign && !c.inbound ? ` · SLA ${sla}` : ''}`;
   }
 
+  /* checkpoints: the control panel saves the whole demo state before each scenario step,
+   * so [이전] puts everything back exactly as it was before that step */
+  const checkpoints = new Map();
+  const ST_KEYS = ['ign', 'ignT', 'bootT', 'backlight', 'bulbCheck', 'sweep', 'engine', 'rpm', 'throttle', 'speed', 'accel', 'gear', 'gearNum', 'mode', 'holdT', 'cruise', 'popup', 'hazard', 'pendingDrive', 'ceremony'];
+  function checkpoint(k) {
+    const v = {}; ST_KEYS.forEach((x) => { v[x] = st[x]; });
+    v.red = [...st.redActive]; v.amber = [...st.amberActive];
+    checkpoints.set(k, { st: v, care: director.dumpState() });
+  }
+  function restore(k) {
+    const cp = checkpoints.get(k);
+    if (!cp) return false;
+    const v = cp.st;
+    ST_KEYS.forEach((x) => { st[x] = v[x]; });
+    st.redActive = new Set(v.red); st.amberActive = new Set(v.amber);
+    st.hazT0 = now(); stoppedSince = 0;
+    if (st.ign === 'starting') { st.ign = 'on'; st.engine = true; }
+    rescueStop(true);
+    director.loadState(cp.care);
+    camTo(st.mode === 'accel' || st.mode === 'cruise' ? 1 : 0, 1.6);
+    syncUI();
+    return true;
+  }
+  /* 초기화: everything back to the start, at once — the car stops and switches off */
+  function fullReset() {
+    rescueStop(true);
+    setHazard(false);
+    clearWarnings();
+    Object.assign(st, { ign: 'off', ignT: 99, bootT: 99, engine: false, rpm: 0, throttle: 0, speed: 0, accel: 0, gear: 'P', gearNum: 1, mode: 'park', cruise: false, popup: null, bulbCheck: false, sweep: -1, pendingDrive: false, ceremony: false, backlight: 0 });
+    st.redActive.clear(); st.amberActive.clear();
+    audio.stopRepeat();
+    director.command('reset', {});
+    camHold = 'auto';
+    cam.zoomAt = null;
+    camTo(0, 1.2);
+    syncUI();
+  }
   const actions = {
     ign: ignition,
     drive,
@@ -851,6 +907,9 @@
     red: () => warn('red'),
     amber: () => warn('amber'),
     clear: clearWarnings,
+    checkpoint: (a) => checkpoint(a && a.k),
+    restore: (a) => { if (!restore(a && a.k)) toast('되돌릴 단계 기록이 없습니다'); },
+    fullReset,
     hazard: () => setHazard(!st.hazard),
     mode: cycleMode,
     view: () => {

@@ -53,8 +53,19 @@
     if (kind === cam.to && sameRect(rect, cam.rect)) return;
     cam.from = cam.cur; cam.to = kind; cam.rect = rect || null; cam.t0 = performance.now(); cam.dur = cam.from ? dur : 0;
   }
+  // 화면만 (screen only): the room fades out and the monitor fills the view; the camera still
+  // closes in on the part of the screen the scenario is about
+  let screenOnly = false;
   function viewOf(kind, rect, vw, vh, s0, s1) {
     if (kind === 'office') return { s: s0, cx: IMG.w / 2, cy: IMG.h / 2 };
+    const sScr = Math.min(vw / SCR.w, vh / SCR.h);
+    if (kind === 'screen') return { s: sScr, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 };
+    if (kind === 'focus' && rect && screenOnly) {
+      const kx = SCR.w / 1920, ky = SCR.h / 960;
+      const r = { x: SCR.x + rect.x * kx, y: SCR.y + rect.y * ky, w: rect.w * kx, h: rect.h * ky };
+      const s = clamp(Math.min(vw / (r.w * 1.1), vh / (r.h * 1.18)), sScr * 1.05, sScr * 3.2);
+      return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 };
+    }
     const mon = { s: s1, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 + 18 };
     if (kind !== 'focus' || !rect) return mon;
     // the rectangle (screen px) on the photo, filling about 80% of the view
@@ -1112,6 +1123,11 @@
   function camPolicy() {
     if (mode !== 'office') { caption(null); return; }
     caption(camHold === 'office' ? null : focusTarget());
+    if (screenOnly) {
+      const sel = focusTarget(), r = sel && rectOf(sel);
+      if (r) camTo('focus', cam.to === 'focus' ? 1600 : 2200, r); else camTo('screen', 2200);
+      return;
+    }
     if (camHold === 'office' || camHold === 'monitor') { camTo(camHold, 2400); return; }
     const b = busy();
     if (b) quietSince = 0; else if (!quietSince) quietSince = Date.now();
@@ -1124,8 +1140,11 @@
   if (!camLocked) {
     Link.on('ccw-cam', (d) => {
       const v = d.view || 'auto';
-      if (v === 'screen') { setMode('app'); return; }
+      // 화면만: the same page, the room fading away while the camera moves onto the monitor (eased)
       setMode('office');
+      screenOnly = v === 'screen';
+      document.body.classList.toggle('screen-only', screenOnly);
+      if (screenOnly) { camHold = 'auto'; camPolicy(); return; }
       camHold = v === 'office' || v === 'monitor' ? v : 'auto';
       camPolicy();
     });

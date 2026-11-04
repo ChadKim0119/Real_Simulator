@@ -50,7 +50,7 @@
 
   // stills of each screen mode, taken in that mode's default layout (tools/capture-stills.cjs)
   let STILLS = [], SHOT = null, stillsOf = null;
-  const dir = () => (wmode() === '169' ? 'assets/test/stills-169/' : 'assets/test/stills/');
+  const dir = () => (wmode() === '21' ? 'assets/test/stills/' : `assets/test/stills-${wmode()}/`);
   function loadStills() {
     const m = wmode();
     if (stillsOf === m) return;
