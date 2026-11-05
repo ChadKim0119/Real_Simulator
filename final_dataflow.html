@@ -45,14 +45,22 @@
     </section>
 
     <section id="detail" aria-label="상세 데이터 흐름">
-      <iframe class="board" id="board" title="상세 데이터 흐름"></iframe>
+      <!-- left: the board, the message under it; middle: the three screens; right: the controls -->
+      <div class="boardWrap"><iframe class="board" id="board" title="상세 데이터 흐름"></iframe></div>
+      <div class="card" id="qCard"></div>
+      <div class="shots" id="shots">
+        <figure data-who="car"><div class="img"></div><figcaption><i></i>고객 차량 · 헤드유닛</figcaption></figure>
+        <figure data-who="ccw"><div class="img"></div><figcaption><i></i>고객지원실 · CCW</figcaption></figure>
+        <figure data-who="dms"><div class="img"></div><figcaption><i></i>서비스센터 · DMS</figcaption></figure>
+      </div>
       <aside id="qa">
-        <div class="hd"><b>상세 데이터 흐름</b><span class="tag">Q&amp;A</span><span class="src" id="qSrc">실시간 기록</span><button id="toSimple" title="심플 화면으로 · D">심플로 돌아가기</button></div>
+        <div class="hd"><b>상세 데이터 흐름</b><span class="tag">Q&amp;A</span><button id="toSimple" title="심플 화면으로 · D">심플로</button></div>
+        <div class="srcRow"><span class="src" id="qSrc">실시간 기록</span><span class="n num" id="qN">0 / 0</span></div>
         <div class="chips" id="chips"></div>
-        <div class="tp"><button data-q="first" title="처음 메시지">⏮ 처음</button><button data-q="prev" title="이전 메시지 · ←">◀ 이전</button><button data-q="next" class="pri" title="다음 메시지 · → / Space">다음 ▶</button><button data-q="stage" title="다음 단계로 · ↓">단계 ⏭</button></div>
-        <div class="tp2"><button data-q="play" id="qPlay">▶ 자동 재생</button><button data-q="live" id="qLive">● 실시간</button><span class="n num" id="qN">0 / 0</span></div>
-        <div class="card" id="qCard"></div>
-        <div class="shots"><h4 id="shotsT">이 단계의 화면</h4><div class="g" id="shots"></div></div>
+        <div class="tp"><button data-q="first" title="처음 메시지">⏮ 처음</button><button data-q="prev" title="이전 · ←">◀ 이전</button><button data-q="next" class="pri" title="다음 · → / Space">다음 ▶</button><button data-q="stage" title="다음 단계로 · ↓">단계 ⏭</button></div>
+        <div class="tp2"><button data-q="play" id="qPlay">▶ 자동 재생</button><button data-q="live" id="qLive">● 실시간</button></div>
+        <div class="plain" id="qPlain"></div>
+        <ol class="tl" id="qList"></ol>
       </aside>
     </section>
   </div>

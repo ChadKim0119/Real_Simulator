@@ -72,7 +72,7 @@
   let flash = {};              // live case id -> since (highlight a new or changed row)
   Link.on('ecare', (d) => {
     const before = snap ? Object.fromEntries((snap.cases || []).map((c) => [c.id, c.dms])) : {};
-    snap = d;
+    snap = E.gate(d, 'dms');            // only what has reached the service center on the data flow
     (snap.cases || []).forEach((c) => { if (c.dms >= 0 && before[c.id] !== c.dms) flash[c.id] = Date.now(); });
     render();
   });
@@ -424,7 +424,7 @@
     if (c.dms < 0) return ['e-Care 고객지원실 상담 중', '긴급 경고 · 이관 대기'];
     if (c.dmsStop) return ['대응 중단', c.dmsStop];
     const T = {
-      0: ['상담 메모 이관 접수 · 컨택대기', '고객지원실 → 서비스센터 (WAM-MEMO-001) · 첫 컨택 SLA 시작'],
+      0: ['상담 메모 이관 접수 · 컨택대기', '고객지원실 → 서비스센터 상담 메모 이관 · 첫 컨택 SLA 시작'],
       1: ['고객 컨택 · 예약대기', `서비스 어드바이저 ${'이정비'} 컨택 등록`],
       2: ['입고 예약 확정', '컨택 결과 → CCW · 데이터 흐름에 반영 (DMS-SVC-002)'],
       3: ['차량 입고', '긴급출동 견인 차량 서비스센터 도착'],

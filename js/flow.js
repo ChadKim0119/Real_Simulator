@@ -21,10 +21,8 @@
     car: { x: 195, y: 330, w: 270, t: '고객 차량', s: 'DCM · 헤드유닛', zone: 'cust' },
     phone: { x: 195, y: 735, w: 270, t: '고객 휴대폰', s: 'Global App · 문자', zone: 'cust' },
     vdp: { x: 520, y: 330, w: 250, t: '차량 신호 수집', s: 'VDP', zone: 'jp' },
-    vep: { x: 845, y: 330, w: 290, t: '경고 판정', s: 'VEP · Case 판정', zone: 'kr' },
-    wam: { x: 1155, y: 330, w: 290, t: '업무 흐름 관리', s: 'WAM · 배정 · SLA', zone: 'kr' },
-    opw: { x: 845, y: 560, w: 290, t: '운영 관리', s: 'OPW · 정책', zone: 'kr' },
-    sms: { x: 1155, y: 560, w: 290, t: '문자 발송', s: 'SMS', zone: 'kr' },
+    // VEP judges the case, maps the customer's text and sends to the four receivers at once
+    vep: { x: 1000, y: 470, w: 380, h: 136, t: '경고 판정 · 고객 문구', s: 'VEP · Case 분류 · 문구 매핑', zone: 'kr' },
     ccw: { x: 1607, y: 330, w: 320, t: '상담원 화면', s: 'CCW', zone: 'res' },
     rescue: { x: 1607, y: 560, w: 320, t: '긴급출동', s: '마스터자동차', zone: 'res' },
     dms: { x: 1607, y: 735, w: 320, t: '서비스센터 (딜러)', s: 'DMS', zone: 'res' },
@@ -39,7 +37,7 @@
   const W = 250, H = 104;
   const size = (n) => ({ w: n.w || W, h: n.h || H });
   // the backbone drawn at rest; other messages (calls, alerts) draw their path while they travel
-  const LINKS = [['car', 'vdp'], ['vdp', 'vep'], ['vep', 'wam'], ['wam', 'ccw'], ['wam', 'dms'], ['ccw', 'rescue'], ['vdp', 'phone'], ['ccw', 'sms'], ['sms', 'phone']];
+  const LINKS = [['car', 'vdp'], ['vdp', 'vep'], ['vep', 'ccw'], ['vep', 'dms'], ['vep', 'car'], ['vep', 'phone'], ['ccw', 'rescue'], ['ccw', 'dms']];
   const CASECOL = { A: '#ff4d5e', B: '#ffb02e', C: '#3fd0c9' };
   const BLUE = '#5aa2ff';
 
@@ -87,7 +85,7 @@
   /* links run edge to edge as S-curves: sideways between columns, up/down
    * within one. SMS → phone dips under the bottom row so it clears OPW. */
   const UNDER = { 'phone|sms': 820 };     // key: the two ids sorted; the first is the left box
-  const OVER = { 'vdp|wam': 214 };        // top edge to top edge, over the boxes between
+  const OVER = { 'car|vep': 246 };        // top edge to top edge, over the boxes between
   const RIGHT = { 'ccw|rescue': 1838, 'ccw|dms': 1838 };   // around the right of the column
   /* calls between the customer and the agent: the car's head unit (MM call) over the
    * top of the boxes, the customer's phone along the corridor under the cards */
@@ -369,6 +367,8 @@
     replay.maxStep = Math.max(replay.maxStep, stepOfFlow(f));
     shown.push(f);
     launch(f);
+    replay.lastGroup = [f];
+    while (f.burst && replay.i < replay.list.length && replay.list[replay.i].burst === f.burst) { const x = replay.list[replay.i++]; shown.push(x); launch(x); replay.lastGroup.push(x); }
     renderLog();
     renderProg();
     notify();
@@ -400,7 +400,7 @@
   const replayList = () => (ext && !liveList().length ? ext : liveList());
   function ctlState() {
     const list = replay ? replay.list : replayList();
-    return { src: ext && !liveList().length ? 'recorded' : 'live', mode: replay ? (replay.step ? 'step' : 'play') : 'live', i: replay ? replay.i : list.length, n: list.length, last: replay ? replay.last : shown[shown.length - 1] || null, list, stage: replay ? replay.maxStep : (primary() ? stepOf(primary()).i : -1) };
+    return { group: replay && replay.lastGroup ? replay.lastGroup : null, src: ext && !liveList().length ? 'recorded' : 'live', mode: replay ? (replay.step ? 'step' : 'play') : 'live', i: replay ? replay.i : list.length, n: list.length, last: replay ? replay.last : shown[shown.length - 1] || null, list, stage: replay ? replay.maxStep : (primary() ? stepOf(primary()).i : -1) };
   }
   /** the board as of message n (1 = the first): earlier paths drawn still, the n-th one animated */
   function seek(n) {
@@ -409,7 +409,10 @@
     n = Math.max(0, Math.min(list.length, n));
     clearBoard();
     replay = { list, i: 0, step: true, maxStep: -1, last: null };
-    for (let k = 0; k < n - 1; k++) {
+    // n counts messages; a burst is drawn whole
+    let upto = n - 1;
+    while (upto > 0 && upto < list.length && list[upto - 1].burst && list[upto].burst === list[upto - 1].burst) upto--;
+    for (let k = 0; k < upto; k++) {
       const f = list[k];
       if (f.from !== f.to) keep(f.from, f.to, f.wcase ? CASECOL[f.wcase] : BLUE);
       touched[f.from] = touched[f.to] = true;
@@ -418,14 +421,20 @@
       replay.last = f;
       replay.i++;
     }
-    if (n > 0) stepOnce(); else renderLog();
+    if (n > 0 && replay.i < list.length) stepOnce(); else renderLog();
     railKey = ''; btnState(); notify();
   }
   window.FlowCtl = {
     state: ctlState,
     seek,
     next: () => { const st = ctlState(); if (st.mode === 'live') seek(1); else if (replay.step) { stepOnce(); btnState(); } else { replay.step = true; stepOnce(); btnState(); } },
-    prev: () => { const st = ctlState(); seek(st.mode === 'live' ? st.n - 1 : st.i - 1); },
+    // back one step: to just before the group (a burst) the last shown message belongs to
+    prev: () => {
+      const st = ctlState(), L = st.list;
+      let k = (st.mode === 'live' ? st.n : st.i) - 1;
+      while (k > 0 && L[k] && L[k].burst && L[k - 1].burst === L[k].burst) k--;
+      seek(k);
+    },
     /** the first message of journey step k */
     stage: (k) => { const list = replayList(); let mx = 0; const at = list.findIndex((f) => (mx = Math.max(mx, stepOfFlow(f))) >= k); if (at >= 0) seek(at + 1); },
     play: () => { if (!replay) { onBtn('replay'); } else { replay.step = false; lastLaunch = 0; } btnState(); notify(); },
@@ -487,14 +496,15 @@
       return;
     }
     if (!queue.length) return;
-    const gap = queue.length > 6 ? 1300 : 1900;          // slow enough to follow from the room
+    const gap = queue.length > 6 ? 900 : 1300;           // the director paces messages about as fast
     if (now - lastLaunch < gap) return;
     lastLaunch = now;
     const f = queue.shift();
     if (f.type === 'skip') { skip(); return; }
-    shown.push(f);
-    if (shown.length > 40) shown.shift();
-    launch(f);
+    const group = [f];
+    while (f.burst && queue.length && queue[0].burst === f.burst) group.push(queue.shift());
+    for (const x of group) { shown.push(x); launch(x); }
+    while (shown.length > 40) shown.shift();
     renderLog();
   }
 
@@ -527,7 +537,7 @@
     const L = tail.getTotalLength();
     tail.setAttribute('stroke-dasharray', `0 ${L}`);
     const dot = el('circle', { r: 13, fill: col, filter: 'url(#dot)' }, g('pk'));
-    const pk = { f, tail, dot, L, t0: performance.now(), dur: Math.min(2300, 950 + L * 1.3), col };
+    const pk = { f, tail, dot, L, t0: performance.now(), dur: f.deliver || f.burst ? 1800 : Math.min(2300, 950 + L * 1.3), col };
     packets.push(pk);
     chip(f, p.mx, p.my, col, 5600, pk);
     keep(f.from, f.to, col);

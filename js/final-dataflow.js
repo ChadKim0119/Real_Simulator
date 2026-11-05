@@ -15,7 +15,8 @@
   const $ = (s, el) => (el || document).querySelector(s);
   Scenes.mount($('#canvas'));
 
-  const NAME = { car: '고객 차량', phone: '고객 휴대폰', vdp: '일본측 서버 · VDP', vep: '경고 판정 · VEP', wam: '업무 흐름 · WAM', opw: '운영 관리 · OPW', sms: '문자 발송 · SMS', ccw: '고객지원실 · CCW', cti: '상담 전화 · CTI', rescue: '긴급출동', dms: '서비스센터 · DMS' };
+  const NAME = { car: '고객 차량', phone: '고객 휴대폰', vdp: '일본측 서버 · VDP', vep: '경고 판정 · VEP', ccw: '고객지원실 · CCW', cti: '상담 전화 · CTI', rescue: '긴급출동', dms: '서비스센터 · DMS' };
+  const SHORT = { car: '차량', phone: '휴대폰', ccw: 'CCW', cti: 'CCW', dms: 'DMS', rescue: '긴급출동', vdp: 'VDP', vep: 'VEP' };
   let snap = null;
 
   /* ---------------- simple: the journey ---------------- */
@@ -60,18 +61,23 @@
   function pump() {
     if (!queue.length || Date.now() - showT < (queue.length > 4 ? 1100 : 1600)) return;
     const f = queue.shift();
+    const grp = [f];
+    while (f.burst && queue.length && queue[0].burst === f.burst) grp.push(queue.shift());
     showT = Date.now();
     const m = $('#msg');
     m.classList.remove('idle');
     const to = f.to === f.from ? f.to : f.to;
     $('#mFrom').textContent = NAME[f.from] || f.from;
-    $('#mTo').textContent = f.from === f.to ? '내부 처리' : (NAME[to] || to);
-    $('#mApi').textContent = f.api;
-    $('#mLb').textContent = f.label;
+    $('#mTo').textContent = f.from === f.to ? '내부 처리' : grp.length > 1 ? grp.map((x) => SHORT[x.to] || x.to).join(' · ') : (NAME[to] || to);
+    $('#mApi').textContent = grp.length > 1 ? '동시 발송' : f.api;
+    $('#mLb').textContent = grp.length > 1 ? grp.map((x) => x.api).join(' · ') : f.label;
     const line = $('#msg .line'); line.style.animation = 'none'; void line.offsetWidth; line.style.animation = '';
     // the screen that just received data glows
-    const hit = f.to === 'ccw' || f.to === 'cti' ? '#ccwCol' : f.to === 'dms' ? '#dmsCol' : null;
-    if (hit) glow(hit, f.wcase ? CASECOL[f.wcase] : '#3ddc84');
+    for (const x of grp) {
+      const hit = x.to === 'ccw' || x.to === 'cti' ? '#ccwCol' : x.to === 'dms' ? '#dmsCol' : null;
+      // the panel lights when the packet arrives (the board's travel time)
+      if (hit) setTimeout(() => glow(hit, x.wcase ? CASECOL[x.wcase] : '#3ddc84'), x.deliver || x.burst ? 1800 : 900);
+    }
   }
   const glowT = {};
   function glow(sel, col) {
@@ -109,7 +115,7 @@
     '<em>정비 종결</em> · e-Care 과업이 완료되었습니다',
   ];
   function renderSys() {
-    const c = primary(snap);
+    const c = primary(E.gate(snap, 'ccw'));
     const [say, live] = ccwText(c);
     const cs = $('#ccwState');
     if ($('#ccwSay').innerHTML !== say) $('#ccwSay').innerHTML = say;
@@ -120,7 +126,8 @@
       : [fact('고객', '—'), fact('경고', '—'), fact('긴급출동', '—')].join('');
     if ($('#ccwFacts').innerHTML !== ff) $('#ccwFacts').innerHTML = ff;
     // DMS: the case transferred (or sent straight for B / C)
-    const d = snap && (snap.cases || []).slice().reverse().find((x) => x.dms >= 0);
+    const gd = E.gate(snap, 'dms');
+    const d = gd && (gd.cases || []).slice().reverse().find((x) => x.dms >= 0);
     const ds = $('#dmsState');
     const dsay = !d ? '대기 중 — e-Care 상담이 끝나면 <em>이관 건이 여기</em> 들어옵니다' : DMS_SAY[Math.min(7, d.dms)];
     if ($('#dmsSay').innerHTML !== dsay) $('#dmsSay').innerHTML = dsay;
@@ -170,6 +177,8 @@
   $('#chips').innerHTML = E.JOURNEY.map((t, i) => `<button data-stage="${i}" title="${esc(t)}의 첫 메시지로"><i>${i + 1}</i>${esc(t)}</button>`).join('');
   $('#qa').addEventListener('click', (e) => {
     if (!ctl) return;
+    const li = e.target.closest('[data-seek]');
+    if (li) return ctl.seek(+li.dataset.seek);
     const b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.stage) return ctl.stage(+b.dataset.stage);
@@ -184,7 +193,7 @@
   // the demo screens of each journey step (stills taken by tools/capture-stills.cjs)
   const SHOT_ID = ['warning', 'incoming', 'dispatch', 'memo', 'dms', 'repair'];
   let stills = null;
-  fetch('assets/test/stills/index.json', { cache: 'no-cache' }).then((r) => r.json()).then((d) => { stills = Array.isArray(d) ? d : d.steps; renderQA(); }).catch(() => { stills = []; });
+  fetch('assets/test/stills-63/index.json', { cache: 'no-cache' }).then((r) => r.json()).then((d) => { stills = Array.isArray(d) ? d : d.steps; renderQA(); }).catch(() => { stills = []; });
   let shotKey = '';
   function renderQA() {
     if (!st) return;
@@ -200,27 +209,61 @@
     $('#qPlay').classList.toggle('on', st.mode === 'play');
     $('#qLive').classList.toggle('on', st.mode === 'live');
     const f = st.last;
+    const grp = st.group && st.group.length > 1 && st.mode !== 'live' ? st.group : (f ? [f] : []);
     const col = f && f.wcase ? CASECOL[f.wcase] : '#4f8cff';
-    $('#qa').style.setProperty('--case', col);
-    if (!f) $('#qCard').innerHTML = '<div class="lb">시나리오를 진행하면 메시지가 여기 쌓입니다. [다음 ▶]으로 첫 메시지부터 한 단계씩 볼 수 있습니다.</div>';
+    $('#detail').style.setProperty('--case', col);
+    const hh = (d) => String(d).padStart(2, '0');
+    if (!f) $('#qCard').innerHTML = '<div><div class="lb">시나리오를 진행하면 메시지가 여기 쌓입니다. [다음 ▶]으로 첫 메시지부터 한 단계씩 볼 수 있습니다.</div></div><pre>{}</pre>';
     else {
       const t = new Date(f.t);
-      const payload = f.payload ? JSON.stringify(f.payload, null, 2) : '(전달 데이터 없음)';
-      $('#qCard').innerHTML = `<div class="r">${esc(NAME[f.from] || f.from)} <em>→</em> ${esc(f.from === f.to ? '내부 처리' : NAME[f.to] || f.to)}</div>
-        <div class="api">${esc(f.api)} <span style="color:#6f84a3;font-weight:600;font-size:16px">· ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}:${String(t.getSeconds()).padStart(2, '0')}</span></div>
-        <div class="lb">${esc(f.label)}</div><pre>${esc(payload)}</pre>`;
+      const to = f.from === f.to ? '<span class="to">내부 처리</span>' : grp.map((x) => `<span class="to">${esc(NAME[x.to] || x.to)}</span>`).join('');
+      const payload = grp.length > 1 ? grp.map((x) => `// → ${NAME[x.to] || x.to} · ${x.api}\n${JSON.stringify(x.payload || {}, null, 2)}`).join('\n\n') : f.payload ? JSON.stringify(f.payload, null, 2) : '(전달 데이터 없음)';
+      $('#qCard').innerHTML = `<div><div class="r">${esc(NAME[f.from] || f.from)} <em>→</em> ${to}</div>
+        <div class="api">${esc(grp.length > 1 ? grp.map((x) => x.api).join(' · ') : f.api)}<small>${hh(t.getHours())}:${hh(t.getMinutes())}:${hh(t.getSeconds())}</small></div>
+        <div class="lb">${esc(grp.length > 1 ? `${E.CASE[f.wcase] ? E.CASE[f.wcase].label : ''} 판정과 고객 문구를 ${grp.length}곳에 동시에 보냅니다` : f.label)}</div>
+        ${grp.length > 1 ? `<span class="burst">동시 발송 · ${grp.length}곳</span>` : ''}</div><pre>${esc(payload)}</pre>`;
     }
-    // screens of the step
+    // the plain sentence of the step, and the messages of the step as a list
     const k = Math.max(0, curStage);
-    const sk = stills && stills.length ? (stills.find((x) => x.id === SHOT_ID[k]) || {}).key : null;
-    $('#shotsT').textContent = `이 단계의 화면 · ${k + 1} ${E.JOURNEY[k]}`;
-    const key = sk + '|' + k;
-    if (sk && key !== shotKey) {
-      shotKey = key;
-      const src = (p) => `assets/test/stills/${sk}_${p}.jpg`;
-      $('#shots').innerHTML = `<figure class="wide"><img src="${src('car')}" alt=""><figcaption>고객 차량 · 헤드유닛</figcaption></figure>
-        <figure><img src="${src('ccw')}" alt=""><figcaption>고객지원실 CCW</figcaption></figure><figure><img src="${src('dms')}" alt=""><figcaption>서비스센터 DMS</figcaption></figure>`;
+    $('#qPlain').innerHTML = `<small>${k + 1}단계 · ${esc(E.JOURNEY[k])}</small>${esc(E.JOURNEY_PLAIN[k])}`;
+    const upto = st.mode === 'live' ? L.length : st.i;
+    const items = [];
+    L.forEach((x, i) => { if (stg[i] !== k) return; if (x.burst && i > 0 && L[i - 1].burst === x.burst) { items[items.length - 1].n++; items[items.length - 1].last = i; return; } items.push({ x, i, last: i, n: 1 }); });
+    const lk = k + '|' + upto + '|' + L.length;
+    if (lk !== listKey) {
+      listKey = lk;
+      $('#qList').innerHTML = items.map((it) => `<li data-seek="${it.last + 1}" class="${it.last < upto - 1 ? 'done' : it.i <= upto - 1 && upto - 1 <= it.last ? 'cur' : ''}"><i>${it.i + 1}</i><b>${esc(it.n > 1 ? `동시 발송 · ${it.n}곳` : it.x.api)}</b><span>${esc(SHORT[it.x.from] || it.x.from)} → ${esc(it.n > 1 ? 'CCW · DMS · 차량 · 휴대폰' : it.x.from === it.x.to ? '내부' : SHORT[it.x.to] || it.x.to)} · ${esc(it.x.label)}</span></li>`).join('');
+      const cur = $('#qList .cur'); if (cur) cur.scrollIntoView({ block: 'nearest' });
     }
+    // the three screens at this message, and which of them it goes to
+    const id = shotFor(f, k);
+    const sk = stills && stills.length ? (stills.find((x) => x.id === id) || {}).key : null;
+    if (sk && sk + id !== shotKey) {
+      shotKey = sk + id;
+      const huZoomed = ['warning', 'incoming', 'call', 'dispatch', 'sla25', 'outbound', 'outcall'].includes(id);
+      const set = (who, file, pos) => { const el = $(`#shots [data-who="${who}"] .img`); el.style.opacity = 0; setTimeout(() => { el.style.backgroundImage = `url(assets/test/stills-63/${sk}_${file}.jpg)`; el.style.backgroundSize = pos ? pos[0] : 'cover'; el.style.backgroundPosition = pos ? pos[1] : 'center'; el.style.opacity = 1; }, 220); };
+      set('car', 'car', huZoomed ? null : ['250% auto', '80% 20%']);      // a full cockpit: the head unit up close
+      set('ccw', 'ccw'); set('dms', 'dms');
+    }
+    const to = new Set(grp.map((x) => (x.to === 'cti' ? 'ccw' : x.to === 'phone' ? 'car' : x.to)));
+    $('#shots').querySelectorAll('figure').forEach((fg) => fg.classList.toggle('on', !!f && to.has(fg.dataset.who)));
+  }
+  let listKey = '';
+  // the demo still that shows what this message does on the screens
+  function shotFor(f, k) {
+    if (!f) return SHOT_ID[Math.max(0, k)];
+    const a = f.api, st = (f.payload && f.payload.repairStatus) || '';
+    if (/WNG|VDP 이벤트|필터|Case 판정|e-Care 이벤트|DMS 이벤트|앱 푸시/.test(a) || (a === '헤드유닛 알림' && !/출동/.test(f.label))) return 'warning';
+    if (/헤드유닛 콜|콜 배정|자동 할당/.test(a)) return 'incoming';
+    if (/상담원 조회|IDLE|WNG 콜 팝업/.test(a)) return 'sla25';
+    if (/발신|응답|SMS/.test(a) && f.to === 'phone') return 'outbound';
+    if (/수신|음성|응답/.test(a)) return 'call';
+    if (/긴급출동/.test(a) || (a === '출동 상태' && !/도착|완료/.test(f.label)) || (a === '헤드유닛 알림')) return 'dispatch';
+    if (a === '출동 상태') return 'arrive';
+    if (/통화 종료|상담 메모/.test(a) || /CONTACT_REQUIRED/.test(st)) return 'memo';
+    if (/CONTACTED|RESERVED/.test(st)) return 'dms';
+    if (st) return 'repair';
+    return SHOT_ID[Math.max(0, k)];
   }
   addEventListener('keydown', (e) => {
     if (e.code === 'KeyD') setDetail(!detailOn);
@@ -234,6 +277,7 @@
   Link.on('df-hello', () => Link.send('df-state', { mode: detailOn ? 'detail' : 'simple' }));
 
   Link.on('ecare', (d) => {
+      if (!d || !d.cases) return;
     snap = d; ingest(); renderJourney(); renderSys();
     const n = (d.flows || []).length;
     if (n !== saveN) { saveN = n; saveRun(); if (ctl && !recorded) feed(); }

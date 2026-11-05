@@ -206,7 +206,7 @@
       Object.assign(this, v);
       this.cases.forEach((c) => {
         if (c.call && (c.call.state === 'connected' || c.call.state === 'dialing')) { c.call.state = 'ended'; c.call.endedAt = Date.now(); }
-        if (c.dispatch >= 0 && c.dispatch < 2) this.after(4000, () => this.arrive(c));
+        // the truck on its way does not come back by itself after [이전]: the arrival step brings it
         if (c.dms >= 0 && c.dms < 2 && !c.dmsManual && !c.dmsStop) this.dmsProgress(c, c.kind !== 'emergency');
       });
       if (this.hooks.rescue) this.hooks.rescue(null);
@@ -219,10 +219,13 @@
      *  [from, to, api, label, payload?, delayMs?]; delays are cumulative. */
     flow(c, steps) {
       let at = 0;
-      steps.forEach(([from, to, api, label, payload, delay]) => {
+      steps.forEach(([from, to, api, label, payload, delay, o]) => {
         at += delay == null ? 450 : delay;
+        const opt = o || {};
         this.after(at, () => {
-          this.flows.push({ id: ++this.flowSeq, t: Date.now(), from, to, api, label, payload: payload || null, caseId: c ? c.id : null, group: c ? c.group : null, wcase: c ? c.wcase : null });
+          this.flows.push({ id: ++this.flowSeq, t: Date.now(), from, to, api, label, payload: payload || null, caseId: c ? c.id : null, wcase: c ? c.wcase : null, burst: opt.burst || null, deliver: opt.deliver || null });
+          // a screen reacts when the message reaches it on the data flow (the packet takes TRAVEL ms)
+          if (opt.deliver && c) this.after(TRAVEL, () => { (c.got = c.got || {})[opt.deliver] = Date.now(); this.publish(); });
           if (this.flows.length > 400) this.flows.splice(0, this.flows.length - 400);   // the data flow panel can replay a whole scenario
           this.publish();
         });
@@ -246,7 +249,7 @@
         at: Date.now(), slaBase: Date.now(), contact: 0, dispatch: -1, dms: -1,
         agent: null, call: null, assign: null, inbound: null, retry: null, sms: false,
         sheet: null, memo: { title: '', text: '', transfer: true, dealer: DEALERS[0].name, name: CUSTOMER.name, phone: CUSTOMER.phone, request: '' },
-        dealer: null, loc: { odo: v.odoMeters }, log: [],
+        dealer: null, loc: { odo: v.odoMeters }, log: [], got: {},
       };
       this.log(c, `차량 경고 감지 · ${item.title} (${w.dtc})`, level === 'red' ? 'alert' : 'warn');
       this.log(c, 'VDP(일본) 수신 → VEP(TSP, 한국) 판정', 'flow');
@@ -265,21 +268,21 @@
       this.publish();
       const pos = Road.pos(v.odoMeters);
       const info = { wngId: wng.code, counterValue: 1, warningTriggerOccurrenceTime: new Date().toISOString(), latitude: +(37.5205 + pos[1] / 111000).toFixed(6), longitude: +(127.0105 + pos[0] / 88200).toFixed(6), odoInformationKm: +(v.odo || 0).toFixed(1), vin: VEHICLE.vin };
+      const K = CASE[wng.case];
+      const popup = wng.case === 'A' ? '고객 지원실로 연결하시겠습니까?' : '지정된 서비스센터로 연결하시겠습니까?';
+      const custText = `${wng.name} 경고가 감지되었습니다. ${popup}`;
+      const B = 'w' + id;
       const steps = [
         ['car', 'vdp', 'WNG', `경고 발생 · ${wng.code}`, info, 0],
-        ['vdp', 'vep', 'VDP 이벤트', 'WNG 이벤트 전달 (VDP → TSP)', { messageId: String(Date.now()).slice(-10), wngInfo: [info] }],
-        ['vep', 'vep', '필터 검사', 'VIN · 정비 · 중복 필터 통과', { vinFilter: 'pass', maintenanceFilter: 'pass', duplicateFilter: 'pass' }, 650],
-        ['vep', 'vep', 'Case 판정', `WNG master ${wng.code} → ${CASE[wng.case].label}(Case ${wng.case}) · ${CASE[wng.case].kind}`, { dataLabel: wng.code, warningName: wng.name, case: wng.case, owner: CASE[wng.case].owner, source: wng.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master v8.2' }, 700],
-        ['vep', 'wam', 'Case 전달', `${CASE[wng.case].label}(Case ${wng.case}) → 업무 흐름 시작`, { case: wng.case }],
+        ['vdp', 'vep', 'VDP 이벤트', 'WNG 이벤트 전달 (VDP → TSP)', { messageId: String(Date.now()).slice(-10), wngInfo: [info] }, 1400],
+        ['vep', 'vep', '필터 검사', 'VIN · 정비 · 중복 필터 통과', { vinFilter: 'pass', maintenanceFilter: 'pass', duplicateFilter: 'pass' }, 1400],
+        ['vep', 'vep', 'Case 판정 · 고객 문구', `WNG master ${wng.code} → ${K.label}(Case ${wng.case}) · 고객용 문구 매핑`, { dataLabel: wng.code, warningName: wng.name, case: wng.case, owner: K.owner, customerMessage: custText, source: wng.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master v8.2' }, 1400],
+        // one judgement, four receivers at the same time
+        ['vep', 'ccw', 'e-Care 이벤트', wng.case === 'A' ? 'CCW 긴급 케이스 등록 · 인바운드 대기 25:00' : `CCW 처리 현황 공유 · ${K.label}`, { caseId: id, case: wng.case, vin: VEHICLE.vin, warning: wng.name }, 1400, { burst: B, deliver: 'ccw' }],
+        ['vep', 'dms', 'DMS 이벤트', `경고 이벤트 · ${K.label} · 첫 컨택 SLA ${K.slaText}`, { vin: VEHICLE.vin, wngInfo: [{ wngId: wng.code, wngName: wng.name, grade: wng.case }], thresholdMinutes: K.sla / 60000 }, 0, { burst: B, deliver: 'dms' }],
+        ['vep', 'car', '헤드유닛 알림', `HU 경고 팝업 “${popup}”`, { popup: custText, case: wng.case }, 0, { burst: B, deliver: 'car' }],
+        ['vep', 'phone', '앱 푸시', `고객 앱 알림 · ${wng.name}`, { push: custText }, 0, { burst: B, deliver: 'phone' }],
       ];
-      if (wng.case === 'A') steps.push(['wam', 'ccw', 'e-Care 이벤트', 'CCW 긴급 케이스 등록 · 인바운드 대기 25:00', { caseId: id, workflowId: group, case: 'A' }]);
-      steps.push(
-        ['wam', 'dms', 'WAM-EVT-001', `경고 이벤트 전달 · ${CASE[wng.case].label}`, { workflowId: group, vin: VEHICLE.vin, wngInfo: [{ wngId: wng.code, wngName: wng.name, grade: wng.case }] }, 300],
-        ['wam', 'dms', 'WAM-SLA-001', `SLA 기준 전달 · ${CASE[wng.case].slaText}`, { workflowId: group, case: wng.case, thresholdMinutes: CASE[wng.case].sla / 60000 }, 300],
-        ['wam', 'vdp', '고객 알림', wng.case === 'A' ? '헤드유닛 팝업 "고객 지원실로 연결하시겠습니까?" · 앱 푸시' : '헤드유닛 팝업 "지정된 서비스센터로 연결하시겠습니까?" · 앱 푸시', { channel: ['헤드유닛', 'Global App'], case: wng.case }, 300],
-        ['vdp', 'car', '헤드유닛 알림', 'HU 경고 팝업 표시', null, 400],
-        ['vdp', 'phone', '앱 푸시', '고객 앱 경고 알림', null, 0],
-      );
       this.flow(c, steps);
       if (c.kind !== 'emergency') this.dmsProgress(c, true);
     }
@@ -296,10 +299,7 @@
         if (k === 2) c.reservation = c.reservation || { center: c.dealer, route: '전화', at: nextSlot() };
         this.log(c, `DMS · ${DMS[k]} (${DMS_CODE[k]}) · ${c.dealer}`, 'flow');
         this.publish();
-        this.flow(c, [
-          ['dms', 'wam', 'DMS-SVC-002', `정비 상태 · ${DMS[k]}`, { workflowId: c.group, vin: VEHICLE.vin, repairStatus: DMS_CODE[k], repairStatusName: DMS[k], centerName: c.dealer }, 0],
-          ['wam', direct ? 'phone' : 'ccw', '상태 반영', direct ? `고객 앱 · 서비스센터 ${DMS[k]}` : `CCW 처리 상태 · ${DMS[k]}`, null],
-        ]);
+        this.flow(c, dmsBack(c, k));
       }));
     }
 
@@ -310,10 +310,8 @@
       this.log(c, `DMS · ${DMS[k]} (${DMS_CODE[k]}) · ${c.dealer}${note ? ' · ' + note : ''}`, 'flow');
       this.publish();
       const direct = c.kind !== 'emergency';
-      this.flow(c, [
-        ['dms', 'wam', 'DMS-SVC-002', `정비 상태 · ${DMS[k]}${note ? ' · ' + note : ''}`, { workflowId: c.group, vin: VEHICLE.vin, repairStatus: DMS_CODE[k], repairStatusName: DMS[k], centerName: c.dealer }, 0],
-        ['wam', direct ? 'phone' : 'ccw', '상태 반영', direct ? `고객 앱 · 서비스센터 ${DMS[k]}` : `CCW 처리 상태 · ${DMS[k]}`, null],
-      ]);
+      void direct;
+      this.flow(c, dmsBack(c, k, note));
     }
     dmsContact(c, a) {
       if (!c || c.dms < 0 || c.dmsStop || c.dms >= 3) return;
@@ -399,10 +397,9 @@
       c.agent = idle.id;
       this.log(c, `유휴 상담사 자동 배정 · ${idle.name} (${idle.ext}) · 경고 알림 팝업 05:00`, 'info');
       this.flow(c, [
-        ['wam', 'cti', '상담원 조회', 'IDLE 상담원 조회 (25분 경과)', { request: 'idleAgents' }, 900],
-        ['cti', 'wam', 'IDLE 응답', `유휴 상담원 ${idle.name} (${idle.ext})`, { agentId: idle.id, ext: idle.ext, state: 'IDLE' }],
-        ['wam', 'cti', '상태 전환', '상담원 상태 → 상담 (자동 배정 제외)', { agentId: idle.id, state: 'BUSY' }],
-        ['wam', 'ccw', 'WNG 콜 팝업', `경고 알림 팝업 · 응대 제한 05:00`, { caseId: c.id, agent: idle.name }],
+        ['ccw', 'cti', '상담원 조회', 'IDLE 상담원 조회 (25분 경과)', { request: 'idleAgents' }, 900],
+        ['cti', 'ccw', 'IDLE 응답', `유휴 상담원 ${idle.name} (${idle.ext}) · 상태 → 상담`, { agentId: idle.id, ext: idle.ext, state: 'BUSY' }],
+        ['cti', 'ccw', 'WNG 콜 팝업', `경고 알림 팝업 · 응대 제한 05:00`, { caseId: c.id, agent: idle.name }],
       ]);
       this.active = c.id;
       this.publish();
@@ -424,7 +421,7 @@
         this.flow(c, [
           ['car', 'cti', '헤드유닛 콜', 'HU [전화연결] · 인바운드 콜', { from: '헤드유닛', vin: VEHICLE.vin }, 0],
           ['cti', 'ccw', '콜 배정', `유휴 상담원 ${idle.name} 자동 할당 · 전화 수신 팝업`, { agent: idle.name }],
-          ['cti', 'wam', '자동 할당 취소', '인바운드 발생 → 25분 아웃바운드 배정 취소', null],
+          ['cti', 'ccw', '자동 할당 취소', '인바운드 발생 → 25분 아웃바운드 배정 취소', null],
         ]);
         this.active = c.id;
         this.publish();
@@ -576,7 +573,7 @@
       const used = c.call.attempts - 1;                       // redials used so far
       this.log(c, `연결 실패 · 고객 미응답 (${c.call.attempts}회차)`, 'warn');
       this.flow(c, [['cti', 'ccw', '미응답', `연결 실패 ${c.call.attempts}회차`, { attempt: c.call.attempts }, 0]]);
-      if (c.call.attempts - 1 >= RETRIES) this.flow(c, [['ccw', 'sms', 'SMS', '3회 실패 → 고객 SMS 자동 발송', { to: CUSTOMER.phone }, 500], ['sms', 'phone', 'SMS', '고객 휴대폰 문자 수신', null]]);
+      if (c.call.attempts - 1 >= RETRIES) this.flow(c, [['ccw', 'phone', 'SMS', '3회 실패 → 고객 휴대폰 SMS 자동 발송', { to: CUSTOMER.phone }, 500]]);
       if (used >= RETRIES) {
         c.retry = { count: used, until: Date.now(), done: true };
         c.sms = true;
@@ -735,9 +732,8 @@
         c.dmsAt = { 0: Date.now() };
         this.log(c, `상담 메모 저장 · ${c.dealer} 전달 · DMS 전송 → 이관 완료`, 'flow');
         this.flow(c, [
-          ['ccw', 'wam', '상담 메모', '상담 메모 저장 · 서비스센터 전달 ON', { title: c.memo.title, callType: c.memo.callType, sms: c.sms }, 0],
-          ['wam', 'dms', 'WAM-MEMO-001', `상담 메모 전달 → ${c.dealer}`, { workflowId: c.group, centerName: c.dealer, memo: c.memo.text, request: c.memo.request, callSuccess: !c.sms }],
-          ['dms', 'wam', 'DMS-SVC-002', '정비 상태 · 컨택대기', { workflowId: c.group, repairStatus: 'CONTACT_REQUIRED', repairStatusName: '컨택대기' }, 900],
+          ['ccw', 'dms', '상담 메모 이관', `상담 메모 → ${c.dealer}`, { title: c.memo.title, callType: c.memo.callType, centerName: c.dealer, memo: c.memo.text, request: c.memo.request, callSuccess: !c.sms }, 0, { deliver: 'memo' }],
+          ['dms', 'ccw', 'DMS-SVC-002', '정비 상태 · 컨택대기', { repairStatus: 'CONTACT_REQUIRED', repairStatusName: '컨택대기', centerName: c.dealer }, 2200],
         ]);
         this.dmsProgress(c, false);
       } else {
@@ -754,6 +750,15 @@
     publish() { Link.send('ecare', this.snapshot()); }
   }
 
+  /** the repair status from DMS: to the call center screen and the customer's app at once */
+  function dmsBack(c, k, note) {
+    const B = `d${c.id}${k}${Date.now() % 100000}`;
+    const pl = { vin: VEHICLE.vin, repairStatus: DMS_CODE[k], repairStatusName: DMS[k], centerName: c.dealer };
+    return [
+      ['dms', 'ccw', 'DMS-SVC-002', `정비 상태 · ${DMS[k]}${note ? ' · ' + note : ''}`, pl, 0, { burst: B }],
+      ['dms', 'phone', '앱 반영', `고객 앱 · 서비스센터 ${DMS[k]}`, { repairStatusName: DMS[k] }, 0, { burst: B }],
+    ];
+  }
   function pad4(n) { return String(n).padStart(4, '0'); }
   const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => { const r = Math.random() * 16 | 0; return (ch === 'x' ? r : (r & 3) | 8).toString(16); });
   const defaults = () => JSON.parse(JSON.stringify(SCRIPTS));
@@ -773,6 +778,7 @@
   }
   function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v7', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
+  const TRAVEL = 1800;          // a message's trip across the data flow board, ms
   /* The case's journey in six steps, shared by the data flow screens. */
   const JOURNEY = ['경고 감지 · 판정', '고객 연결', '상담 · 긴급출동', '서비스센터 이관', '예약 · 입고', '정비 · 종결'];
   // one plain sentence per step, for the audience
@@ -811,5 +817,20 @@
     return 0;
   }
 
-  window.ECare = { JOURNEY, JOURNEY_PLAIN, journey, stageOfFlow, SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
+  /** What a screen may show: a case appears on the head unit, the call center or the service
+   *  center only once its message has reached that screen on the data flow (c.got). An
+   *  emergency case's transfer shows at the service center once the memo has arrived. */
+  function gate(snap, who) {
+    if (!snap || !snap.cases) return snap;
+    const cases = [];
+    for (const c of snap.cases) {
+      const g = c.got;
+      if (g && !g[who]) continue;                      // not there yet
+      if (who === 'dms' && g && c.kind === 'emergency' && c.dms >= 0 && !g.memo) { cases.push({ ...c, dms: -1 }); continue; }
+      cases.push(c);
+    }
+    return cases.length === snap.cases.length && cases.every((c, i) => c === snap.cases[i]) ? snap : { ...snap, cases, active: cases.some((c) => c.id === snap.active) ? snap.active : (cases[0] && cases[0].id) || null };
+  }
+
+  window.ECare = { JOURNEY, gate, JOURNEY_PLAIN, journey, stageOfFlow, SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();

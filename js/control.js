@@ -96,7 +96,9 @@
     genRing: () => !!(snap && snap.general && snap.general.state === 'ringing'),
     genEnd: () => !!(snap && snap.general && snap.general.state === 'ended'),
     arrived: () => { const c = active(); return !!(c && c.dispatch >= 2); },
-    dmsIn: () => { const c = active(); return !!(c && c.dms >= 0); },
+    dmsIn: () => { const c = active(); return !!(c && c.dms >= 0 && (!c.got || (c.kind === 'emergency' ? c.got.memo : c.got.dms))); },
+    // the head unit popup is up: the warning's message has reached the car on the data flow
+    hu: () => { const c = active(); return !!(c && (!c.got || c.got.car)); },
     resv: () => { const c = active(); return !!(c && c.dms >= 2); },
     closed: () => { const c = active(); return !!(c && c.dms >= 7); },
   };
@@ -105,25 +107,25 @@
   const DMS_CONTACT = { t: '서비스센터 · 고객 컨택 · 예약 확정', cue: '“서비스센터 DMS에 컨택대기로 들어온 건을 서비스 어드바이저가 열어 고객에게 전화하고, 입고 예약을 확정합니다. 결과는 CCW와 데이터 흐름에 바로 돌아옵니다.”', run: [['dms', 'open'], ['wait', 2000], ['cmd', 'dmsContact', DMS_RESULT], ['wait', 2400], ['dms', 'close']], until: 'resv', pause: 2200 };
   const DMS_REPAIR = { t: '입고 → 정비 → 종결', cue: '“견인 차량이 서비스센터에 도착해 입고되고, 정비를 마치고 종결됩니다. 단계마다 DMS-SVC-002로 상태가 돌아옵니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance']], until: 'closed', pause: 9000 };
   // the rescue truck the agent called pulls up in front of the customer's car (car panel scene)
-  const ARRIVE = { t: '긴급출동 차량 도착', cue: '“상담원이 요청한 긴급출동 차량이 도착합니다. 출동 기사가 고객에게 직접 연락하고, 운전석 옆을 지나 고객 차 앞에 정차합니다.”', run: [], until: 'arrived', pause: 6500, timeout: 40000 };
+  const ARRIVE = { t: '긴급출동 차량 도착', cue: '“상담원이 요청한 긴급출동 차량이 도착합니다. 출동 기사가 고객에게 직접 연락하고, 운전석 옆을 지나 고객 차 앞에 정차합니다.”', run: [['wait', 1200], ['cmd', 'arrive']], until: 'arrived', pause: 6500, timeout: 40000 };
   const PREP = { t: '준비 · 초기화 · 시동', cue: '경고와 상담 기록을 지우고 라이브 화면에서 시동을 켭니다.', run: [['reset'], ['scene', 'live'], ['ign', true]] };
   const DRIVE = { t: '주행 시작', cue: '“고객이 GX 550으로 주행 중입니다.” 가운데 화면은 차량에서 콜센터 · 딜러까지 연결된 시스템입니다.', run: [['act', 'drive']], pause: 5000 };
   const SCENARIOS = [
     {
       id: 'in', n: '1', title: '긴급 경고 → 고객 전화', sub: '메인 · 고객이 HU로 상담센터에 전화', sets: true,
       steps: [PREP, DRIVE,
-        { t: '긴급 경고 · HU 팝업', cue: '“주행불가 경고가 발생했습니다. VEP가 긴급(Case A)으로 판정하고, 헤드유닛에 ‘고객 지원실로 연결하시겠습니까?’ 팝업을 띄웁니다.” 경고등은 고른 대화 세트에 맞춰 나옵니다.', run: [['warn', '@in']], until: 'case', pause: 4000 },
+        { t: '긴급 경고 · HU 팝업', cue: '“주행불가 경고가 발생했습니다. VEP가 긴급(Case A)으로 판정하고, 헤드유닛에 ‘고객 지원실로 연결하시겠습니까?’ 팝업을 띄웁니다.” 경고등은 고른 대화 세트에 맞춰 나옵니다.', run: [['warn', '@in']], until: 'hu', pause: 3000, timeout: 20000 },
         { t: '고객 HU [전화연결]', cue: '“고객이 화면의 전화연결 버튼을 누릅니다. 헤드유닛 콜이 CTI를 거쳐 유휴 상담원에게 배정되고, 25분 자동 아웃바운드는 취소됩니다.”', run: [['hu', 'press']], until: 'inbound', pause: 2500 },
         { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 위치와 진단 정보가 이미 화면에 있습니다.” 위치 확인 → 정차 · 비상등 안내 → 긴급출동 요청 → 선호 서비스센터 진행 동의 · 연락처 확인 · 추가 전달 사항 → 출동 기사와 서비스센터가 연락드린다는 안내로 통화를 마칩니다. 통화가 끝나면 출동 차량이 도착합니다.', run: [['cmd', 'ack']], until: 'callEnd', pause: 2500, long: true },
         ARRIVE,
-        { t: '상담 완료 · 서비스센터 이관', cue: '“상담 메모가 WAM-MEMO-001로 서비스센터 DMS에 전달됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 3000 },
+        { t: '상담 완료 · 서비스센터 이관', cue: '“상담 메모가 서비스센터 DMS로 바로 이관됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 3000 },
         DMS_CONTACT, DMS_REPAIR,
       ],
     },
     {
       id: 'out', n: '2', title: '긴급 경고 → 상담원 발신', sub: '고객 미연락 25분 뒤 상담원이 전화',
       steps: [PREP, DRIVE,
-        { t: '긴급 경고 (고객 미연락)', cue: '“이번에는 고객이 전화하지 못하는 상황입니다.” 경고와 팝업은 뜨지만 전화연결을 누르지 않습니다.', run: [['warn', 'brake']], until: 'case', pause: 4000 },
+        { t: '긴급 경고 (고객 미연락)', cue: '“이번에는 고객이 전화하지 못하는 상황입니다.” 경고와 팝업은 뜨지만 전화연결을 누르지 않습니다.', run: [['warn', 'brake']], until: 'hu', pause: 3000, timeout: 20000 },
         { t: '25분 경과 · 상담원 자동 배정', cue: '“25분간 고객 연락이 없으면 CTI에서 유휴 상담원을 찾아 자동 배정합니다. 상담원 화면에 경고 알림 팝업이 뜹니다.”', run: [['act', 'sla25']], until: 'assigned', pause: 3500 },
         { t: '상담원 전화 걸기 · 통화', cue: '“상담원이 고객 휴대전화로 전화를 겁니다.” 고객 휴대전화가 울리고 통화가 자막으로 흐릅니다. 통화 중 긴급출동을 요청하고, 출동 기사가 직접 연락한다고 안내합니다.', run: [['act', 'accept']], until: 'callEnd', pause: 2500, long: true },
         ARRIVE,
@@ -182,6 +184,46 @@
    * abandons whatever is still running (token). */
   let token = 0;
   const cpKey = (i) => `${sc.id}:${i}`;
+  const visited = new Set();          // steps whose checkpoint the car panel holds
+  /* A step picked in the list: the demo is brought to the state that step expects and the
+   * step plays from there. A step already played: its checkpoint (the state before it) is put
+   * back. A step further on: the steps in between are settled quickly (no voice, each
+   * situation finished at once), then the step plays. */
+  async function jumpTo(i) {
+    if (i < 0 || i >= sc.steps.length) return;
+    if (i === cur + 1 && !busy) return go(i);
+    const tok = ++token;
+    busy = false; auto = false; waiting = ''; skip = false;
+    Link.send('hush', {});
+    if (visited.has(i)) {
+      Link.send('act', { name: 'restore', args: { k: cpKey(i) } });
+      cur = i - 1; steps();
+      await wait(700);
+      if (tok === token) go(i);
+      return;
+    }
+    jumping = true;
+    for (let k = Math.max(0, cur + 1); k < i; k++) {
+      if (tok !== token) { jumping = false; return; }
+      const s = sc.steps[k];
+      cur = k; waiting = `${i + 1}단계로 빠르게 맞추는 중 · ${k + 1}/${sc.steps.length} ${s.t}`; steps();
+      Link.send('act', { name: 'checkpoint', args: { k: cpKey(k) } }); visited.add(k);
+      skip = true;                                  // the step's own pauses end at once
+      await run(s.run, tok);
+      if (s.until) {
+        const t0 = Date.now();
+        while (tok === token && !UNTIL[s.until]() && Date.now() - t0 < (s.timeout || 15000)) {
+          if (FINISH[s.until] && Date.now() - t0 > 600) FINISH[s.until]();
+          await wait(400);
+        }
+      }
+      Link.send('hush', {});
+      await wait(300);
+    }
+    jumping = false; skip = false; waiting = '';
+    if (tok === token) go(i);
+  }
+  let jumping = false;
   async function go(i) {
     if (busy) { skip = true; finishNow(); return; }   // next while a step runs: settle it, then go on
     if (i < 0 || i >= sc.steps.length) return;
@@ -193,6 +235,7 @@
     steps();
     const s = sc.steps[i];
     Link.send('act', { name: 'checkpoint', args: { k: cpKey(i) } });
+    visited.add(i);
     screenOnly();
     await run(s.run, tok);
     if (tok !== token) return;
@@ -247,6 +290,7 @@
   /** 초기화: no question, everything at once — the car stops and switches off. */
   function resetAll() {
     token++;
+    visited.clear();
     busy = false; skip = false; auto = false; waiting = ''; cur = -1;
     Link.send('hush', {});
     Link.send('act', { name: 'fullReset', args: {} });
@@ -267,7 +311,7 @@
   function pick(id) {
     sc = SCENARIOS.find((x) => x.id === id);
     localStorage.setItem('control-scenario', id);
-    cur = -1; auto = false;
+    cur = -1; auto = false; visited.clear();
     scenarios(); steps();
   }
 
@@ -404,7 +448,7 @@
     else if (t.id === 'auto') { auto = !auto; steps(); if (auto && !busy) go(cur + 1); }
     else if (d.mtab) { mtab = d.mtab; localStorage.setItem('control-mtab', mtab); manual(); }
     else if (d.sc) pick(d.sc);
-    else if (d.step) go(+d.step);
+    else if (d.step) jumpTo(+d.step);
     else if (d.pick) { const [kind, key] = d.pick.split(':'); send('cmd', 'pick', { kind, key }); }
     else if (d.scene) { send('scene', d.scene); manualState(); }
     else if ('identify' in d) Link.send('stage-identify', {});

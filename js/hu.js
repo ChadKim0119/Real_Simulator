@@ -35,7 +35,7 @@
     let reopen = {};               // case id -> popup reopened by the remote
   const closed = {};             // case id -> the driver closed the popup ([닫기]); it stays until then
   let caption = null;
-  Link.on('ecare', (d) => { snap = d; render(); });
+  Link.on('ecare', (d) => { snap = E.gate(d, 'car'); render(); });   // only what has reached this screen
   Link.on('veh', (d) => { veh = d; });
   Link.on('say', (d) => { caption = { who: d.line.who, text: d.line.text, until: Date.now() + (d.line.dur || 4) * 1000 + 2500 }; });
   const show = () => { const c = current(); if (c) { closed[c.id] = false; reopen[c.id] = Date.now(); render(true); } };

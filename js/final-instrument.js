@@ -108,7 +108,8 @@
     el.classList.add('on');
     linkT = Date.now() + 2600;
   }, 300);
-  Link.on('ecare', (d) => { snap = d; linkNotes(d); tick(); });
+  Link.on('ecare', (d) => {
+      if (!d || !d.cases) return; snap = d; linkNotes(d); tick(); });
   setInterval(tick, 500);
   // who speaks: the wave under the conversation follows the voice
   let sayT = 0;

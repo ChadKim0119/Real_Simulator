@@ -621,7 +621,7 @@
    * the head-unit view: its frame is HU_VIEW's height, centred on HU_VIEW. */
   let handHold = false;
   function initHand() {
-    const HAND = { src: 'assets/hand_call.webm', contact: HAND_CONTACT, ar: HAND_AR };
+    const HAND = { src: 'assets/hand_call.webm?v=2', contact: HAND_CONTACT, ar: HAND_AR };
     const R = { h: HU_VIEW.h, w: HU_VIEW.h * HAND.ar };
     R.x = HU_VIEW.cx - R.w / 2; R.y = HU_VIEW.cy - R.h / 2 + HAND_DY * R.h;
     const vid = document.createElement('video');
@@ -674,7 +674,7 @@
   // two filmed parts of the same truck: the approach (A), slowing to a stop centred in front of
   // the car at switchAt; then the parked truck (C, first frame = last frame = A at switchAt)
   // looping for as long as the scene holds — light bar flashing, traffic passing in the other lanes
-  const RESCUE = { src: 'assets/rescue_arrive.mp4?v=3', srcC: 'assets/rescue_hold.mp4?v=3', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 5.7, switchAt: 6.6, playDelay: 1.6, hold: 12 };
+  const RESCUE = { src: 'assets/rescue_arrive.mp4?v=4', srcC: 'assets/rescue_hold.mp4?v=4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 5.7, switchAt: 6.6, playDelay: 1.6, hold: 12 };
   const rescueEl = document.createElement('div');
   rescueEl.id = 'rescue';
   rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vc" muted playsinline preload="auto" loop></video><i class="bar"></i></div>';
@@ -795,9 +795,11 @@
       }
       if (c) {
         const age = nowMs - c.at, call = c.call;
-        const popup = c.contact === 0 && !c.inbound && !c.assign && age < 16000;
+        // the head unit shows the popup once the message has reached the car (data flow)
+        const shownAt = c.got ? c.got.car : c.at + 2800;
+        const popup = c.contact === 0 && !c.inbound && !c.assign && shownAt && nowMs - shownAt < 13000;
         const inCall = call && call.dir === 'in' && (call.state === 'connected' || nowMs - (call.endedAt || 0) < 4000);
-        if (age < 2800 && c.contact === 0 && !c.inbound) want = 'cluster';
+        if (!shownAt && c.contact === 0 && !c.inbound) want = 'cluster';
         else if ((c.inbound && !call) || inCall || popup || (c.wcase !== 'A' && age < 20000)) want = 'hu';
       }
     }

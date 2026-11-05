@@ -526,7 +526,9 @@ body.stage #showUi, body.stage #toast { display: none !important; }
 
 /* while the filmed wide shot is behind it, the cabin photo's sides blend into the film */
 body.rescue #plate, body.rescue #ambient, body.rescue #footShade, body.rescue #focusShade {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 110px, #000 calc(100% - 110px), transparent 100%), linear-gradient(to bottom, transparent 0, #000 46px);
+  /* eased feathers: the photo melts into the (colour-matched, sharpened) film. The passenger
+     side of the photo is an extension that the film shows for real, so it hands over sooner. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, rgba(0,0,0,.4) 70px, rgba(0,0,0,.85) 150px, #000 210px, #000 calc(100% - 430px), rgba(0,0,0,.7) calc(100% - 330px), rgba(0,0,0,.25) calc(100% - 220px), transparent calc(100% - 140px)), linear-gradient(to bottom, transparent 0, rgba(0,0,0,.5) 50px, #000 110px);
   -webkit-mask-composite: source-in;
-  mask-image: linear-gradient(to right, transparent 0, #000 110px, #000 calc(100% - 110px), transparent 100%), linear-gradient(to bottom, transparent 0, #000 46px);
+  mask-image: linear-gradient(to right, transparent 0, rgba(0,0,0,.4) 70px, rgba(0,0,0,.85) 150px, #000 210px, #000 calc(100% - 430px), rgba(0,0,0,.7) calc(100% - 330px), rgba(0,0,0,.25) calc(100% - 220px), transparent calc(100% - 140px)), linear-gradient(to bottom, transparent 0, rgba(0,0,0,.5) 50px, #000 110px);
   mask-composite: intersect; }

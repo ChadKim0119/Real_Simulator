@@ -114,7 +114,7 @@
   }
 
   /* ---------------- link ---------------- */
-  Link.on('ecare', (d) => { snap = d; render(); });
+  Link.on('ecare', (d) => { snap = E.gate(d, 'ccw'); render(); });   // only what has reached this screen
   Link.on('veh', (d) => { veh = d; lastVeh = Date.now(); });
   Link.on('ccw-open-case', () => { if (VIEW !== 'transcript' && cam.to === 'office' && camHold === 'auto') camTo('monitor', 2600); render(true); });
   // the control panel went back a step or reset: stop the voice, and stay quiet for
@@ -1114,7 +1114,7 @@
       case '.wpanel': return ['통화 중 · 차량 진단 정보 확인', `${W} · 고객 안전 확인`, true];
       case '.box.loc': return c.dispatch >= 2 ? ['긴급출동 차량 도착', '고객 차량 앞 정차 · 견인 준비', true] : ['긴급출동 요청 · 위치 확인', `출동 상태 ${E.DISPATCH[Math.max(0, c.dispatch)]}`, true];
       case '.sheet:not(.closed)': return ['상담 메모 작성', '통화 후 처리 · 서비스센터 전달 선택'];
-      case '.box.hist': return ['상담 메모 저장 · 서비스센터 이관', 'WAM-MEMO-001 → DMS'];
+      case '.box.hist': return ['상담 메모 저장 · 서비스센터 이관', '상담 메모 → 서비스센터 DMS'];
       case 'tr.hot': return ['긴급 경고 접수', `${W} · VEP 판정 → 고객지원실`, true];
       case '.ov .dlg2': return ['상담 이력 상세', ''];
       default: return null;

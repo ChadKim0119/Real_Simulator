@@ -315,8 +315,8 @@
       const skips = fl.filter((f) => f.type === 'skip' && f.caseId === c.id).map((f) => f.t);
       const at = (t) => t - c.at + skips.filter((x) => x <= t).length * 25 * 60000;
       const find = (fn) => fl.find((f) => !f.type && f.caseId === c.id && fn(f));
-      const reach = find((f) => f.to === 'ccw' || f.api === 'WAM-EVT-001');
-      const memo = find((f) => f.api === 'WAM-MEMO-001');
+      const reach = find((f) => f.to === 'ccw' || f.to === 'dms');
+      const memo = find((f) => f.api === '상담 메모 이관');
       kpi = [reach ? `${((reach.t - c.at) / 1000).toFixed(1)}초` : '—', c.call && c.call.connectedAt ? rel(at(c.call.connectedAt)) : '—', memo ? rel(at(memo.t)) : '—'];
     }
     return `<div class="cl"><h2>e-Care 시연 요약</h2><div class="kpis">
