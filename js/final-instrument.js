@@ -36,7 +36,8 @@
   function tick() {
     const k = call();
     const now = Date.now();
-    if (k && k.key !== callKey) { callKey = k.key; seenLines = 0; if (manual === false) manual = null; }
+    const ck = k ? k.key : (snap && snap.cases && snap.cases.length ? 'case:' + snap.cases[snap.cases.length - 1].id : '');
+    if (ck !== callKey) { callKey = ck; seenLines = 0; manual = null; closeAt = 0; }     // a new case or call: start afresh
     let want = open;
     if (manual != null) want = manual;
     else if (k && (k.live || k.ring)) { want = true; closeAt = 0; }
@@ -49,6 +50,9 @@
     else if (k && k.ring) { st.textContent = k.dir === 'out' ? '발신 중' : '연결 중'; st.className = ''; tm.textContent = ''; }
     else if (k && k.ended) { st.textContent = '통화 종료'; st.className = ''; }
     else { st.textContent = '대기'; st.className = ''; tm.textContent = ''; }
+    const male = !!(k && k.c && k.c.call && (k.c.call.lines || []).some((l) => /ecare_m_/.test(l.audio || '')));
+    const ci = $('#talk .av2 img:last-child'), avSrc = `assets/avatar_${male ? 'customer_m' : 'customer'}.webp`;
+    if (!ci.src.endsWith(avSrc)) ci.src = avSrc;
     sub.textContent = !k ? 'e-Care 고객지원실 · 고객' : k.general ? `${E.CUSTOMER.name} 고객 · 일반 전화` : k.dir === 'out' ? `상담원 → ${E.CUSTOMER.name} 고객 휴대폰` : `${E.CUSTOMER.name} 고객 → 헤드유닛 콜`;
     // closed: a badge counts the lines said meanwhile, the button rings while a call comes in
     const n = k ? k.lines : 0;
@@ -56,19 +60,30 @@
     badge.textContent = Math.max(0, n - seenLines);
     badge.classList.toggle('on', !open && n > seenLines);
     fab.classList.toggle('ring', !open && !!k && (k.live || k.ring));
-    // the journey step, top left
-    const c = primary(snap);
-    const j = c ? E.journey(c) : { i: -1 };
-    const jr = $('#journey');
-    jr.classList.toggle('on', j.i >= 0 && !document.body.classList.contains('scene-on'));
-    if (j.i >= 0) {
-      jr.style.setProperty('--case', CASECOL[(c.wng && c.wng.case) || c.wcase || 'A']);
-      $('#journey i').textContent = `STEP ${j.i + 1}`;
-      $('#journey b').textContent = E.JOURNEY[j.i];
-      $('#journey em').textContent = '';
-      $('#journey .dots').innerHTML = E.JOURNEY.map((_, i) => `<u class="${i < j.i ? 'done' : i === j.i ? 'cur' : ''}"></u>`).join('');
-    }
+    // the scenario step playing on the control panel, top left (the panel sends it)
+    renderStep();
   }
+  let scn = null, stepKey = '';
+  function renderStep() {
+    const jr = $('#journey');
+    const c = primary(snap);
+    jr.style.setProperty('--case', c ? CASECOL[(c.wng && c.wng.case) || c.wcase || 'A'] : '#4f8cff');
+    const show = !!scn && scn.i >= 0 && !document.body.classList.contains('scene-on');
+    jr.classList.toggle('on', show);
+    if (!scn || scn.i < 0) return;
+    const key = `${scn.sc}|${scn.i}|${scn.n}`;
+    if (key === stepKey) return;
+    stepKey = key;
+    // the new step slides in
+    jr.classList.remove('swap'); void jr.offsetWidth; jr.classList.add('swap');
+    $('#journey i').textContent = `STEP ${scn.i + 1}`;
+    $('#journey b').textContent = scn.t;
+    $('#journey em').textContent = `/ ${scn.n}${scn.grp ? ' · ' + scn.grp : ''}`;
+    $('#journey .dots').innerHTML = scn.n <= 14 ? Array.from({ length: scn.n }, (_, i) => `<u class="${i < scn.i ? 'done' : i === scn.i ? 'cur' : ''}"></u>`).join('')
+      : `<u class="bar"><s style="width:${((scn.i + 1) / scn.n * 100).toFixed(1)}%"></s></u>`;
+  }
+  Link.on('scn-step', (d) => { scn = d; renderStep(); });
+  Link.send('scn-hello', {});
   // messages to or from the car: a short note, one at a time
   let fSeen = -1, linkQ = [], linkT = 0;
   const WHO = { vdp: '일본측 서버', cti: 'e-Care 상담', ccw: 'e-Care 상담원', wam: '업무 흐름 서버' };
@@ -105,6 +120,7 @@
   });
   Link.on('hush', () => { clearTimeout(sayT); talk.classList.remove('speaking'); });
   fab.addEventListener('click', () => { manual = !open; setOpen(manual); });
+  $('#talkMin').addEventListener('click', () => { manual = false; setOpen(false); });
   Link.on('talk-panel', (d) => { manual = d.open === 'auto' ? null : !!d.open; tick(); });
   addEventListener('keydown', (e) => { if (e.code === 'KeyT') { manual = !open; setOpen(manual); } });
   Link.send('hello', { screen: 'final-instrument' });

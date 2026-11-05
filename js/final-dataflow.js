@@ -138,16 +138,33 @@
   function setDetail(on) {
     detailOn = on;
     detail.classList.toggle('on', on);
+    document.body.classList.toggle('detail-on', on);
     if (on && !board.src) {
       board.src = 'flow.html?embed=1';
       board.addEventListener('load', () => {
         const w = board.contentWindow;
-        const hook = () => { if (!w.FlowCtl) return setTimeout(hook, 200); ctl = w.FlowCtl; ctl.onChange((s) => { st = s; renderQA(); }); };
+        const hook = () => { if (!w.FlowCtl) return setTimeout(hook, 200); ctl = w.FlowCtl; feed(); ctl.onChange((s) => { st = s; renderQA(); }); };
         hook();
       }, { once: true });
     }
     Link.send('df-state', { mode: on ? 'detail' : 'simple' });
   }
+  /* what the detail view replays: the live run; after a reset, the last run shown here
+   * (kept in this browser) or the recorded main scenario, so Q&A works at any time */
+  let recorded = null, recName = '';
+  function saveRun() {
+    const fl = ((snap && snap.flows) || []).filter((f) => f.type !== 'skip');
+    if (fl.length < 12) return;
+    try { localStorage.setItem('df-last-flows', JSON.stringify(fl)); } catch (e) { /* full or private */ }
+  }
+  function feed() {
+    if (!ctl) return;
+    let list = null;
+    try { list = JSON.parse(localStorage.getItem('df-last-flows')); recName = '직전 시연 기록'; } catch (e) { list = null; }
+    if (Array.isArray(list) && list.length) { recorded = list; ctl.useList(list); return; }
+    fetch('assets/flows_main.json', { cache: 'no-cache' }).then((r) => r.json()).then((l) => { recorded = l; recName = '기본 시나리오 기록'; ctl.useList(l); }).catch(() => {});
+  }
+  let saveN = 0;
   $('#toDetail').addEventListener('click', () => setDetail(true));
   $('#toSimple').addEventListener('click', () => setDetail(false));
   $('#chips').innerHTML = E.JOURNEY.map((t, i) => `<button data-stage="${i}" title="${esc(t)}의 첫 메시지로"><i>${i + 1}</i>${esc(t)}</button>`).join('');
@@ -177,6 +194,8 @@
     const curStage = st.mode === 'live' ? st.stage : (st.i > 0 ? stg[st.i - 1] : -1);
     $('#chips').querySelectorAll('button').forEach((b, i) => { b.classList.toggle('done', i < curStage); b.classList.toggle('cur', i === curStage); b.disabled = !stg.includes(i); });
     $('#qN').textContent = `${st.mode === 'live' ? L.length : st.i} / ${L.length}`;
+    $('#qSrc').textContent = st.src === 'recorded' ? recName : '실시간 기록';
+    $('#qSrc').classList.toggle('rec', st.src === 'recorded');
     $('#qPlay').textContent = st.mode === 'play' ? '⏸ 일시 정지' : '▶ 자동 재생';
     $('#qPlay').classList.toggle('on', st.mode === 'play');
     $('#qLive').classList.toggle('on', st.mode === 'live');
@@ -214,7 +233,11 @@
   Link.on('df-mode', (d) => setDetail(d.mode === 'detail'));
   Link.on('df-hello', () => Link.send('df-state', { mode: detailOn ? 'detail' : 'simple' }));
 
-  Link.on('ecare', (d) => { snap = d; ingest(); renderJourney(); renderSys(); });
+  Link.on('ecare', (d) => {
+    snap = d; ingest(); renderJourney(); renderSys();
+    const n = (d.flows || []).length;
+    if (n !== saveN) { saveN = n; saveRun(); if (ctl && !recorded) feed(); }
+  });
   setInterval(() => { pump(); if (snap) { renderJourney(); renderSys(); } }, 250);
   Link.send('hello', { screen: 'final-dataflow' });
 })();

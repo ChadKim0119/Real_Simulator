@@ -279,6 +279,20 @@
       + `<div class="sets"><h3>인바운드 대화</h3>${E.SCRIPT_SETS.in.keys.map((k) => `<button data-pick="in:${k}" title="${esc(E.SCRIPT_NAMES[k])}">${esc(SET_SHORT[k] || E.SCRIPT_NAMES[k])}</button>`).join('')}</div>`;
     manualState();
   }
+  // the screens show the scenario step as it plays (Final_Instrument, top left)
+  let stepKey = '';
+  function stepMsg() {
+    const s = cur >= 0 ? sc.steps[cur] : null;
+    return { sc: sc.id, title: sc.title, i: cur, n: sc.steps.length, t: s ? s.t : '', grp: s && s.grp ? s.grp : '', titles: sc.steps.map((x) => x.t) };
+  }
+  function sendStep(force) {
+    const m = stepMsg();
+    const key = `${m.sc}|${m.i}`;
+    if (!force && key === stepKey) return;
+    stepKey = key;
+    Link.send('scn-step', m);
+  }
+  Link.on('scn-hello', () => sendStep(true));
   function steps() {
     const s = cur >= 0 ? sc.steps[cur] : null;
     const next = sc.steps[cur + 1];
@@ -298,6 +312,7 @@
     set('#auto', auto ? '■ 멈춤' : '▶▶ 자동');
     $('#auto').classList.toggle('on', auto);
     $('#prev').disabled = cur < 0;
+    sendStep();
     let grp = '';
     $('#steps').innerHTML = sc.steps.map((x, i) => {
       const head = x.grp && x.grp !== grp ? `<div class="grp">${esc(x.grp)}</div>` : '';

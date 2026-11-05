@@ -16,6 +16,23 @@
 (function () {
   'use strict';
 
+  /* A page shown inside another (a panel of wall.html or of a Final screen): F makes the
+   * whole outer screen full screen, not this panel alone. Inside a Final screen every key
+   * goes to that screen (its own shortcuts: F, D, T, arrows), so a key pressed on the show
+   * screen never drives the car or the call center by accident. */
+  if (window.top !== window) {
+    addEventListener('keydown', (e) => {
+      if (e.target && e.target.matches && e.target.matches('input, textarea, select, [contenteditable]')) return;
+      let outer = null;
+      try { outer = window.parent.document.body; } catch (err) { return; }    // another site: leave it
+      const final = outer && (outer.classList.contains('fi') || outer.classList.contains('fd'));
+      if (e.code !== 'KeyF' && !final) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      try { window.parent.dispatchEvent(new KeyboardEvent('keydown', { code: e.code, key: e.key, bubbles: true })); } catch (err) { /* gone */ }
+    }, true);
+  }
+
   const CHANNEL = 'gs-demo-v1';
   const me = Math.random().toString(36).slice(2, 10);
   const seen = new Set();

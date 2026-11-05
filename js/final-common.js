@@ -17,7 +17,7 @@
     mmss: (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`; },
     esc: (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
     CASECOL: { A: '#ff4d5e', B: '#ffb02e', C: '#3fd0c9' },
-    // the case the screens follow: the one the agent has open, else the newest
-    primary: (snap) => snap && snap.cases && (snap.cases.find((c) => c.id === snap.active) || snap.cases[snap.cases.length - 1]),
+    // the case the screens follow: the newest (a new scenario starts afresh)
+    primary: (snap) => snap && snap.cases && snap.cases[snap.cases.length - 1],
   };
 })();

@@ -45,8 +45,10 @@ body.cur #bar, body.edit #bar { opacity: 1; pointer-events: auto; }
 #hint { color: #8b97a9; margin-left: 6px; min-width: 0; flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* opening / closing over the whole wall */
-#scene { position: absolute; inset: 0; z-index: 5; display: none; place-content: center; text-align: center; background: radial-gradient(ellipse 60% 70% at 50% 50%, #0c1a33, #02040a 75%); }
-#scene.on { display: grid; animation: fade 1s ease both; }
+#scene { position: absolute; inset: 0; z-index: 5; display: grid; place-content: center; text-align: center; background: radial-gradient(ellipse 60% 70% at 50% 50%, #0c1a33, #02040a 75%);
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.9s cubic-bezier(.4,0,.2,1), visibility 0s linear 0.9s; }
+#scene.on { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 0.9s cubic-bezier(.4,0,.2,1); }
+#scene.on.dim { opacity: 0; transition: opacity 0.45s ease-in; }
 #scene.black { background: #000; }
 @keyframes fade { from { opacity: 0; } }
 .op { position: relative; z-index: 1; }

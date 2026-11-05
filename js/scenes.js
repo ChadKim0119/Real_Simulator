@@ -34,11 +34,19 @@
         <div><b>${kpi[2]}</b><span>경고 → 서비스센터 이관</span></div></div>
         <p>고객 차량 · 일본측 서버 [VDP] · 한국측 서버 [TSP] · e-Care 고객지원실 · 긴급출동 · 서비스센터</p><div class="thanks">감사합니다</div></div>`;
     }
-    function render() {
-      sc.className = scene === 'live' ? '' : `on ${scene}`;
-      sc.innerHTML = scene === 'opening' ? OPENING : scene === 'closing' ? closing() : '';
-      if (scene !== 'live') fin.classList.remove('on');
+    // scenes fade in and out (and cross-fade into each other); the content leaves after the fade
+    let shown = 'live', swapT = 0;
+    const html = (k) => (k === 'opening' ? OPENING : k === 'closing' ? closing() : '');
+    function render(refresh) {
       document.body.classList.toggle('scene-on', scene !== 'live');
+      if (scene !== 'live') fin.classList.remove('on');
+      clearTimeout(swapT);
+      if (refresh && scene === shown) { if (scene === 'closing') sc.innerHTML = html(scene); return; }
+      if (scene === 'live') { sc.classList.remove('on'); swapT = setTimeout(() => { if (scene === 'live') { sc.innerHTML = ''; sc.className = ''; } }, 1000); shown = 'live'; return; }
+      if (shown === 'live') { sc.className = scene; sc.innerHTML = html(scene); void sc.offsetWidth; sc.classList.add('on'); shown = scene; return; }
+      sc.classList.add('dim');                       // scene → scene: dip, swap, rise
+      swapT = setTimeout(() => { sc.className = `${scene} on dim`; sc.innerHTML = html(scene); void sc.offsetWidth; sc.classList.remove('dim'); }, 450);
+      shown = scene;
     }
     // the e-Care task is done: once per case, not for cases already closed when the page opened
     const seen = new Set();
@@ -54,7 +62,7 @@
     }
     Link.on('ecare', (d) => {
       snap = d;
-      if (scene === 'closing') render();
+      if (scene === 'closing') render(true);
       for (const c of d.cases || []) {
         if (c.dms >= 7 && !seen.has(c.id)) { seen.add(c.id); if (!first && scene === 'live') ceremony(c); }
         if (c.dms < 7) seen.delete(c.id);

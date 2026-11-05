@@ -135,7 +135,7 @@
     document.body.classList.remove('modes-open');
     loadPages();
     render();
-    if (typeof sceneRender === 'function' && scene !== 'live') sceneRender();
+    if (typeof sceneRender === 'function' && scene !== 'live') { sceneShown = ''; sceneRender(); }
     if (!quiet && changed) Link.send('wall', { mode: m });
   }
   // the first screen: pick 21:9, 16:9 or 63:9 (a miniature of each layout, the detected screen)
@@ -326,13 +326,20 @@
       <p>고객 차량 · 일본측 서버 [VDP] · 한국측 서버 [TSP] · e-Care 고객지원실 · 긴급출동 · 서비스센터</p><div class="thanks">감사합니다</div></div>`;
   }
   const OPENING = '<div class="op"><b>Real Simulator 시연</b><span>e-Care에 대한 고객의 경험 여정 및 업무 flow</span><small>본 시연에 사용되는 화면, 이미지, UI 디자인은 일부 변경될 수 있습니다.</small></div>';
+  let sceneShown = 'live', sceneT = 0;
   function sceneRender() {
     const el = $('#scene');
-    el.className = scene === 'live' ? '' : `on ${scene}`;
-    // opening: three lines over e-Care's key colours drifting slowly behind
-    el.innerHTML = scene === 'opening' ? '<div class="aur" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i></div>'
+    const html = () => (scene === 'opening' ? '<div class="aur" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i></div>'
         + (mode === '63' ? `<div class="op3">${OPENING.replace('class="op"', 'class="op side"')}${OPENING}${OPENING.replace('class="op"', 'class="op side"')}</div>` : OPENING)
-      : scene === 'closing' ? closing() : '';
+      : scene === 'closing' ? closing() : '');
+    clearTimeout(sceneT);
+    // fades: in, out, and scene → scene through a short dip
+    if (scene === sceneShown) { if (scene === 'closing') el.innerHTML = html(); return; }
+    if (scene === 'live') { el.classList.remove('on'); sceneShown = 'live'; sceneT = setTimeout(() => { if (scene === 'live') { el.innerHTML = ''; el.className = ''; } }, 1000); return; }
+    if (sceneShown === 'live') { el.className = scene; el.innerHTML = html(); void el.offsetWidth; el.classList.add('on'); sceneShown = scene; return; }
+    el.classList.add('dim');
+    sceneShown = scene;
+    sceneT = setTimeout(() => { el.className = `${scene} on dim`; el.innerHTML = html(); void el.offsetWidth; el.classList.remove('dim'); }, 450);
   }
 
   render();

@@ -355,7 +355,7 @@
     renderLog();
   }
   function onBtn(k) {
-    const list = ((snap && snap.flows) || []).filter((f) => f.type !== 'skip').map(norm);
+    const list = replayList();
     if (k === 'live') { replay = null; railKey = ''; btnState(); return; }
     if (!list.length) return;
     if (k === 'replay' || !replay || !replay.step) { clearBoard(); replay = { list, i: 0, step: k === 'step', maxStep: -1, last: null }; railKey = ''; lastLaunch = 0; }
@@ -394,10 +394,13 @@
   if (EMBED) { document.body.classList.add('embed'); for (const k in btnEls) btnEls[k].grp.style.display = 'none'; }
   const listeners = [];
   function notify() { const st = ctlState(); listeners.forEach((fn) => { try { fn(st); } catch (e) { /* the host went away */ } }); }
-  const replayList = () => ((snap && snap.flows) || []).filter((f) => f.type !== 'skip').map(norm);
+  // the detail view may hand in a recorded run (after a reset there is nothing live to replay)
+  let ext = null;
+  const liveList = () => ((snap && snap.flows) || []).filter((f) => f.type !== 'skip').map(norm);
+  const replayList = () => (ext && !liveList().length ? ext : liveList());
   function ctlState() {
     const list = replay ? replay.list : replayList();
-    return { mode: replay ? (replay.step ? 'step' : 'play') : 'live', i: replay ? replay.i : list.length, n: list.length, last: replay ? replay.last : shown[shown.length - 1] || null, list, stage: replay ? replay.maxStep : (primary() ? stepOf(primary()).i : -1) };
+    return { src: ext && !liveList().length ? 'recorded' : 'live', mode: replay ? (replay.step ? 'step' : 'play') : 'live', i: replay ? replay.i : list.length, n: list.length, last: replay ? replay.last : shown[shown.length - 1] || null, list, stage: replay ? replay.maxStep : (primary() ? stepOf(primary()).i : -1) };
   }
   /** the board as of message n (1 = the first): earlier paths drawn still, the n-th one animated */
   function seek(n) {
@@ -429,6 +432,9 @@
     pause: () => { if (replay) { replay.step = true; btnState(); notify(); } },
     live: () => { onBtn('live'); notify(); },
     onChange: (fn) => { listeners.push(fn); fn(ctlState()); },
+    /** a recorded run to replay while nothing live is there (null: back to live only) */
+    useList: (list) => { ext = list && list.length ? list.map(norm) : null; notify(); },
+    source: () => (ext && !liveList().length ? 'recorded' : 'live'),
   };
 
   /* ---------------- link ---------------- */

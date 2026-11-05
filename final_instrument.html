@@ -19,9 +19,10 @@
     <div id="journey" aria-live="polite"><i class="num">1</i><b></b><em></em><span class="dots"></span></div>
     <aside id="talk" aria-label="상담 대화">
       <header>
-        <span class="av"><svg viewBox="0 0 24 24" fill="none" stroke="#03140b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14.5h4.5"/></svg></span>
+        <span class="av2"><img src="assets/avatar_agent.webp" alt="e-Care 상담원"><img src="assets/avatar_customer.webp" alt="고객"></span>
         <b>상담 대화</b>
         <span class="st"><em id="talkState">대기</em><span id="talkTime" class="num"></span></span>
+        <button id="talkMin" class="min" title="줄이기 (T)" aria-label="상담 대화 줄이기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14l6 6 6-6M12 20V4"/></svg></button>
         <small id="talkSub">e-Care 고객지원실 · 고객</small>
       </header>
       <iframe id="talkFrame" src="ccw.html?view=transcript&amp;stage=1&amp;bare=1&amp;voice=1" title="상담 대화" allow="autoplay"></iframe>

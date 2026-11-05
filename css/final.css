@@ -15,8 +15,10 @@ iframe { border: 0; display: block; }
 .num { font-family: "Barlow", "Pretendard", sans-serif; font-variant-numeric: tabular-nums; }
 
 /* ---------------- scenes (opening · closing · black · task complete) ---------------- */
-#scene { position: absolute; inset: 0; z-index: 40; display: none; place-content: center; text-align: center; background: radial-gradient(ellipse 60% 70% at 50% 50%, #0c1a33, #02040a 75%); }
-#scene.on { display: grid; animation: sfade 1s ease both; }
+#scene { position: absolute; inset: 0; z-index: 40; display: grid; place-content: center; text-align: center; background: radial-gradient(ellipse 60% 70% at 50% 50%, #0c1a33, #02040a 75%);
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.9s cubic-bezier(.4,0,.2,1), visibility 0s linear 0.9s; }
+#scene.on { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 0.9s cubic-bezier(.4,0,.2,1); }
+#scene.on.dim { opacity: 0; transition: opacity 0.45s ease-in; }
 #scene.black { background: #000; }
 @keyframes sfade { from { opacity: 0; } }
 #scene.opening { background: radial-gradient(ellipse 70% 80% at 50% 50%, #0a1426, #03050b 80%); overflow: hidden; }
@@ -73,6 +75,11 @@ iframe { border: 0; display: block; }
 #journey .dots u { width: 22px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.16); }
 #journey .dots u.done { background: rgba(255, 255, 255, 0.55); }
 #journey .dots u.cur { background: var(--case, var(--red)); }
+#journey .dots u { transition: background 0.6s ease; }
+#journey .dots u.bar { width: 160px; position: relative; overflow: hidden; }
+#journey .dots u.bar s { position: absolute; inset: 0 auto 0 0; background: var(--case, var(--red)); transition: width 0.8s cubic-bezier(.2,.7,.2,1); }
+#journey.swap b, #journey.swap i { animation: stepIn 0.7s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes stepIn { from { opacity: 0; transform: translateY(8px); } }
 
 /* the car talks to the servers: a short note under the step, so the room links the two screens */
 #link { position: absolute; left: 34px; top: 104px; z-index: 6; display: flex; align-items: center; gap: 12px; padding: 10px 18px 10px 14px; border-radius: 14px;
@@ -88,7 +95,11 @@ iframe { border: 0; display: block; }
   transform-origin: calc(100% - 50px) calc(100% - 50px); transform: translateX(40px) scale(0.9); opacity: 0; pointer-events: none;
   transition: transform 0.75s cubic-bezier(.2,.8,.2,1), opacity 0.45s ease; }
 #talk.on { transform: none; opacity: 1; pointer-events: auto; }
-#talk header { flex: none; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 14px; padding: 22px 22px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+#talk header { flex: none; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 4px 14px; padding: 22px 22px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+#talk header .av2 { grid-row: span 2; position: relative; width: 74px; height: 54px; }
+#talk header .av2 img { position: absolute; top: 0; width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 3px solid #0c1424; }
+#talk header .av2 img:first-child { left: 0; box-shadow: 0 0 0 2px #5aa2ff; }
+#talk header .av2 img:last-child { left: 26px; top: 6px; box-shadow: 0 0 0 2px #3ddc84; }
 #talk header .av { grid-row: span 2; width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; background: linear-gradient(140deg, #3ddc84, #22a8a0); box-shadow: 0 6px 20px rgba(61, 220, 132, 0.35); }
 #talk header .av svg { width: 30px; height: 30px; }
 #talk header b { font-size: 26px; font-weight: 800; }
@@ -98,6 +109,9 @@ iframe { border: 0; display: block; }
 #talk header .st em.live { background: rgba(61, 220, 132, 0.16); color: #8ff0b3; }
 #talk header .st em.live::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--green); vertical-align: 1px; animation: blink 1.2s infinite; }
 #talk header .st span { font: 700 22px "Barlow", sans-serif; color: #dfe8f5; }
+#talk header .min { grid-row: span 2; width: 46px; height: 46px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06); color: #cfdbec; display: grid; place-items: center; cursor: pointer; transition: background 0.3s, transform 0.3s; }
+#talk header .min:hover { background: rgba(255, 255, 255, 0.14); transform: translateY(1px); }
+#talk header .min svg { width: 22px; height: 22px; }
 @keyframes blink { 50% { opacity: 0.25; } }
 #talk iframe { flex: 1; width: 100%; min-height: 0; background: transparent; }
 #talk .wave { flex: none; height: 54px; display: flex; align-items: center; justify-content: center; gap: 5px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
@@ -182,13 +196,20 @@ iframe { border: 0; display: block; }
 #msg.idle .route .line::after { animation: none; opacity: 0; }
 
 /* detail: the whole screen, the full board on the left, the Q&A controls on the right */
-#detail { position: absolute; inset: 0; z-index: 20; background: #04070d; display: none; }
-#detail.on { display: block; animation: sfade 0.6s ease both; }
+#detail { position: absolute; inset: 0; z-index: 20; background: #04070d; opacity: 0; visibility: hidden; transform: scale(1.015); pointer-events: none;
+  transition: opacity 0.7s cubic-bezier(.4,0,.2,1), transform 0.7s cubic-bezier(.4,0,.2,1), visibility 0s linear 0.7s; }
+#detail.on { opacity: 1; visibility: visible; transform: none; pointer-events: auto; transition: opacity 0.7s cubic-bezier(.4,0,.2,1), transform 0.7s cubic-bezier(.4,0,.2,1); }
+/* the simple view eases back as the detail view comes over it */
+.fd .col { transition: box-shadow 0.6s, border-color 0.6s, transform 0.7s cubic-bezier(.4,0,.2,1), opacity 0.7s; }
+body.detail-on .fd .col, .fd.detail-on .col { transform: scale(0.985); opacity: 0.4; }
+#qa .card, #qa .shots figure img { transition: opacity 0.4s ease; }
 #detail iframe.board { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
 #qa { position: absolute; left: 1920px; top: 0; width: 640px; height: 1080px; padding: 24px 24px 22px; display: flex; flex-direction: column; gap: 16px; background: linear-gradient(180deg, #0b1322, #070c16); border-left: 1px solid var(--line); }
 #qa .hd { display: flex; align-items: center; gap: 12px; }
 #qa .hd b { font-size: 28px; font-weight: 800; }
 #qa .hd .tag { font: 800 15px "Barlow", sans-serif; padding: 5px 10px; border-radius: 8px; background: rgba(255, 176, 46, 0.16); color: #ffcf7a; letter-spacing: 0.06em; }
+#qa .hd .src { font-size: 14px; font-weight: 700; padding: 5px 10px; border-radius: 8px; background: rgba(61, 220, 132, 0.14); color: #8ff0b3; }
+#qa .hd .src.rec { background: rgba(160, 170, 190, 0.14); color: #c4cedd; }
 #qa .hd button { margin-left: auto; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(160, 200, 255, 0.3); background: rgba(79, 140, 255, 0.12); color: #cfe1ff; font-size: 16px; font-weight: 700; cursor: pointer; }
 #qa .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 #qa .chips button { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.04); cursor: pointer; font-size: 15.5px; font-weight: 700; color: #a9b8cf; text-align: left; white-space: nowrap; overflow: hidden; }

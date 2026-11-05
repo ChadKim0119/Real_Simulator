@@ -828,7 +828,8 @@
   function convo() {
     const g = snap && snap.general;
     if (g) return { general: true, lines: g.lines, title: `일반 전화 · ${E.CUSTOMER.name} 고객`, call: g, log: [] };
-    const c = active();
+    // the newest case: a new scenario (a new warning) starts a fresh conversation
+    const c = snap.cases[snap.cases.length - 1];
     if (!c) return null;
     return { general: false, id: c.id, lines: c.call ? c.call.lines : [], title: `${c.warn.title} · ${E.CUSTOMER.name} 고객`, call: c.call, log: c.log, c };
   }
@@ -859,10 +860,13 @@
     if (conv !== trConv) { trConv = conv; trSeen = new Set(); }
     const fresh = (k) => { if (trSeen.has(k)) return ''; trSeen.add(k); return ' new'; };
     const items = v.lines.map((l, i) => ({ t: l.t, l, i })).filter((x) => !x.l.deleted);
+    // the second inbound set is a male customer
+    const male = v.lines.some((l) => /ecare_m_/.test(l.audio || ''));
     const bubbles = items.map(({ l, i }) => {
       const who = l.who === 'agent' ? 'e-Care 상담원' : `${E.CUSTOMER.name} 고객`;
+      const av = `<img class="av" src="assets/avatar_${l.who === 'agent' ? 'agent' : male ? 'customer_m' : 'customer'}.webp" alt="">`;
       if (i === trEdit) return `<div class="tb ${l.who} editing"><span class="who">${who}</span><textarea data-edit="${i}" rows="3">${esc(l.text)}</textarea><div class="acts on"><button data-save-line="${i}" class="pri">저장</button><button data-cancel>취소</button></div></div>`;
-      return `<div class="tb ${l.who} ${i === trSel ? 'picked' : ''}${fresh('l' + i)}" data-line="${i}"><span class="who">${who}</span><div class="msg">${esc(l.text)}</div>
+      return `<div class="tb ${l.who} ${i === trSel ? 'picked' : ''}${fresh('l' + i)}" data-line="${i}"><span class="who">${av}${who}</span><div class="msg">${esc(l.text)}</div>
         <div class="acts"><button data-edit-line="${i}">✎ 편집</button><button data-del-line="${i}" class="del">삭제</button></div></div>`;
     }).join('');
     return `<div class="tr-wrap solo"><div class="tr-list">${bubbles}</div></div>`;

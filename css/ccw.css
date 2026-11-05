@@ -510,3 +510,11 @@ body.bare .tb.agent .msg { background: rgba(38, 66, 112, 0.78); }
 body.bare .tb.customer .msg { background: rgba(255, 255, 255, 0.11); }
 body.bare .tr-empty { font-size: 18px; }
 body.bare .acts { display: none !important; }
+
+/* avatars of the agent and the customer beside their names */
+.tb .who { display: flex; align-items: center; gap: 8px; }
+.tb.customer .who { flex-direction: row-reverse; }
+.tb .who .av { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex: none; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14); }
+.tb.agent .who .av { box-shadow: 0 0 0 2px rgba(90, 162, 255, 0.7); }
+.tb.customer .who .av { box-shadow: 0 0 0 2px rgba(61, 220, 132, 0.6); }
+body.bare .tb .who .av { width: 38px; height: 38px; }

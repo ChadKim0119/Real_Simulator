@@ -674,7 +674,7 @@
   // two filmed parts of the same truck: the approach (A), slowing to a stop centred in front of
   // the car at switchAt; then the parked truck (C, first frame = last frame = A at switchAt)
   // looping for as long as the scene holds — light bar flashing, traffic passing in the other lanes
-  const RESCUE = { src: 'assets/rescue_arrive.mp4?v=2', srcC: 'assets/rescue_hold.mp4?v=2', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 5.7, switchAt: 6.6, playDelay: 1.6, hold: 12 };
+  const RESCUE = { src: 'assets/rescue_arrive.mp4?v=3', srcC: 'assets/rescue_hold.mp4?v=3', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 5.7, switchAt: 6.6, playDelay: 1.6, hold: 12 };
   const rescueEl = document.createElement('div');
   rescueEl.id = 'rescue';
   rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vc" muted playsinline preload="auto" loop></video><i class="bar"></i></div>';
@@ -708,10 +708,13 @@
     const k = stageView.s / RESCUE.plate.s;
     return { k, x: stageView.tx - RESCUE.plate.x * k, y: stageView.ty - RESCUE.plate.y * k };
   }
+  // the film's usable area: its left edge holds no picture after the alignment warp
+  const RESCUE_SAFE = { x0: 124, x1: RESCUE.w - 16, y0: 0, y1: RESCUE.h };
   function rescueWide() {
     const vw = innerWidth, vh = innerHeight;
-    const k = Math.min(Math.max(vw / RESCUE.w, vh / RESCUE.h), Math.min(vw / RESCUE.w, vh / RESCUE.h) * 1.12);
-    return { k, x: (vw - RESCUE.w * k) / 2, y: (vh - RESCUE.h * k) / 2 };
+    const sw = RESCUE_SAFE.x1 - RESCUE_SAFE.x0, sh = RESCUE_SAFE.y1 - RESCUE_SAFE.y0;
+    const k = Math.min(Math.max(vw / sw, vh / sh), Math.min(vw / sw, vh / sh) * 1.12);
+    return { k, x: (vw - sw * k) / 2 - RESCUE_SAFE.x0 * k, y: (vh - sh * k) / 2 - RESCUE_SAFE.y0 * k };
   }
   // a dolly between two framings: log scale, the view centre following the scale
   function rescueBlend(A, B, w) {
