@@ -71,6 +71,22 @@
   const cluster = new Cluster($('#cluster'), $('#heroArt'));
   const ambient = new Ambient(ambientCanvas);
   const exterior = new Exterior(extCanvas);
+  // the filmed drive replaces the drawn road once it can play (the drawing stays as a fallback)
+  const driveVid = $('#drive');
+  let driveOk = false;
+  if (driveVid) {
+    const ready = () => { if (driveOk) return; driveOk = true; driveVid.classList.add('ready'); extCanvas.style.visibility = 'hidden'; };
+    if (driveVid.readyState >= 3) ready(); else driveVid.addEventListener('canplay', ready, { once: true });
+    driveVid.addEventListener('error', () => { driveOk = false; driveVid.remove(); extCanvas.style.visibility = ''; });
+  }
+  function driveTick() {
+    if (!driveOk) return;
+    const v = st.speed;
+    if (v < 1.5) { if (!driveVid.paused) driveVid.pause(); return; }
+    const r = Math.max(0.15, Math.min(2.4, v / 70));     // the film was shot at about 70 km/h
+    if (Math.abs(driveVid.playbackRate - r) > 0.02) driveVid.playbackRate = r;
+    if (driveVid.paused) driveVid.play().catch(() => {});
+  }
   const wheel = new Wheel(wheelCanvas, $('#wheelArt'));
   const audio = new SimAudio();
   // engine voice (Lexus LS 500 · LX 600 · LC 500), chosen on the control panel and kept here
@@ -683,7 +699,7 @@
   }
   function rescueStop(now_) {
     if (!rescue) return;
-    if (now_) { rescue = null; extCanvas.style.opacity = ''; document.body.classList.remove('rescue'); rescueEl.classList.remove('on', 'stopped'); capOn(false); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
+    if (now_) { rescue = null; extCanvas.style.opacity = ''; if (driveVid) driveVid.style.opacity = ''; document.body.classList.remove('rescue'); rescueEl.classList.remove('on', 'stopped'); capOn(false); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
     if (rescue.phase !== 'narrow' && rescue.phase !== 'out') { rescue.phase = 'narrow'; rescue.t0 = now(); rescue.from = rescue.cur; capOn(false); }
   }
   director.hooks.rescue = (c) => (c ? rescueStart() : rescueStop(true));
@@ -749,6 +765,7 @@
     R.cur = v;
     rescueEl.classList.add('on'); document.body.classList.add('rescue');
     extCanvas.style.opacity = (1 - op).toFixed(3);      // the film shows through the windows
+    if (driveVid) driveVid.style.opacity = (1 - op).toFixed(3);
     rFrame.style.transform = `translate3d(${v.x.toFixed(2)}px, ${v.y.toFixed(2)}px, 0) scale(${v.k.toFixed(5)})`;
     rFrame.style.opacity = op.toFixed(3);
     // a soft blurred copy fills the view where the clip does not reach (an upright or 4:3 screen)
@@ -1031,8 +1048,8 @@
     applyCamera(t, dt);
     rescueTick();
     wheel.render(st.wheel);
-    exterior.update(st, dt);
-    exterior.render(st);
+    driveTick();
+    if (!driveOk) { exterior.update(st, dt); exterior.render(st); }
     ambient.render(st, t);
     ambientCanvas.style.opacity = (0.12 + 0.22 * clamp(st.speed / 30, 0, 1)).toFixed(3);
     startGlow.style.opacity = st.ign === 'off' ? '0' : st.ign === 'starting' ? (0.6 + 0.4 * Math.sin(t * 7)).toFixed(3) : '1';

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#03060b">
+  <title>Final Dataflow · e-Care 시연</title>
+  <link rel="icon" type="image/svg+xml" href="assets/icons/final-dataflow.svg">
+  <link rel="apple-touch-icon" href="assets/icons/final-dataflow-180.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/final.css">
+</head>
+<body class="fd">
+  <!-- 21:9 screen 2: the data flow (simple), the support center CCW and the service center DMS.
+       [상세 보기] opens the whole-screen detail view for Q&A (step by step, payloads, the screens of each step). -->
+  <div id="canvas">
+    <section id="simple" class="col" aria-label="데이터 흐름">
+      <header>
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><circle cx="6" cy="6" r="2.6" fill="#fff"/><circle cx="18" cy="6" r="2.6" fill="#fff"/><circle cx="12" cy="18" r="2.6" fill="#fff"/><path d="M8.4 6h7.2M7.3 8.2l3.5 7.4M16.7 8.2l-3.5 7.4"/></svg></span>
+        <b>e-Care 데이터 흐름</b>
+        <button id="toDetail" title="상세 데이터 흐름 (Q&amp;A) · D">상세 보기 ⤢</button>
+      </header>
+      <div class="clock"><span>경고 발생 후 경과</span><b id="elapsed" class="num">00:00</b></div>
+      <div id="steps"></div>
+      <div id="msg" class="idle"><h4>지금 오가는 데이터</h4><div class="route"><span id="mFrom">고객 차량</span><i class="line"></i><span id="mTo">서버</span></div><div class="api"><b id="mApi">대기</b><span id="mLb">차량 이벤트를 기다리는 중</span></div></div>
+    </section>
+    <section id="ccwCol" class="col sys" aria-label="e-Care 고객지원실">
+      <header>
+        <span class="ic" style="background:linear-gradient(140deg,#3ddc84,#1fa9a0)"><svg viewBox="0 0 24 24" fill="none" stroke="#03140b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0 1 16 0"/><rect x="3" y="13" width="4" height="6" rx="1.6"/><rect x="17" y="13" width="4" height="6" rx="1.6"/><path d="M19 19c0 1.5-2 2.5-5 2.5"/></svg></span>
+        <b>e-Care 고객지원실</b><span class="tag" style="background:rgba(61,220,132,.16);color:#8ff0b3">CCW</span><small>상담원 화면</small>
+        <span class="state" id="ccwState">대기</span>
+      </header>
+      <div class="screen"><iframe src="ccw.html?view=office&amp;stage=1&amp;mute=1" title="e-Care 고객지원실 CCW"></iframe></div>
+      <div class="say"><p id="ccwSay"></p><div class="facts" id="ccwFacts"></div></div>
+    </section>
+    <section id="dmsCol" class="col sys" aria-label="서비스센터 DMS">
+      <header>
+        <span class="ic" style="background:linear-gradient(140deg,#ffb02e,#ff7a3d)"><svg viewBox="0 0 24 24" fill="none" stroke="#1d0f02" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg></span>
+        <b>서비스센터</b><span class="tag" style="background:rgba(255,176,46,.16);color:#ffcf7a">DMS</span><small>딜러 서비스 어드바이저</small>
+        <span class="state" id="dmsState">대기</span>
+      </header>
+      <div class="screen"><iframe src="dms.html?stage=1" title="서비스센터 DMS"></iframe></div>
+      <div class="say"><p id="dmsSay"></p><div class="facts" id="dmsFacts"></div></div>
+    </section>
+
+    <section id="detail" aria-label="상세 데이터 흐름">
+      <iframe class="board" id="board" title="상세 데이터 흐름"></iframe>
+      <aside id="qa">
+        <div class="hd"><b>상세 데이터 흐름</b><span class="tag">Q&amp;A</span><button id="toSimple" title="심플 화면으로 · D">심플로 돌아가기</button></div>
+        <div class="chips" id="chips"></div>
+        <div class="tp"><button data-q="first" title="처음 메시지">⏮ 처음</button><button data-q="prev" title="이전 메시지 · ←">◀ 이전</button><button data-q="next" class="pri" title="다음 메시지 · → / Space">다음 ▶</button><button data-q="stage" title="다음 단계로 · ↓">단계 ⏭</button></div>
+        <div class="tp2"><button data-q="play" id="qPlay">▶ 자동 재생</button><button data-q="live" id="qLive">● 실시간</button><span class="n num" id="qN">0 / 0</span></div>
+        <div class="card" id="qCard"></div>
+        <div class="shots"><h4 id="shotsT">이 단계의 화면</h4><div class="g" id="shots"></div></div>
+      </aside>
+    </section>
+  </div>
+  <script src="js/link.js"></script>
+  <script src="js/ecare.js"></script>
+  <script src="js/final-common.js"></script>
+  <script src="js/scenes.js"></script>
+  <script src="js/final-dataflow.js"></script>
+</body>
+</html>

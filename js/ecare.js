@@ -773,5 +773,43 @@
   }
   function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v7', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
-  window.ECare = { SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
+  /* The case's journey in six steps, shared by the data flow screens. */
+  const JOURNEY = ['경고 감지 · 판정', '고객 연결', '상담 · 긴급출동', '서비스센터 이관', '예약 · 입고', '정비 · 종결'];
+  // one plain sentence per step, for the audience
+  const JOURNEY_PLAIN = [
+    '차량이 이상을 스스로 감지해 서버로 보내고, 서버가 위험 등급을 판정합니다',
+    '고객은 헤드유닛 버튼 하나로 e-Care 상담원과 연결됩니다',
+    '상담원이 차량 위치와 상태를 보고 긴급출동을 부릅니다',
+    '상담 내용이 서비스센터로 자동 전달되어 접수됩니다',
+    '서비스센터가 고객에게 연락해 입고를 예약합니다',
+    '정비가 끝나고 결과가 고객과 상담원에게 공유됩니다',
+  ];
+  /** Which step the case is in, and what is happening, from the snapshot. */
+  function journey(c) {
+    if (!c) return { i: -1, d: '차량 이벤트 수신 대기' };
+    const w = c.wng || { code: '', case: c.wcase || 'A' };
+    const K = CASE[w.case] || CASE.A;
+    if (c.dms >= 7 || c.dms >= 4) return { i: 5, d: `서비스센터 ${DMS[c.dms]} · DMS-SVC-002 → CCW · 고객 앱` };
+    if (c.dms >= 2) return { i: 4, d: `입고 예약 확정 · ${c.dealer || '서비스센터'}${c.dms >= 3 ? ' · 차량 입고' : ''}` };
+    if (c.dms >= 0) return { i: 3, d: c.kind === 'emergency' ? '상담 메모 WAM-MEMO-001 → 서비스센터 DMS · 컨택대기' : `${K.label} 등급 · 상담원 없이 서비스센터 DMS로 직접 · SLA ${K.slaText}` };
+    const call = c.call;
+    if (c.dispatch >= 0 || (call && (call.state === 'connected' || call.state === 'ended'))) {
+      const d = c.dispatch >= 2 ? '긴급출동 차량 도착 · 고객 차량 앞 정차' : c.dispatch >= 0 ? `긴급출동 ${DISPATCH[c.dispatch]} · 출동 기사가 고객에게 직접 연락` : '상담원 ↔ 고객 통화 · 차량 진단 정보 공유';
+      return { i: 2, d };
+    }
+    if (c.inbound || c.assign || (call && call.state === 'dialing') || Date.now() - c.at > 7000)
+      return { i: 1, d: c.inbound ? '고객 HU [전화연결] → 헤드유닛 콜 · 유휴 상담원 배정' : c.assign ? '25분 경과 · 상담원 자동 배정 · 고객에게 발신' : '고객 연락 대기 · HU 팝업 · 앱 푸시' };
+    return { i: 0, d: `${w.code} 경고 → VDP → VEP 판정 · ${K.label}(Case ${w.case})` };
+  }
+  /** which step of the journey a message belongs to (a replay follows it) */
+  function stageOfFlow(f) {
+    const a = f.api || '';
+    if (a === 'DMS-SVC-002') { const st = (f.payload && f.payload.repairStatus) || ''; return /CONTACT/.test(st) ? 3 : /RESERVED|RECEIVED/.test(st) ? 4 : 5; }
+    if (/WAM-MEMO|상담 메모|통화 종료/.test(a)) return 3;
+    if (/긴급출동|출동 상태|음성|수신/.test(a) || (f.to === 'car' && /헤드유닛 알림/.test(a) && /출동/.test(f.label))) return 2;
+    if (/헤드유닛 콜|콜 배정|발신|응답|미응답|SMS|상담원 조회|IDLE|자동 할당|상태 전환|WNG 콜 팝업|일반 전화/.test(a)) return 1;
+    return 0;
+  }
+
+  window.ECare = { JOURNEY, JOURNEY_PLAIN, journey, stageOfFlow, SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();

@@ -30,6 +30,8 @@
   const camLocked = params.get('cam') === 'lock' || VIEW === 'transcript';
   const setBodyClass = () => { ['view-transcript', 'view-app', 'view-office'].forEach((c) => document.body.classList.toggle(c, c === `view-${mode}`)); };
   setBodyClass();
+  // ?bare=1: the conversation alone, no tabs or background (embedded in Final_Instrument's side panel)
+  if (params.get('bare')) document.body.classList.add('bare');
   // tab icon and title of the screen shown (call center, agent screen, conversation)
   function tabIdentity() {
     const [icon, title] = mode === 'transcript' ? ['talk', '상담 대화 · e-Care'] : mode === 'app' ? ['ccw', 'CCW · 상담원 화면'] : ['ccw', 'CCW · 고객지원실'];
@@ -123,8 +125,11 @@
     if (window.speechSynthesis) speechSynthesis.cancel();
     hushed = true;
   });
+  // who speaks the call: the call-center screen, or the conversation panel with ?voice=1
+  // (Final_Instrument); ?mute=1 keeps a call-center screen quiet (Final_Dataflow)
+  const VOICE = VIEW === 'transcript' ? params.has('voice') : !params.has('mute');
   Link.on('say', (d) => {
-    if (VIEW === 'transcript') return;
+    if (!VOICE) return;
     if (hushed && d.index > 0) return;
     hushed = null;
     speak(d.line);

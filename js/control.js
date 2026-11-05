@@ -342,16 +342,21 @@
         + chunk('일반 전화 (경고 없음)', b('data-a="inbound"', '고객 전화 오기') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))],
       wall: ['장면 · 화면', chunk('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join(''))
         + chunk('시연 화면 비율', b('data-wmode="21"', '21:9') + b('data-wmode="169"', '16:9') + b('data-wmode="63"', '63:9'))
-        + chunk('데이터 흐름', b('data-flowlog', flowLog ? '상세 흐름 접기' : '상세 흐름 펼치기'))
+        + chunk('Final 화면 · 데이터 흐름', b('data-dfmode="simple"', '심플 (시연 중)') + b('data-dfmode="detail"', '상세 (Q&A)') + b('data-flowlog', flowLog ? '상세 로그 접기' : '상세 로그 펼치기'), 'Final_Dataflow')
+        + chunk('Final 화면 · 상담 대화', b('data-talk="auto"', '자동') + b('data-talk="open"', '펼치기') + b('data-talk="close"', '접기'), 'Final_Instrument')
         + chunk('시연 화면 배치', b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))
-        + chunk('점검 · 열기', b('data-identify', '화면 번호 표시') + ['wall.html:시연 화면 열기', 'dms.html:DMS 열기', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))],
+        + chunk('점검 · 열기', b('data-identify', '화면 번호 표시') + ['final_instrument.html:Final_Instrument', 'final_dataflow.html:Final_Dataflow', 'wall.html:시연 화면 (1대)', 'dms.html:DMS 열기', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))],
     };
     if (!TABS[mtab]) mtab = 'car';
     $('#manual').innerHTML = `<div class="mh"><h2>수동 제어</h2><nav class="tabs">${Object.keys(TABS).map((k) => `<button data-mtab="${k}" class="${k === mtab ? 'on' : ''}">${TABS[k][0]}</button>`).join('')}</nav></div>
       <div class="mbody">${TABS[mtab][1]}</div>`;
     manualState();
   }
+  let dfMode = 'simple', talkMode = 'auto';
+  Link.on('df-state', (d) => { dfMode = d.mode; manualState(); });
   function manualState() {
+    document.querySelectorAll('[data-dfmode]').forEach((x) => x.classList.toggle('on', x.dataset.dfmode === dfMode));
+    document.querySelectorAll('[data-talk]').forEach((x) => x.classList.toggle('on', x.dataset.talk === talkMode));
     document.querySelectorAll('[data-wmode]').forEach((x) => x.classList.toggle('on', x.dataset.wmode === wall.mode));
     document.querySelectorAll('[data-cam]').forEach((x) => x.classList.toggle('on', x.dataset.cam === camView));
     document.querySelectorAll('[data-ccwcam]').forEach((x) => x.classList.toggle('on', x.dataset.ccwcam === ccwCam));
@@ -390,6 +395,8 @@
     else if ('identify' in d) Link.send('stage-identify', {});
     else if (d.cam) { camView = d.cam; Link.send('cam', { view: d.cam }); manualState(); }
     else if (d.dms) Link.send(d.dms === 'open' ? 'dms-open' : 'dms-close', {});
+    else if (d.dfmode) { dfMode = d.dfmode; Link.send('df-mode', { mode: d.dfmode }); manualState(); }
+    else if (d.talk) { talkMode = d.talk; Link.send('talk-panel', { open: d.talk === 'auto' ? 'auto' : d.talk === 'open' }); manualState(); }
     else if ('flowlog' in d) { flowLog = !flowLog; Link.send('flow-log', { open: flowLog }); manual(); }
     else if (d.ccwcam) { ccwCam = d.ccwcam; ccwManual = true; localStorage.setItem('control-ccwcam-manual', '1'); localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: ccwCam }); manualState(); }
     else if (d.wmode) setWall({ mode: d.wmode });

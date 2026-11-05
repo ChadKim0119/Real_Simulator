@@ -227,7 +227,7 @@
   const clock = el('text', { x: 1868, y: 128, fill: '#6f84a3', 'font-size': 20, 'font-weight': 700, 'text-anchor': 'end', class: 'num' }, hud);
   /* the journey rail: where the case is now, in six steps, read from the back of the room.
    * The step playing is lit in the case colour; its one-line explanation sits under the rail. */
-  const STEPS = ['경고 감지 · 판정', '고객 연결', '상담 · 긴급출동', '서비스센터 이관', '예약 · 입고', '정비 · 종결'];
+  const STEPS = E.JOURNEY;
   const RX = 450, RW = 190, RG = 8;
   const rail = STEPS.map((t, i) => {
     const grp = el('g', { transform: `translate(${RX + i * (RW + RG)},26)` }, hud);
@@ -237,23 +237,7 @@
     return { bg, n, lb };
   });
   const nowT = el('text', { x: RX + (STEPS.length * (RW + RG) - RG) / 2, y: 120, fill: '#fff', 'font-size': 31, 'font-weight': 800, 'text-anchor': 'middle' }, hud);
-  /** Which step the case is in, and what is happening, from the snapshot. */
-  function stepOf(c) {
-    if (!c) return { i: -1, d: '차량 이벤트 수신 대기' };
-    const w = c.wng || { code: '', case: c.wcase || 'A' };
-    const K = E.CASE[w.case] || E.CASE.A;
-    if (c.dms >= 7 || c.dms >= 4) return { i: 5, d: `서비스센터 ${E.DMS[c.dms]} · DMS-SVC-002 → CCW · 고객 앱` };
-    if (c.dms >= 2) return { i: 4, d: `입고 예약 확정 · ${c.dealer || '서비스센터'}${c.dms >= 3 ? ' · 차량 입고' : ''}` };
-    if (c.dms >= 0) return { i: 3, d: c.kind === 'emergency' ? '상담 메모 WAM-MEMO-001 → 서비스센터 DMS · 컨택대기' : `${K.label} 등급 · 상담원 없이 서비스센터 DMS로 직접 · SLA ${K.slaText}` };
-    const call = c.call;
-    if (c.dispatch >= 0 || (call && (call.state === 'connected' || call.state === 'ended'))) {
-      const d = c.dispatch >= 2 ? '긴급출동 차량 도착 · 고객 차량 앞 정차' : c.dispatch >= 0 ? `긴급출동 ${E.DISPATCH[c.dispatch]} · 출동 기사가 고객에게 직접 연락` : '상담원 ↔ 고객 통화 · 차량 진단 정보 공유';
-      return { i: 2, d };
-    }
-    if (c.inbound || c.assign || (call && call.state === 'dialing') || Date.now() - c.at > 7000)
-      return { i: 1, d: c.inbound ? '고객 HU [전화연결] → 헤드유닛 콜 · 유휴 상담원 배정' : c.assign ? '25분 경과 · 상담원 자동 배정 · 고객에게 발신' : '고객 연락 대기 · HU 팝업 · 앱 푸시' };
-    return { i: 0, d: `${w.code} 경고 → VDP → VEP 판정 · ${K.label}(Case ${w.case})` };
-  }
+  const stepOf = (c) => E.journey(c);
   let railKey = '';
   function tickRail() {
     const c = primary();
@@ -387,6 +371,7 @@
     launch(f);
     renderLog();
     renderProg();
+    notify();
   }
   function btnState() {
     renderProg();
@@ -402,18 +387,52 @@
     const w = btnEls.step.t.getBBox().width + 32; btnEls.step.r.setAttribute('width', w);
     btnEls.live.grp.setAttribute('transform', `translate(${52 + (btnEls.replay.t.getBBox().width + 32) + 10 + w + 10},88)`);
   }
-  /** which step of the journey a message belongs to (replay: the rail follows the film) */
-  function stepOfFlow(f) {
-    const a = f.api || '';
-    if (a === 'DMS-SVC-002') { const st = (f.payload && f.payload.repairStatus) || ''; return /CONTACT/.test(st) ? 3 : /RESERVED|RECEIVED/.test(st) ? 4 : 5; }
-    if (/WAM-MEMO|상담 메모|통화 종료/.test(a)) return 3;
-    if (/긴급출동|출동 상태|음성|수신/.test(a) || (f.to === 'car' && /헤드유닛 알림/.test(a) && /출동/.test(f.label))) return 2;
-    if (/헤드유닛 콜|콜 배정|발신|응답|미응답|SMS|상담원 조회|IDLE|자동 할당|상태 전환|WNG 콜 팝업|일반 전화/.test(a)) return 1;
-    return 0;
+  const stepOfFlow = (f) => E.stageOfFlow(f);
+
+  /* ---------------- embedding: the detail view of Final_Dataflow drives the replay ---------------- */
+  const EMBED = new URLSearchParams(location.search).has('embed');
+  if (EMBED) { document.body.classList.add('embed'); for (const k in btnEls) btnEls[k].grp.style.display = 'none'; }
+  const listeners = [];
+  function notify() { const st = ctlState(); listeners.forEach((fn) => { try { fn(st); } catch (e) { /* the host went away */ } }); }
+  const replayList = () => ((snap && snap.flows) || []).filter((f) => f.type !== 'skip').map(norm);
+  function ctlState() {
+    const list = replay ? replay.list : replayList();
+    return { mode: replay ? (replay.step ? 'step' : 'play') : 'live', i: replay ? replay.i : list.length, n: list.length, last: replay ? replay.last : shown[shown.length - 1] || null, list, stage: replay ? replay.maxStep : (primary() ? stepOf(primary()).i : -1) };
   }
+  /** the board as of message n (1 = the first): earlier paths drawn still, the n-th one animated */
+  function seek(n) {
+    const list = replayList();
+    if (!list.length) return;
+    n = Math.max(0, Math.min(list.length, n));
+    clearBoard();
+    replay = { list, i: 0, step: true, maxStep: -1, last: null };
+    for (let k = 0; k < n - 1; k++) {
+      const f = list[k];
+      if (f.from !== f.to) keep(f.from, f.to, f.wcase ? CASECOL[f.wcase] : BLUE);
+      touched[f.from] = touched[f.to] = true;
+      shown.push(f);
+      replay.maxStep = Math.max(replay.maxStep, stepOfFlow(f));
+      replay.last = f;
+      replay.i++;
+    }
+    if (n > 0) stepOnce(); else renderLog();
+    railKey = ''; btnState(); notify();
+  }
+  window.FlowCtl = {
+    state: ctlState,
+    seek,
+    next: () => { const st = ctlState(); if (st.mode === 'live') seek(1); else if (replay.step) { stepOnce(); btnState(); } else { replay.step = true; stepOnce(); btnState(); } },
+    prev: () => { const st = ctlState(); seek(st.mode === 'live' ? st.n - 1 : st.i - 1); },
+    /** the first message of journey step k */
+    stage: (k) => { const list = replayList(); let mx = 0; const at = list.findIndex((f) => (mx = Math.max(mx, stepOfFlow(f))) >= k); if (at >= 0) seek(at + 1); },
+    play: () => { if (!replay) { onBtn('replay'); } else { replay.step = false; lastLaunch = 0; } btnState(); notify(); },
+    pause: () => { if (replay) { replay.step = true; btnState(); notify(); } },
+    live: () => { onBtn('live'); notify(); },
+    onChange: (fn) => { listeners.push(fn); fn(ctlState()); },
+  };
 
   /* ---------------- link ---------------- */
-  Link.on('ecare', (d) => { snap = d; ingest(); renderCards(); });
+  Link.on('ecare', (d) => { snap = d; ingest(); renderCards(); if (!replay) notify(); });
   // who speaks now (the call animation sends the voice that way)
   Link.on('say', (d) => { caption = { who: d.line.who, until: performance.now() + (d.line.dur || 4) * 1000 + 700 }; });
   Link.send('hello', { screen: 'flow' });
@@ -479,7 +498,7 @@
   function keep(a, b, col) {
     const k = [a, b].sort().join('|');
     let l = linkEls[a + b];
-    if (!l) {
+    if (!l || !l.isConnected) {
       l = el('path', { d: path(a, b).d, fill: 'none', 'stroke-linecap': 'round' }, g('links'));
       l.dataset.extra = '1';
       linkEls[a + b] = linkEls[b + a] = l;

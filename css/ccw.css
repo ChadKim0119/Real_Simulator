@@ -497,3 +497,16 @@ body.stage #hud { display: none; }
 /* the conversation panel: only the tabs and the conversation */
 .tr-wrap.solo { grid-template-columns: 1fr; }
 .tr-wrap.solo .tr-list { max-width: 1400px; width: 100%; margin: 0 auto; }
+
+/* embedded conversation (Final_Instrument side panel): no header, transparent, sized for a narrow column */
+body.bare, body.bare #transcript { background: transparent; }
+body.bare #transcript { padding: 6px 18px 18px; }
+body.bare .trh { display: none; }
+body.bare .tr-wrap { padding-top: 0; }
+body.bare .tb { max-width: 94%; }
+body.bare .tb .who { font-size: 14px; color: #9db1c9; }
+body.bare .tb .msg { font-size: 21px; line-height: 1.5; padding: 13px 17px; border-radius: 18px; }
+body.bare .tb.agent .msg { background: rgba(38, 66, 112, 0.78); }
+body.bare .tb.customer .msg { background: rgba(255, 255, 255, 0.11); }
+body.bare .tr-empty { font-size: 18px; }
+body.bare .acts { display: none !important; }

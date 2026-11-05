@@ -52,6 +52,10 @@ body.ready #stage { opacity: 1; }
 #stage > * { position: absolute; display: block; }
 #plate, #ambient, #focusShade { left: 0; top: 0; width: 2300px; height: 941px; pointer-events: none; }
 #exterior { filter: blur(1.4px) saturate(0.95); }
+/* filmed drive on the same road as the rescue scene, warped onto the cabin photo:
+   seen through the windshield and the side glass, its speed follows the car */
+#drive { left: 0; top: 0; width: 2300px; height: 240px; object-fit: fill; pointer-events: none; opacity: 0; transition: opacity 0.6s; filter: saturate(0.96) contrast(1.02); }
+#drive.ready { opacity: 1; }
 /* the driver's side window: tinted side glass, the roadside a motion-blurred smear */
 #sideGlass { left: 0; top: 0; width: 250px; height: 236px; pointer-events: none; transition: opacity 0.8s;
   -webkit-backdrop-filter: blur(7px) saturate(0.6) brightness(0.72); backdrop-filter: blur(7px) saturate(0.6) brightness(0.72);
@@ -60,7 +64,7 @@ body.ready #stage { opacity: 1; }
    veiling glare of the dashboard where the glass meets it */
 #screenShade { left: 0; top: 0; width: 2300px; height: 240px; pointer-events: none; transition: opacity 0.8s;
   background:
-    linear-gradient(to bottom, rgba(16, 22, 32, 0.5) 0, rgba(16, 22, 32, 0.16) 52px, rgba(16, 22, 32, 0) 104px),
+    linear-gradient(to bottom, rgba(16, 22, 32, 0.32) 0, rgba(16, 22, 32, 0.1) 52px, rgba(16, 22, 32, 0) 104px),
     linear-gradient(to right, rgba(10, 13, 18, 0.55) 300px, rgba(10, 13, 18, 0.18) 420px, rgba(10, 13, 18, 0) 560px),
     linear-gradient(to left, rgba(10, 13, 18, 0.42) 0, rgba(10, 13, 18, 0.1) 190px, rgba(10, 13, 18, 0) 320px),
     linear-gradient(to top, rgba(150, 160, 172, 0.16) 0, rgba(150, 160, 172, 0) 36%); }
