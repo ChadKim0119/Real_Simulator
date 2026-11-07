@@ -22,6 +22,10 @@
     const g = snap.general;
     if (g && g.state !== 'ended') return { live: g.state === 'connected', ring: g.state === 'ringing', at: g.connectedAt, lines: (g.lines || []).length, dir: 'in', key: 'G' + g.at, general: true };
     const c = primary(snap);
+    if (c && c.dcall) {          // the service center's follow-up call (dealer → the customer's phone)
+      const d = c.dcall;
+      return { live: d.state === 'connected', ring: d.state === 'dialing', ended: d.state === 'ended', endedAt: d.endedAt, at: d.connectedAt, lines: (d.lines || []).filter((l) => !l.deleted).length, dir: 'dealer', key: c.id + 'dealer', c, dealer: true };
+    }
     if (!c || !c.call) return null;
     const k = c.call;
     return { live: k.state === 'connected', ring: k.state === 'dialing', ended: k.state === 'ended' || k.state === 'failed', endedAt: k.endedAt, at: k.connectedAt, lines: (k.lines || []).filter((l) => !l.deleted).length, dir: k.dir, key: c.id + k.dir, c };
@@ -71,13 +75,17 @@
     // header: who talks to whom, the call time
     const st = $('#talkState'), tm = $('#talkTime'), sub = $('#talkSub');
     if (k && k.live) { st.textContent = '통화 중'; st.className = 'live'; tm.textContent = k.at ? mmss(now - k.at) : ''; }
-    else if (k && k.ring) { st.textContent = k.dir === 'out' ? '발신 중' : '연결 중'; st.className = ''; tm.textContent = ''; }
+    else if (k && k.ring) { st.textContent = k.dir === 'out' || k.dealer ? '발신 중' : '연결 중'; st.className = ''; tm.textContent = ''; }
     else if (k && k.ended) { st.textContent = '통화 종료'; st.className = ''; }
     else { st.textContent = '대기'; st.className = ''; tm.textContent = ''; }
     const male = !!(k && k.c && k.c.call && (k.c.call.lines || []).some((l) => /ecare_m_/.test(l.audio || '')));
     const ci = $('#talk .av2 img:last-child'), avSrc = `assets/avatar_${male ? 'customer_m' : 'customer'}.webp`;
     if (!ci.src.endsWith(avSrc)) ci.src = avSrc;
-    sub.textContent = !k ? 'e-Care 고객지원실 · 고객' : k.general ? `${E.CUSTOMER.name} 고객 · 일반 전화` : k.dir === 'out' ? `상담원 → ${E.CUSTOMER.name} 고객 휴대폰` : `${E.CUSTOMER.name} 고객 → 헤드유닛 콜`;
+    const ai = $('#talk .av2 img:first-child'), agSrc = `assets/avatar_${k && k.dealer ? 'dealer' : 'agent'}.webp`;
+    if (!ai.src.endsWith(agSrc)) ai.src = agSrc;
+    talk.classList.toggle('dealer', !!(k && k.dealer));
+    $('#talk header b').textContent = k && k.dealer ? '딜러 통화' : '상담 대화';
+    sub.textContent = !k ? 'e-Care 고객지원실 · 고객' : k.dealer ? `${(k.c && k.c.dealer) || '서비스센터'} 이정비 → ${E.CUSTOMER.name} 고객 휴대폰` : k.general ? `${E.CUSTOMER.name} 고객 · 일반 전화` : k.dir === 'out' ? `상담원 → ${E.CUSTOMER.name} 고객 휴대폰` : `${E.CUSTOMER.name} 고객 → 헤드유닛 콜`;
     // closed: a badge counts the lines said meanwhile, the button rings while a call comes in
     const n = k ? k.lines : 0;
     if (open) seenLines = n;
@@ -87,7 +95,12 @@
     fab.classList.toggle('ring', !open && !!k && (k.live || k.ring));
     // the scenario step playing on the control panel, top left (the panel sends it)
     renderStep();
+    renderFollow();
   }
+
+  /* after the rescue the car view is masked: the service center (dealer) follows up (js/follow.js) */
+  const follow = Follow.mount($('#canvas'), { before: $('#journey'), padRight: 520 });
+  const renderFollow = () => follow.render(snap);
   let scn = null, stepKey = '';
   function renderStep() {
     const jr = $('#journey');

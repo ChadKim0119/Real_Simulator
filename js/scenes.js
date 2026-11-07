@@ -52,10 +52,10 @@
     const seen = new Set();
     let first = true, finT = 0;
     function ceremony(c) {
-      const steps = ['경고 감지', '고객 연결', c.kind === 'emergency' ? '상담 · 긴급출동' : '경고 판정', '서비스센터 이관', '예약 · 입고', '정비 · 종결'];
+      const steps = ['경고 감지', '고객 연결', c.kind === 'emergency' ? '상담 · 긴급출동' : '경고 판정', '서비스센터 이관', '딜러 후속 통화', '예약 → 상담원'];
       const html = `<div class="fx"><svg viewBox="0 0 200 200" class="ring"><circle cx="100" cy="100" r="86" class="bg"/><circle cx="100" cy="100" r="86" class="fg"/><path d="M64 102 L90 128 L140 76" class="ck"/></svg>
         <b>e-Care 과업 종료</b><span>${steps.map((t) => `<i>${esc(t)}</i>`).join('<em>›</em>')}</span>
-        <small>${esc(c.dealer || '서비스센터')} 정비 종결 · 모든 단계가 고객 앱과 상담원 화면에 반영되었습니다</small></div>`;
+        <small>${esc(c.dealer || '서비스센터')} 예약 · 입고 정보가 e-Care 상담원에게 전달되었습니다</small></div>`;
       if (window.FX && FX.ceremony(fin, html)) return;
       fin.innerHTML = html;
       fin.classList.remove('on'); void fin.offsetWidth; fin.classList.add('on');
@@ -67,8 +67,8 @@
       snap = d;
       if (scene === 'closing') render(true);
       for (const c of d.cases || []) {
-        if (c.dms >= 7 && !seen.has(c.id)) { seen.add(c.id); if (!first && scene === 'live') ceremony(c); }
-        if (c.dms < 7) seen.delete(c.id);
+        if ((c.done || c.dms >= 7) && !seen.has(c.id)) { seen.add(c.id); if (!first && scene === 'live') ceremony(c); }
+        if (!c.done && c.dms < 7) seen.delete(c.id);
       }
       if (!(d.cases || []).length) seen.clear();
       first = false;

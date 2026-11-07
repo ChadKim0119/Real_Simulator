@@ -242,7 +242,7 @@ body.detail-on .fd .col, .fd.detail-on .col { transform: scale(0.985); opacity: 
 #qa .tp button { height: 62px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.05); font-size: 18px; font-weight: 800; cursor: pointer; transition: background 0.3s, transform 0.2s; }
 #qa .tp button:active { transform: scale(0.97); }
 #qa .tp button.pri { background: var(--blue); border-color: var(--blue); color: #fff; }
-#qa .tp2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#qa .tp2 { display: grid; grid-template-columns: 0.8fr 1fr 1fr; gap: 8px; }
 #qa .tp2 button { height: 46px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.04); font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.3s; }
 #qa .tp2 button.on { background: #173a6b; border-color: var(--blue); }
 #qa .plain { padding: 14px 16px; border-radius: 14px; background: color-mix(in srgb, var(--case, var(--blue)) 10%, rgba(255, 255, 255, 0.03)); border: 1px solid color-mix(in srgb, var(--case, var(--blue)) 30%, transparent); font-size: 19px; line-height: 1.5; font-weight: 700; color: #e6eef9; }
@@ -270,3 +270,5 @@ body.detail-on .fd .col, .fd.detail-on .col { transform: scale(0.985); opacity: 
 #talk.gs.on { opacity: 1; }
 #fab.gs { transition: none; }
 #fab.gs.hide { transform: none; opacity: 1; }
+
+#talk.dealer header .av2 img:first-child { box-shadow: 0 0 0 2px var(--amber); }

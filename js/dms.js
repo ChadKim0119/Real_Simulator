@@ -18,7 +18,8 @@
   const app = $('#app');
   const H = 3600e3, D = 24 * H;
 
-  const LOGIN = E.DEALERS[0].name;                      // this screen's center
+  const LOGIN = E.DEALERS[0].name;
+  const SERVICE_ADVISOR = '이정비';                      // this screen's center
   const short = (name) => name.replace(' 서비스센터', '');
   const STAGES = ['컨택대기', '예약대기', '예약', '입고', '정비', '종결'];
   const GRADE = { A: { k: '긴급', col: '#e5534b' }, B: { k: '경고', col: '#f0922f' }, C: { k: '알림', col: '#6fbd3c' } };
@@ -66,7 +67,8 @@
 
   /* ---------------- live state ---------------- */
   let snap = null;
-  let view = localStorage.getItem('dms-view') || 'list';
+  // the card view (the workflow, column by column) is the default: it reads from the back of the room
+  let view = localStorage.getItem('dms-view2') || 'card';
   let detail = null, detailTab = 'info';
   let q = '';
   let flash = {};              // live case id -> since (highlight a new or changed row)
@@ -76,7 +78,7 @@
     (snap.cases || []).forEach((c) => { if (c.dms >= 0 && before[c.id] !== c.dms) flash[c.id] = Date.now(); });
     render();
   });
-  Link.on('dms-view', (d) => { view = d.view; localStorage.setItem('dms-view', view); render(true); });
+  Link.on('dms-view', (d) => { view = d.view; localStorage.setItem('dms-view2', view); render(true); });
   Link.send('hello', { screen: 'dms' });
 
   const stageOf = (dms, stop) => (stop ? 'stop' : dms <= 0 ? 0 : dms === 1 ? 1 : dms === 2 ? 2 : dms === 3 ? 3 : dms <= 5 ? 4 : 5);
@@ -195,21 +197,42 @@
     if (r.stage === 0 && !r.stopInfo) mid = slaBox(r);
     else if (r.stage === 1 || r.stopInfo) mid = contactBox(last);
     else if (r.stage === 2 && r.reservation) mid = `<dl class="resv"><dt>고객명</dt><dd>${r.live ? esc(E.CUSTOMER.name) : '고객'}</dd><dt>예약경로</dt><dd><em class="route ${r.reservation.route === 'AICC' ? 'aicc' : ''}">${esc(r.reservation.route)}</em></dd><dt>실예약일시</dt><dd>${md(r.reservation.at)}</dd></dl>`;
-    return `<div class="card ${r.stopInfo ? 'stopped' : ''} ${warn ? 'warnb' : ''} ${r.live ? 'live' : ''}" data-open="${r.id}">
+    const c = r.live && r.c;
+    const dc = c && c.dcall;
+    if (dc && dc.state !== 'ended') mid = `<div class="callchip ${dc.state === 'connected' ? 'on' : ''}"><i></i>${dc.state === 'connected' ? '고객과 통화 중' : '고객 휴대폰 발신 중…'}<b data-dcall-t>${dc.state === 'connected' ? E.mmss(Date.now() - dc.connectedAt) : ''}</b></div>` + mid;
+    const share = c && (c.resvSent || c.done) ? `<div class="share ${c.done ? 'ok' : ''}">${c.done ? '✓ e-Care 상담원 공유 완료' : '→ e-Care 상담원에게 예약 · 입고 정보 전송 중'}</div>` : '';
+    return `<div class="card ${r.stopInfo ? 'stopped' : ''} ${warn ? 'warnb' : ''} ${r.live ? 'live' : ''} ${dc && dc.state === 'connected' ? 'calling' : ''}" data-open="${r.id}">
       <div class="ch">${badge(r.g, r.stopInfo)}<div><b>${esc(r.plate)}</b><small>${esc(r.model)}${r.stopInfo ? ' <span class="st stop">중단</span>' : ''}</small></div><div class="cr"><small>${esc(r.center)}센터</small><small>${md(r.at)}</small></div></div>
       ${r.stage < 2 || r.stopInfo ? `<p class="wn">경고등명 <b>${esc(r.wname)}</b>${r.more ? ` 외 ${r.more}건` : ''}${r.live ? '<em class="livetag">e-Care 실시간</em>' : ''}</p>` : ''}
       ${mid}
+      ${share}
       ${r.stage < 2 || r.stopInfo ? `<div class="cf"><span>발생 후 경과</span><b>${span(Date.now() - r.at)}</b></div>` : ''}</div>`;
+  }
+  /* the live e-Care case across the top of the card view: where it is in the center's work */
+  const FW = [['e-Care 이관 접수', '상담 메모 · 컨택대기'], ['딜러 → 고객 통화', '안심 안내 · 일정 조율'], ['입고 예약 확정', '오늘 견인 입고 · 내일 10:00 점검'], ['예약 · 입고 정보 → e-Care', '상담원 도착 시 과업 종료']];
+  function flowBand(all) {
+    const r = all.find((x) => x.live && !x.pending && x.c && x.c.kind === 'emergency');
+    if (!r) return `<div class="wfband idle"><div class="wl"><span class="lv">서비스센터 업무 흐름</span><b>e-Care 이관 건 대기</b><small>e-Care 고객지원실에서 이관되면 이 흐름을 따라 진행됩니다</small></div>
+      <ol>${FW.map(([t, d], i) => `<li><i>${i + 1}</i><b>${t}</b><small>${d}</small></li>`).join('')}</ol></div>`;
+    const c = r.c, dc = c.dcall;
+    const st = ['done', !dc ? 'cur' : dc.state === 'ended' ? 'done' : 'cur', c.dms >= 2 ? 'done' : '', c.done ? 'done' : c.resvSent ? 'cur' : ''];
+    const now = !dc ? ['고객 연락 대기', '서비스 어드바이저가 고객에게 전화할 차례'] : dc.state === 'dialing' ? ['고객 휴대폰 발신 중…', `${SERVICE_ADVISOR} 어드바이저 → ${E.CUSTOMER.name} 고객`]
+      : dc.state === 'connected' ? ['고객과 통화 중', '안심 안내 · 입고 예약'] : c.done ? ['e-Care 과업 종료', '예약 · 입고 정보 상담원 도착'] : c.resvSent ? ['e-Care 상담원에게 전송 중', '예약 · 입고 정보'] : ['입고 예약 확정', '오늘 견인 입고 · 내일 10:00 점검'];
+    return `<div class="wfband ${dc && dc.state === 'connected' ? 'calling' : ''}" data-open="${r.id}"><div class="wl"><span class="lv"><i></i>e-Care 실시간 이관 건</span><b>${esc(r.model)} · ${esc(r.plate)}</b><small>${esc(E.CUSTOMER.name)} 고객 · ${esc(r.wname)} (${GRADE[r.g].k})</small></div>
+      <ol>${FW.map(([t, d], i) => `<li class="${st[i]}"><i>${st[i] === 'done' ? '✓' : i + 1}</i><b>${t}</b><small>${d}</small></li>`).join('')}</ol>
+      <div class="wr"><b>${now[0]}${dc && dc.state === 'connected' ? ` <span data-dcall-t>${E.mmss(Date.now() - dc.connectedAt)}</span>` : ''}</b><small>${now[1]}</small></div></div>`;
   }
   function cardView(all) {
     const col = (title, ks, extra) => {
       const rs = all.filter((r) => ks.includes(stageKey(r))).sort((a, b) => (b.live - a.live) || ((sla(a).left <= D) - (sla(b).left <= D)) * -1 || a.at - b.at);
       return `<section class="kcol"><h3><i></i>${title} <b>${rs.length}</b>${extra(rs)}</h3><div class="kbody">${rs.map(card).join('') || '<p class="empty">해당 건 없음</p>'}</div></section>`;
     };
-    return `<div class="kanban">
-      ${col('컨택대기', [0], (rs) => { const o = rs.filter((r) => !r.pending && sla(r).over).length, n = rs.filter((r) => !r.pending && !sla(r).over && sla(r).left <= D).length; return `${o ? `<em class="exp">만료 ${o}</em>` : ''}${n ? `<em class="near">임박 ${n}</em>` : ''}`; })}
-      ${col('예약대기', [1, 'stop'], (rs) => { const st = rs.filter((r) => r.stopInfo).length; return st ? `<em class="stp">중단 ${st}</em>` : ''; })}
-      ${col('예약', [2], (rs) => { const a = rs.filter((r) => r.reservation && r.reservation.route === 'AICC').length; return a ? `<em class="aic">AICC ${a}</em>` : ''; })}
+    return `${flowBand(all)}<div class="kanban">
+      ${col('① 컨택대기', [0], (rs) => { const o = rs.filter((r) => !r.pending && sla(r).over).length, n = rs.filter((r) => !r.pending && !sla(r).over && sla(r).left <= D).length; return `${o ? `<em class="exp">만료 ${o}</em>` : ''}${n ? `<em class="near">임박 ${n}</em>` : ''}`; })}
+      ${col('② 고객 통화 · 예약대기', [1, 'stop'], (rs) => { const st = rs.filter((r) => r.stopInfo).length; return st ? `<em class="stp">중단 ${st}</em>` : ''; })}
+      ${col('③ 예약 확정', [2], (rs) => { const a = rs.filter((r) => r.reservation && r.reservation.route === 'AICC').length; return a ? `<em class="aic">AICC ${a}</em>` : ''; })}
+      ${col('④ 입고', [3], () => '')}
+      ${col('⑤ 정비 · 종결', [4, 5], () => '')}
     </div>`;
   }
 
@@ -293,18 +316,20 @@
   let lastKey = '';
   function render(force) {
     const all = rows();
-    const key = JSON.stringify([view, detail, detailTab, stageList, q, snap && snap.cases.map((c) => [c.id, c.dms, c.dmsStop, (c.contacts || []).length, c.contact, c.sheet && c.sheet.saved]), Object.keys(edits).length, Math.floor(Date.now() / 30000)]);
+    const key = JSON.stringify([view, detail, detailTab, stageList, q, snap && snap.cases.map((c) => [c.id, c.dms, c.dmsStop, (c.contacts || []).length, c.contact, c.sheet && c.sheet.saved, c.dcall && c.dcall.state, c.resvSent, c.done]), Object.keys(edits).length, Math.floor(Date.now() / 30000)]);
     if (!force && key === lastKey) return;
     const f = document.activeElement;
     if (!force && f && app.contains(f) && f.matches('input, textarea, select')) return;
     lastKey = key;
-    app.innerHTML = `${side(all)}<main class="main">${toolbar(all)}<div class="content ${view}">${view === 'list' ? listView(all) : cardView(all)}</div></main>${stagePanel(all)}${popup()}`;
+    app.innerHTML = `${side(all)}<main class="main">${toolbar(all)}<div class="content v-${view}">${view === 'list' ? listView(all) : cardView(all)}</div></main>${stagePanel(all)}${popup()}`;
     tick();
   }
   function tick() {
     const d = new Date();
     const c = $('[data-clock]'), dt = $('[data-date]');
     if (c) c.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const lc = snap && snap.cases.find((x) => x.dcall && x.dcall.state === 'connected');
+    if (lc) app.querySelectorAll('[data-dcall-t]').forEach((e) => { e.textContent = E.mmss(Date.now() - lc.dcall.connectedAt); });
     if (dt) dt.textContent = `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} (${'일월화수목금토'[d.getDay()]})`;
   }
   setInterval(tick, 1000);
@@ -315,7 +340,7 @@
     const t = e.target.closest('[data-view],[data-open],[data-close],[data-close-bg],[data-tab],[data-save],[data-stop],[data-stage],[data-stage-close]');
     if (!t) return;
     const d = t.dataset;
-    if (d.view) { view = d.view; localStorage.setItem('dms-view', view); render(true); return; }
+    if (d.view) { view = d.view; localStorage.setItem('dms-view2', view); render(true); return; }
     if ('closeBg' in d && e.target !== t) return;          // a click inside the dialog
     if ('close' in d || 'closeBg' in d) { detail = null; render(true); return; }
     if (d.tab) { detailTab = d.tab; render(true); return; }
@@ -416,7 +441,12 @@
 
   /* the live e-Care case and what the center is doing with it now */
   const liveCase = () => snap && snap.cases.filter((c) => c.dms >= 0 || (c.wcase === 'A' && c.contact < 3)).slice(-1)[0];
-  const lastChange = () => { const c = liveCase(); return c ? Math.max(flash[c.id] || 0, c.at || 0, (c.sheet && c.sheet.saved) || 0) : 0; };
+  const lastChange = () => {
+    const c = liveCase();
+    if (!c) return 0;
+    if (c.dcall && c.dcall.state !== 'ended') return Date.now();          // the dealer is on the phone: stay on it
+    return Math.max(flash[c.id] || 0, c.at || 0, (c.sheet && c.sheet.saved) || 0, (c.dcall && c.dcall.endedAt) || 0, c.resvSent || 0, c.done || 0);
+  };
   function stepText() {
     const c = liveCase();
     if (!c) return null;
@@ -425,8 +455,8 @@
     if (c.dmsStop) return ['대응 중단', c.dmsStop];
     const T = {
       0: ['상담 메모 이관 접수 · 컨택대기', '고객지원실 → 서비스센터 상담 메모 이관 · 첫 컨택 SLA 시작'],
-      1: ['고객 컨택 · 예약대기', `서비스 어드바이저 ${'이정비'} 컨택 등록`],
-      2: ['입고 예약 확정', '컨택 결과 → CCW · 데이터 흐름에 반영 (DMS-SVC-002)'],
+      1: ['딜러 → 고객 통화', `서비스 어드바이저 ${'이정비'} · 고객 안심 안내 · 일정 조율`],
+      2: ['입고 예약 확정', c.done ? '예약 · 입고 정보 → e-Care 상담원 도착 · 과업 종료' : c.resvSent ? '예약 · 입고 정보 → e-Care 상담원 전송 중' : '오늘 견인 입고 · 내일 10:00 점검'],
       3: ['차량 입고', '긴급출동 견인 차량 서비스센터 도착'],
       4: ['정비 진행', '진단 · 수리'], 5: ['정비 완료', '고객 인도 준비'], 6: ['고객 인도', ''], 7: ['정비 종결', 'e-Care 케이스 종결'],
     };
@@ -437,7 +467,7 @@
     if (app.querySelector('.ov .dlg')) return '.ov .dlg';
     if (app.querySelector('.spanel')) return '.spanel';
     const c = liveCase();
-    if (c && Date.now() - lastChange() < 12000) return view === 'list' ? '.row.live' : '.card.live';
+    if (c && Date.now() - lastChange() < 12000) return view === 'list' ? '.row.live' : app.querySelector('.wfband:not(.idle)') ? '.wfband' : '.card.live';
     return null;
   }
   function rectOf(sel) {

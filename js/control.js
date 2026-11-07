@@ -101,11 +101,17 @@
     hu: () => { const c = active(); return !!(c && (!c.got || c.got.car)); },
     resv: () => { const c = active(); return !!(c && c.dms >= 2); },
     closed: () => { const c = active(); return !!(c && c.dms >= 7); },
+    dealerEnd: () => { const c = active(); return !!(c && c.dcall && c.dcall.state === 'ended'); },
+    done: () => { const c = active(); return !!(c && c.done); },
   };
   // the service center (DMS) works the transferred case: contact, reservation, then the repair
   const DMS_RESULT = { method: '전화', result: '컨택', reply: '예약확정', memo: '견인 입고 · 내일 10시 예약 확정', agent: '이정비' };
-  const DMS_CONTACT = { t: '서비스센터 · 고객 컨택 · 예약 확정', cue: '“서비스센터 DMS에 컨택대기로 들어온 건을 서비스 어드바이저가 열어 고객에게 전화하고, 입고 예약을 확정합니다. 결과는 CCW와 데이터 흐름에 바로 돌아옵니다.”', run: [['dms', 'open'], ['wait', 2000], ['cmd', 'dmsContact', DMS_RESULT], ['wait', 2400], ['dms', 'close']], until: 'resv', pause: 2200 };
+  const DMS_CONTACT = { t: '서비스센터 · 고객 컨택 · 예약 확정', cue: '“서비스센터 DMS에 컨택대기로 들어온 건을 서비스 어드바이저가 열어 고객에게 전화하고, 입고 예약을 확정합니다. 예약 정보는 CCW로 전달됩니다.”', run: [['dms', 'open'], ['wait', 2000], ['cmd', 'dmsContact', DMS_RESULT], ['wait', 2400], ['dms', 'close']], until: 'resv', pause: 2200 };
   const DMS_REPAIR = { t: '입고 → 정비 → 종결', cue: '“견인 차량이 서비스센터에 도착해 입고되고, 정비를 마치고 종결됩니다. 단계마다 DMS-SVC-002로 상태가 돌아옵니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance']], until: 'closed', pause: 9000 };
+  // after the rescue: the service center follows up — the dealer calls the customer, books the visit,
+  // and the reservation goes to the e-Care agent, which closes the e-Care task
+  const DEALER_CALL = { t: '서비스센터(딜러) 후속 처리 · 고객 통화', cue: '“긴급출동 이후는 서비스센터의 후속 처리입니다. 이관받은 서비스 어드바이저가 고객 휴대폰으로 직접 전화해 먼저 안심시키고, 오늘 견인 입고 · 내일 오전 10시 점검으로 예약을 잡습니다.” 계기판 화면은 ‘서비스센터(딜러) 후속 처리’ 화면으로 바뀝니다.', run: [['wait', 1500], ['cmd', 'dealerCall']], until: 'dealerEnd', pause: 2500, long: true };
+  const DEALER_RESV = { t: '예약 · 입고 정보 → e-Care 상담원 · 과업 종료', cue: '“서비스센터가 예약 · 입고 정보를 e-Care 상담원에게 보냅니다. 상담원 화면에 도착하면 e-Care 과업이 종료됩니다.”', run: [['cmd', 'dealerResv']], until: 'done', pause: 9000 };
   // the rescue truck the agent called pulls up in front of the customer's car (car panel scene)
   const ARRIVE = { t: '긴급출동 차량 도착', cue: '“상담원이 요청한 긴급출동 차량이 도착합니다. 출동 기사가 고객에게 직접 연락하고, 운전석 옆을 지나 고객 차 앞에 정차합니다.”', run: [['wait', 1200], ['cmd', 'arrive']], until: 'arrived', pause: 6500, timeout: 40000 };
   const PREP = { t: '준비 · 초기화 · 시동', cue: '경고와 상담 기록을 지우고 라이브 화면에서 시동을 켭니다.', run: [['reset'], ['scene', 'live'], ['ign', true]] };
@@ -114,12 +120,12 @@
     {
       id: 'in', n: '1', title: '긴급 경고 → 고객 전화', sub: '메인 · 고객이 HU로 상담센터에 전화', sets: true,
       steps: [PREP, DRIVE,
-        { t: '긴급 경고 · HU 팝업', cue: '“주행불가 경고가 발생했습니다. VEP가 긴급(Case A)으로 판정하고, 헤드유닛에 ‘고객 지원실로 연결하시겠습니까?’ 팝업을 띄웁니다.” 경고등은 고른 대화 세트에 맞춰 나옵니다.', run: [['warn', '@in']], until: 'hu', pause: 3000, timeout: 20000 },
-        { t: '고객 HU [전화연결]', cue: '“고객이 화면의 전화연결 버튼을 누릅니다. 헤드유닛 콜이 CTI를 거쳐 유휴 상담원에게 배정되고, 25분 자동 아웃바운드는 취소됩니다.”', run: [['hu', 'press']], until: 'inbound', pause: 2500 },
+        { t: '긴급 경고 · HU 팝업', cue: '“주행불가 경고가 발생했습니다. TSP(VEP)가 필터 · 긴급(Case A) 판정을 마치고 CCW와 DMS로 바로 보내며, 고객 문구는 VDP를 다시 거쳐 헤드유닛 팝업 ‘고객 지원실로 연결하시겠습니까?’와 앱 푸시로 전달됩니다.” 경고등은 고른 대화 세트에 맞춰 나옵니다.', run: [['warn', '@in']], until: 'hu', pause: 3000, timeout: 20000 },
+        { t: '고객 HU [전화연결]', cue: '“고객이 화면의 전화연결 버튼을 누릅니다. 헤드유닛 콜이 CTI를 거쳐 유휴 상담원에게 배정됩니다.”', run: [['hu', 'press']], until: 'inbound', pause: 2500 },
         { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 위치와 진단 정보가 이미 화면에 있습니다.” 위치 확인 → 정차 · 비상등 안내 → 긴급출동 요청 → 선호 서비스센터 진행 동의 · 연락처 확인 · 추가 전달 사항 → 출동 기사와 서비스센터가 연락드린다는 안내로 통화를 마칩니다. 통화가 끝나면 출동 차량이 도착합니다.', run: [['cmd', 'ack']], until: 'callEnd', pause: 2500, long: true },
         ARRIVE,
         { t: '상담 완료 · 서비스센터 이관', cue: '“상담 메모가 서비스센터 DMS로 바로 이관됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 3000 },
-        DMS_CONTACT, DMS_REPAIR,
+        DEALER_CALL, DEALER_RESV,
       ],
     },
     {
@@ -130,7 +136,7 @@
         { t: '상담원 전화 걸기 · 통화', cue: '“상담원이 고객 휴대전화로 전화를 겁니다.” 고객 휴대전화가 울리고 통화가 자막으로 흐릅니다. 통화 중 긴급출동을 요청하고, 출동 기사가 직접 연락한다고 안내합니다.', run: [['act', 'accept']], until: 'callEnd', pause: 2500, long: true },
         ARRIVE,
         { t: '상담 완료 · 서비스센터 이관', cue: '“같은 방식으로 상담 메모가 서비스센터 DMS로 넘어갑니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 6000 },
-        DMS_CONTACT,
+        DEALER_CALL, DEALER_RESV,
       ],
     },
     {
@@ -265,6 +271,8 @@
    * brought about at once (the call is settled, the truck pulls up, the DMS steps finish),
    * so the next step starts from the situation it expects */
   const FINISH = {
+    dealerEnd: () => send('cmd', 'finishDealer'),
+    done: () => send('cmd', 'dealerResv'),
     callEnd: () => send('cmd', 'finishCall'),
     genEnd: () => send('cmd', 'endGeneral'),
     arrived: () => send('cmd', 'arrive'),

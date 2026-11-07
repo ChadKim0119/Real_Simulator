@@ -138,6 +138,11 @@
   Link.on('@transport', () => conn());
   Link.send('hello', { screen: VIEW === 'transcript' ? 'transcript' : 'ccw' });
   const cmd = (name, args) => Link.send('cmd', { name, args: args || {} });
+  // what the agent knows of the service center: the transfer, then only the reservation it sends
+  // (the dealer talks to the customer directly; no other status comes back)
+  const svcOf = (c) => (c.got && c.got.resv && c.reservation ? `예약 확정 · ${E.hm(c.reservation.at).slice(0, 5)}` : c.kind === 'emergency' ? '이관 완료' : E.DMS[Math.min(c.dms, 2)]);
+  // the rescue status the agent has heard (the dispatch reports only while she is on the call)
+  const dispOf = (c) => (c.dispSeen != null ? Math.min(c.dispatch, c.dispSeen) : c.dispatch);
 
   function conn() {
     const ok = Date.now() - lastVeh < 2500;
@@ -394,7 +399,7 @@
   }
 
   function vcard(c) {
-    const st = c && c.dms >= 0 ? E.DMS[c.dms] : '-';
+    const st = c && c.dms >= 0 ? svcOf(c) : '-';
     return `<div class="box vcard"><div class="r1"><small>차량 정보</small><span class="plate">${E.VEHICLE.plate}</span><span class="model">${E.VEHICLE.model} / ${E.VEHICLE.year}</span><span class="tg">${E.VEHICLE.brand}</span><span class="vin">VIN: ${E.VEHICLE.vin}</span></div>
       <div class="r2"><span>고객명:<b>${E.CUSTOMER.name}</b></span><span>휴대전화번호:<b>${E.CUSTOMER.phone}</b></span><span>선호 센터:<b>${E.DEALERS[0].name}</b></span><span class="sep">|</span><span>처리 센터:<b>${esc(c && c.dealer ? c.dealer : '-')}</b></span>
       <span>상태: ${st === '-' ? '<b>-</b>' : `<span class="tg" style="margin-left:6px"><img src="${A}ic_wrench.svg" alt="" width="12">${st}</span>`}</span><button class="chipbt"><img src="${A}ic_refresh_s.svg" alt="" width="11">상태 새로고침</button></div></div>`;
@@ -404,7 +409,8 @@
     const first = place(c.loc.odo);
     const last = place(veh ? veh.odoMeters : c.loc.odo);
     const canDisp = c.dispatch < 0 && c.contact >= 1;
-    const steps = c.dispatch >= 0 ? `<span class="dsteps">${E.DISPATCH.map((n, i) => `<i class="${i < c.dispatch ? 'done' : i === c.dispatch ? 'on' : ''}">${n}</i>`).join('')}</span>` : '';
+    const dk = dispOf(c);
+    const steps = c.dispatch >= 0 ? `<span class="dsteps">${E.DISPATCH.map((n, i) => `<i class="${i < dk ? 'done' : i === dk ? 'on' : ''}">${n}</i>`).join('')}</span>` : '';
     return `<div class="box loc"><div class="hd"><img src="${A}ic_car.svg" alt="">고객 차량 위치 정보<span class="disp">${steps}<button class="bt-red" data-cmd="dispatch" ${canDisp ? '' : 'disabled'}>${c.dispatch >= 0 ? '출동 요청됨' : '긴급 출동'}</button></span></div>
       <table><tr><td class="k red">최초 고장 발생 위치</td><td class="v">${first.addr}<br>${first.xy}</td><td class="b"></td></tr>
       <tr><td class="k grn">마지막 수신 위치<img src="${A}ic_help.svg" alt=""></td><td class="v" data-lastloc>${last.addr}<br>${last.xy}</td><td class="b"><button class="bt-line" data-refresh><img src="${A}ic_refresh.svg" alt="">현재 위치 새로고침</button></td></tr></table></div>`;
@@ -430,7 +436,7 @@
     const cs = snap.cases;
     let body;
     if (histTab === 'warn') {
-      const rows = cs.map((x, i) => [cs.length - i + 2, shortStamp(x.at), E.CASE[x.wcase] ? E.CASE[x.wcase].label : (x.kind === 'emergency' ? '긴급' : '경고'), x.warn.title, x.dealer || '-', x.dms >= 0 ? E.DMS[x.dms] : '-', x.kind === 'emergency' && x.contact < 3])
+      const rows = cs.map((x, i) => [cs.length - i + 2, shortStamp(x.at), E.CASE[x.wcase] ? E.CASE[x.wcase].label : (x.kind === 'emergency' ? '긴급' : '경고'), x.warn.title, x.dealer || '-', x.dms >= 0 ? svcOf(x) : '-', x.kind === 'emergency' && x.contact < 3])
         .concat(OLD_WARN.map((r, i) => [2 - i, ...r, false])).slice(0, 3);
       body = `<thead><tr><th style="width:86px">No.</th><th style="width:196px">이벤트 발생 일시</th><th style="width:106px">경고 등급</th><th>경고등명</th><th style="width:238px">처리 센터</th><th style="width:238px">서비스센터 처리 상태</th></tr></thead>
         <tbody>${rows.map((r) => `<tr class="${r[6] ? 'hot' : ''}"><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="l">${esc(r[3])}</td><td>${esc(r[4])}</td><td>${r[5]}</td></tr>`).join('')}</tbody>`;
@@ -496,10 +502,10 @@
     const live = cs.filter((c) => !(snap.consults || []).some((k) => k.id === c.id)).map((c) => ({
       at: E.stamp(c.at), upd: c.log.length ? E.stamp(c.log[c.log.length - 1].t).slice(0, 16) : '-', title: '긴급상담건', st: E.CONTACT[c.contact], warn: c.warn.title,
       cust: E.CUSTOMER.name, agent: agentOf(c) ? agentOf(c).name : '-', last: agentOf(c) ? agentOf(c).name : '-', vin: E.VEHICLE.vin, plate: E.VEHICLE.plate,
-      svc: c.dms >= 0 ? E.DMS[c.dms] : '-', model: E.VEHICLE.model, brand: E.VEHICLE.brand, go: c.contact === 0 ? 'start' : 'open', id: c.id, c }));
+      svc: c.dms >= 0 ? svcOf(c) : '-', model: E.VEHICLE.model, brand: E.VEHICLE.brand, go: c.contact === 0 ? 'start' : 'open', id: c.id, c }));
     const done = ks.map((k) => ({ at: E.stamp(k.at), upd: k.updated ? E.stamp(k.updated).slice(0, 16) : '-', title: k.general ? '일반문의' : '긴급상담건', st: k.result, warn: k.warn || '-',
       cust: E.CUSTOMER.name, agent: k.agent, last: k.memos && k.memos.length ? k.memos[k.memos.length - 1].agent : k.agent, vin: E.VEHICLE.vin, plate: E.VEHICLE.plate,
-      svc: (() => { const c = snap.cases.find((x) => x.id === k.id); return c && c.dms >= 0 ? E.DMS[c.dms] : '-'; })(), model: E.VEHICLE.model, brand: E.VEHICLE.brand, go: 'detail', id: k.id }));
+      svc: (() => { const c = snap.cases.find((x) => x.id === k.id); return c && c.dms >= 0 ? svcOf(c) : '-'; })(), model: E.VEHICLE.model, brand: E.VEHICLE.brand, go: 'detail', id: k.id }));
     const past = PAST.map((r, i) => ({ at: r[0], upd: r[1], title: r[2], st: r[3], warn: r[4], cust: r[5], agent: r[6], last: r[7], vin: r[8], plate: r[9], svc: r[10], model: r[11], brand: r[12], go: 'detail', id: `P${i}` }));
     const rows = live.concat(done, past).slice(0, 10);
     const total = 368 + live.length + done.length;
@@ -539,7 +545,7 @@
     const fromGeneral = g && g.state === 'ended';
     return `<div class="ov"><div class="dlg2"><div class="dh"><b>상담이력 상세</b><button class="x" data-close>✕</button></div>
       <div class="sum"><div><small>경고 발생</small><b>${p ? '경고 발생' : '긴급 경고 발생'}</b><em>${k ? E.stamp(k.at) : p[0]}</em></div><div><small>상담</small><b>${k ? `${k.agent}(${k.type === '인바운드 콜' ? '인바운드' : '아웃바운드'})` : `${p[6]}(아웃바운드)`}</b><em>${k ? E.stamp(k.updated || k.at) : p[0]}</em></div>
-        <div><small>상담 정보 처리</small><b>${(k && k.dealer !== '-') || (p && p[10] !== '-') ? 'DMS 전송' : '상담 완료'}</b><em>${k ? E.stamp(k.updated || k.at) : p[1]}</em></div><div><small>서비스센터 처리</small><b class="bl">${c && c.dms >= 0 ? E.DMS[c.dms] : p ? p[10] : '-'}</b><em>${k ? E.ymd(Date.now()) : p[0].slice(0, 10)}</em></div></div>
+        <div><small>상담 정보 처리</small><b>${(k && k.dealer !== '-') || (p && p[10] !== '-') ? 'DMS 전송' : '상담 완료'}</b><em>${k ? E.stamp(k.updated || k.at) : p[1]}</em></div><div><small>서비스센터 처리</small><b class="bl">${c && c.dms >= 0 ? svcOf(c) : p ? p[10] : '-'}</b><em>${k ? E.ymd(Date.now()) : p[0].slice(0, 10)}</em></div></div>
       <h5>상담 기록</h5>
       <div class="rec"><div class="ci"><h6>고객 정보</h6><dl><dt>고객명</dt><dd class="fx">${name}</dd><dt>고객 연락처</dt><dd class="fx">${past ? '010-****-' + (4100 + +id.slice(1) * 37) : E.CUSTOMER.phone}<button class="callb">전화걸기</button></dd><dt>차대번호(VIN)</dt><dd class="fx">${p ? p[8] : E.VEHICLE.vin}</dd><dt>경고 발생 시각</dt><dd class="fx">${k ? E.stamp(k.at) : p[0]}</dd></dl></div>
         <div class="sc"><h6>서비스 센터</h6><dl><dt>선호 센터</dt><dd>${E.DEALERS[0].name}</dd><dt>상담 시 안내 센터</dt><dd>${d.name}${d.pref ? '' : '<span class="badge-r">고객 선호 센터 불일치</span>'}</dd><dt>주소</dt><dd>${d.addr.replace('서울특별시 ', '')} (${d.km}km)</dd><dt>대표번호</dt><dd>${d.tel}</dd></dl>
@@ -832,6 +838,8 @@
     if (!snap || !snap.cases) return null;   // before the director's first state
     const c = snap.cases[snap.cases.length - 1];
     if (!c) return null;
+    // the service center's follow-up call takes over the panel once it starts
+    if (c.dcall) return { general: false, dealer: true, id: c.id + ':dealer', lines: c.dcall.lines, title: `서비스센터 후속 통화 · ${E.CUSTOMER.name} 고객`, call: c.dcall, log: c.log, c };
     return { general: false, id: c.id, lines: c.call ? c.call.lines : [], title: `${c.warn.title} · ${E.CUSTOMER.name} 고객`, call: c.call, log: c.log, c };
   }
   function renderTranscript(force) {
@@ -864,10 +872,10 @@
     // the second inbound set is a male customer
     const male = v.lines.some((l) => /ecare_m_/.test(l.audio || ''));
     const bubbles = items.map(({ l, i }) => {
-      const who = l.who === 'agent' ? 'e-Care 상담원' : `${E.CUSTOMER.name} 고객`;
-      const av = `<img class="av" src="assets/avatar_${l.who === 'agent' ? 'agent' : male ? 'customer_m' : 'customer'}.webp" alt="">`;
+      const who = l.who === 'agent' ? 'e-Care 상담원' : l.who === 'dealer' ? '서비스센터 · 이정비 어드바이저' : `${E.CUSTOMER.name} 고객`;
+      const av = `<img class="av" src="assets/avatar_${l.who === 'agent' ? 'agent' : l.who === 'dealer' ? 'dealer' : male ? 'customer_m' : 'customer'}.webp" alt="">`;
       if (i === trEdit) return `<div class="tb ${l.who} editing"><span class="who">${who}</span><textarea data-edit="${i}" rows="3">${esc(l.text)}</textarea><div class="acts on"><button data-save-line="${i}" class="pri">저장</button><button data-cancel>취소</button></div></div>`;
-      return `<div class="tb ${l.who} ${i === trSel ? 'picked' : ''}${fresh('l' + i)}" data-line="${i}"><span class="who">${av}${who}</span><div class="msg">${esc(l.text)}</div>
+      return `<div class="tb ${l.who === 'dealer' ? 'agent dealer' : l.who} ${i === trSel ? 'picked' : ''}${fresh('l' + i)}" data-line="${i}"><span class="who">${av}${who}</span><div class="msg">${esc(l.text)}</div>
         <div class="acts"><button data-edit-line="${i}">✎ 편집</button><button data-del-line="${i}" class="del">삭제</button></div></div>`;
     }).join('');
     return `<div class="tr-wrap solo"><div class="tr-list">${bubbles}</div></div>`;
@@ -981,7 +989,7 @@
     const v = convo();
     if (!st) return;
     const call = v && v.call;
-    st.textContent = !call ? '' : call.state === 'connected' ? `● 통화 중 ${E.mmss(Date.now() - call.connectedAt)}` : call.state === 'dialing' ? '발신 중…' : call.state === 'ringing' ? '전화 수신 중…' : call.state === 'failed' ? '연결 실패 · 고객 미응답' : `통화 종료${call.connectedAt ? ` · ${E.mmss((call.endedAt || Date.now()) - call.connectedAt)}` : ''}`;
+    st.textContent = !call ? '' : call.state === 'connected' ? `● 통화 중 ${E.mmss(Date.now() - call.connectedAt)}` : call.state === 'dialing' ? (call.dir === 'dealer' ? '서비스센터 발신 중…' : '발신 중…') : call.state === 'ringing' ? '전화 수신 중…' : call.state === 'failed' ? '연결 실패 · 고객 미응답' : `통화 종료${call.connectedAt ? ` · ${E.mmss((call.endedAt || Date.now()) - call.connectedAt)}` : ''}`;
     st.classList.toggle('off', !call || call.state !== 'connected');
   }
   if (VIEW === 'transcript') {
@@ -1113,7 +1121,7 @@
     switch (sel) {
       case '.ov .pop': return c.inbound ? ['고객 전화 수신 · 상담원 배정', `HU [전화연결] → 헤드유닛 콜 · ${W}`, true] : ['25분 경과 · 상담원 자동 배정', `고객 미연락 · ${W}`, true];
       case '.wpanel': return ['통화 중 · 차량 진단 정보 확인', `${W} · 고객 안전 확인`, true];
-      case '.box.loc': return c.dispatch >= 2 ? ['긴급출동 차량 도착', '고객 차량 앞 정차 · 견인 준비', true] : ['긴급출동 요청 · 위치 확인', `출동 상태 ${E.DISPATCH[Math.max(0, c.dispatch)]}`, true];
+      case '.box.loc': return dispOf(c) >= 2 ? ['긴급출동 차량 도착', '고객 차량 앞 정차 · 견인 준비', true] : ['긴급출동 요청 · 위치 확인', `출동 상태 ${E.DISPATCH[Math.max(0, dispOf(c))]}`, true];
       case '.sheet:not(.closed)': return ['상담 메모 작성', '통화 후 처리 · 서비스센터 전달 선택'];
       case '.box.hist': return ['상담 메모 저장 · 서비스센터 이관', '상담 메모 → 서비스센터 DMS'];
       case 'tr.hot': return ['긴급 경고 접수', `${W} · VEP 판정 → 고객지원실`, true];

@@ -518,3 +518,8 @@ body.bare .acts { display: none !important; }
 .tb.agent .who .av { box-shadow: 0 0 0 2px rgba(90, 162, 255, 0.7); }
 .tb.customer .who .av { box-shadow: 0 0 0 2px rgba(61, 220, 132, 0.6); }
 body.bare .tb .who .av { width: 38px; height: 38px; }
+/* the service center's follow-up call (dealer ↔ customer) */
+.tb.dealer .msg { background: #3a2a14; border: 1px solid rgba(255,176,46,.35); }
+.tb.dealer .who { color: #ffcf7a; }
+body.bare .tb.dealer .msg { background: rgba(112, 70, 18, 0.8); border-color: rgba(255, 176, 46, 0.45); }
+.tb.dealer .who .av { box-shadow: 0 0 0 2px rgba(255, 176, 46, 0.8); }

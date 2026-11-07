@@ -869,8 +869,8 @@
   let closedFirst = true;
   function finaleCheck() {
     for (const k of director.cases) {
-      if (k.dms >= 7 && !closedSeen.has(k.id)) { closedSeen.add(k.id); if (!closedFirst) { audio.unlock(); audio.finale(); } }
-      if (k.dms < 7) closedSeen.delete(k.id);
+      if ((k.done || k.dms >= 7) && !closedSeen.has(k.id)) { closedSeen.add(k.id); if (!closedFirst) { audio.unlock(); audio.finale(); } }
+      if (!k.done && k.dms < 7) closedSeen.delete(k.id);
     }
     closedFirst = false;
   }

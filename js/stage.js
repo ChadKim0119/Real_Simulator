@@ -115,7 +115,8 @@
         [connect, '고객 통화 연결'],
         [(find((f) => f.to === 'rescue') || {}).t, '긴급출동 요청'],
         [(memo || {}).t, '상담 메모 · 딜러 이관'],
-        [(find((f) => f.api === 'DMS-SVC-002' && /예약/.test(f.label)) || {}).t, '서비스센터 예약'],
+        [(find((f) => f.api === '딜러 통화 연결') || {}).t, '딜러 → 고객 후속 통화'],
+        [(find((f) => f.api === '예약 · 입고 정보') || {}).t, '예약 · 입고 정보 → 상담원 · 과업 종료'],
       ].filter(([t]) => t);
       rows = ev.map(([t, label]) => `<div><em>${rel(at(t))}</em>${label}</div>`);
     }

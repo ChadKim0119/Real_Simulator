@@ -37,7 +37,8 @@
   let caption = null;
   Link.on('ecare', (d) => { snap = E.gate(d, 'car'); render(); });   // only what has reached this screen
   Link.on('veh', (d) => { veh = d; });
-  Link.on('say', (d) => { caption = { who: d.line.who, text: d.line.text, until: Date.now() + (d.line.dur || 4) * 1000 + 2500 }; });
+  // the dealer's follow-up call goes to the customer's phone, not the car
+  Link.on('say', (d) => { if (d.dealer) return; caption = { who: d.line.who, text: d.line.text, until: Date.now() + (d.line.dur || 4) * 1000 + 2500 }; });
   const show = () => { const c = current(); if (c) { closed[c.id] = false; reopen[c.id] = Date.now(); render(true); } };
   Link.on('hu', (d) => {
     if (MODE === 'overlay') return;           // the screen instance handles the press

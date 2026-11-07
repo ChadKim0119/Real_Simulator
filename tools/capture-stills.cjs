@@ -33,9 +33,9 @@ const PLAN = [
   [0, 14000, 'dispatch', '긴급출동 요청 · 선호 센터 확인', '위치 확인 → 정차 · 비상등 → 긴급출동 요청 → 선호 서비스센터 · 연락처 확인'],
   [1, 6500, 'rescue', '긴급출동 차량 접근', '통화 후 · 대시보드 확장 · 견인차가 운전석 창 옆을 지나감'],
   [0, 6000, 'arrive', '긴급출동 차량 도착', '고객 차 앞 정차 · 경광등'],
-  [1, 4000, 'memo', '상담 완료 · 이관', '상담 메모 → 서비스센터 DMS (WAM-MEMO-001) · 컨택대기'],
-  [1, 5500, 'dms', '서비스센터 컨택 · 예약 확정', 'DMS 상세 팝업 · 컨택 결과 등록 → CCW · 데이터 흐름'],
-  [1, 11000, 'repair', '입고 → 정비 → 종결 · e-Care 과업 종료', 'DMS-SVC-002 정비 상태 회신 → 과업 종료 세러모니'],
+  [1, 4000, 'memo', '상담 완료 · 이관', '상담 메모 → 서비스센터 DMS · 컨택대기 · 차량 화면은 딜러 후속 처리로 마스킹'],
+  [1, 30000, 'dealer', '딜러 후속 통화', '서비스 어드바이저 → 고객 휴대폰 · 안심 안내 · 입고 예약 확정'],
+  [1, 1600, 'done', '예약 · 입고 정보 → e-Care 상담원', '예약 정보가 상담원 화면에 도착 → e-Care 과업 종료'],
   [1, 2500, null],
   [1, 4000, 'warning2', '2막 · 다시 경고', '고객 미연락 상황'],
   [1, 3000, 'sla25', '25분 경과', '25분 경과 연출 · 상담원 자동 배정 팝업'],
@@ -43,6 +43,7 @@ const PLAN = [
   [0, 12000, 'outcall', '아웃바운드 통화', '휴대전화 통화 · 자막'],
   [1, 9000, 'outend', '아웃바운드 종료 · 출동 도착', '통화 종료 후 긴급출동 차량 도착'],
   [1, 3000, 'memo2', '2막 완료 · 이관', ''],
+  [1, 2000, null],
   [1, 2000, null],
   [1, 6000, 'caseB', '경고 등급 비교', '에어백 경고 · 서비스센터 직행'],
   [1, 5500, 'caseBdms', '서비스센터 직접 컨택', 'DMS에 바로 들어온 건 · 예약 확정'],
@@ -75,7 +76,7 @@ const PLAN = [
   for (const [presses, wait, id, title, what] of PLAN) {
     for (let i = 0; i < presses; i++) {
       // "next" while a step still waits only ends the wait: let the step finish first
-      await rc.waitForFunction(() => !document.querySelector('#next').textContent.includes('건너뛰고'), null, { timeout: 180000 });
+      await rc.waitForFunction(() => !document.querySelector('#next').textContent.includes('마무리하고'), null, { timeout: 180000 });
       await rc.click('#next');
       await rc.waitForTimeout(150);
     }

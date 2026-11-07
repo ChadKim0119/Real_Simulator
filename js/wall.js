@@ -278,7 +278,10 @@
 
   /* ---------------- scenes: opening / closing over the whole wall ---------------- */
   let snap = null, scene = 'live';
-  Link.on('ecare', (d) => { snap = d; if (scene === 'closing') sceneRender(); finCheck(d); });
+  // after the rescue the car panel is masked: the service center (dealer) follows up (js/follow.js)
+  const follow = window.Follow ? Follow.mount(frames.car) : null;
+  Link.on('ecare', (d) => { snap = d; if (scene === 'closing') sceneRender(); finCheck(d); if (follow && d && d.cases) follow.render(d); });
+  setInterval(() => { if (follow && snap && snap.cases) follow.render(snap); }, 500);
   /* the e-Care task is done (the repair closed in DMS): a short, solemn ceremony over the
    * whole wall so the room sees that the journey has ended. Cases already closed when the
    * wall opens do not replay it. */
@@ -286,18 +289,18 @@
   let finFirst = true, finT = 0;
   function finCheck(d) {
     for (const c of d.cases || []) {
-      if (c.dms >= 7 && !finSeen.has(c.id)) { finSeen.add(c.id); if (!finFirst) ceremony(c); }
-      if (c.dms < 7) finSeen.delete(c.id);        // [이전] went back before the close
+      if ((c.done || c.dms >= 7) && !finSeen.has(c.id)) { finSeen.add(c.id); if (!finFirst) ceremony(c); }
+      if (!c.done && c.dms < 7) finSeen.delete(c.id);        // [이전] went back before the close
     }
     if (!(d.cases || []).length) finSeen.clear();
     finFirst = false;
   }
   function ceremony(c) {
     const el = $('#fin');
-    const steps = ['경고 감지', '고객 연결', c.kind === 'emergency' ? '상담 · 긴급출동' : '경고 판정', '서비스센터 이관', '예약 · 입고', '정비 · 종결'];
+    const steps = ['경고 감지', '고객 연결', c.kind === 'emergency' ? '상담 · 긴급출동' : '경고 판정', '서비스센터 이관', '딜러 후속 통화', '예약 → 상담원'];
     const html = `<div class="fx"><svg viewBox="0 0 200 200" class="ring"><circle cx="100" cy="100" r="86" class="bg"/><circle cx="100" cy="100" r="86" class="fg"/><path d="M64 102 L90 128 L140 76" class="ck"/></svg>
       <b>e-Care 과업 종료</b><span>${steps.map((t) => `<i>${esc(t)}</i>`).join('<em>›</em>')}</span>
-      <small>${esc(c.dealer || '서비스센터')} 정비 종결 · 모든 단계가 고객 앱과 상담원 화면에 반영되었습니다</small></div>`;
+      <small>${esc(c.dealer || '서비스센터')} 예약 · 입고 정보가 e-Care 상담원에게 전달되었습니다</small></div>`;
     if (window.FX && FX.ceremony(el, html)) return;
     el.innerHTML = html;
     el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');

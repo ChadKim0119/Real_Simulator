@@ -21,9 +21,10 @@
     // three rows: the main path on top, support systems in the middle, the phone and DMS below
     car: { x: 195, y: 330, w: 270, t: '고객 차량', s: 'DCM · 헤드유닛', zone: 'cust' },
     phone: { x: 195, y: 735, w: 270, t: '고객 휴대폰', s: 'Global App · 문자', zone: 'cust' },
-    vdp: { x: 520, y: 330, w: 250, t: '차량 신호 수집', s: 'VDP', zone: 'jp' },
-    // VEP judges the case, maps the customer's text and sends to the four receivers at once
-    vep: { x: 1000, y: 470, w: 380, h: 136, t: '경고 판정 · 고객 문구', s: 'VEP · Case 분류 · 문구 매핑', zone: 'kr' },
+    vdp: { x: 520, y: 330, w: 250, t: '차량 신호 수집', s: 'VDP · 고객 알림 중계', zone: 'jp' },
+    // TSP (VEP) filters and judges the case, maps the customer's text; it sends to CCW and DMS
+    // itself, and the customer's text back through VDP to the car and the phone
+    vep: { x: 1000, y: 470, w: 380, h: 136, t: '경고 판정 · 고객 문구', s: 'VEP · 필터 · Case 분류 · 문구 매핑', zone: 'kr' },
     ccw: { x: 1607, y: 330, w: 320, t: '상담원 화면', s: 'CCW', zone: 'res' },
     rescue: { x: 1607, y: 560, w: 320, t: '긴급출동', s: '마스터자동차', zone: 'res' },
     dms: { x: 1607, y: 735, w: 320, t: '서비스센터 (딜러)', s: 'DMS', zone: 'res' },
@@ -38,7 +39,7 @@
   const W = 250, H = 104;
   const size = (n) => ({ w: n.w || W, h: n.h || H });
   // the backbone drawn at rest; other messages (calls, alerts) draw their path while they travel
-  const LINKS = [['car', 'vdp'], ['vdp', 'vep'], ['vep', 'ccw'], ['vep', 'dms'], ['vep', 'car'], ['vep', 'phone'], ['ccw', 'rescue'], ['ccw', 'dms']];
+  const LINKS = [['car', 'vdp'], ['vdp', 'vep'], ['vep', 'ccw'], ['vep', 'dms'], ['vdp', 'phone'], ['ccw', 'rescue'], ['ccw', 'dms'], ['dms', 'phone']];
   const CASECOL = { A: '#ff4d5e', B: '#ffb02e', C: '#3fd0c9' };
   const BLUE = '#5aa2ff';
 
@@ -728,12 +729,30 @@
   const callLblBg = el('rect', { rx: 16, fill: 'rgba(6,22,14,0.95)', stroke: VOICE_COL, 'stroke-width': 2.5 }, callLbl);
   const callLblT = el('text', { fill: '#dfffe9', 'font-size': 24, 'font-weight': 800, 'text-anchor': 'middle', class: 'num' }, callLbl);
   let callKey = '', callDots = [], lastVoice = 0, callA = 0;
+  // in a replay (the detail view, step by step) the call is read from the messages shown so far
+  function replayCall() {
+    let cc = null;
+    for (const f of shown) {
+      const a = f.api || '';
+      if (a === '헤드유닛 콜') cc = { who: 'car', peer: 'ccw', live: false, label: '헤드유닛 콜' };
+      else if (a === '음성' || (a === '수신' && cc && cc.who === 'car')) cc = { who: 'car', peer: 'ccw', live: true, label: '차량 통화', at: null };
+      else if (a === '발신' && f.to === 'phone') cc = { who: 'phone', peer: 'ccw', live: false, label: '휴대폰 통화' };
+      else if (a === '응답' && f.from === 'phone') cc = { who: 'phone', peer: 'ccw', live: true, label: '휴대폰 통화' };
+      else if (a === '딜러 발신') cc = { who: 'phone', peer: 'dms', live: false, label: '서비스센터 ↔ 고객 통화' };
+      else if (a === '딜러 통화 연결') cc = { who: 'phone', peer: 'dms', live: true, label: '서비스센터 ↔ 고객 통화' };
+      else if (/통화 종료|미응답/.test(a)) cc = null;
+    }
+    return cc;
+  }
   function currentCall() {
-    if (!snap || replay) return null;
+    if (replay) return replayCall();
+    if (!snap) return null;
     const gc = snap.general;
     if (gc && (gc.state === 'connected' || gc.state === 'ringing')) return { who: 'phone', live: gc.state === 'connected', at: gc.connectedAt, label: '일반 전화' };
     const c = primary();
     if (!c) return null;
+    const dc = c.dcall;
+    if (dc && (dc.state === 'connected' || dc.state === 'dialing')) return { who: 'phone', peer: 'dms', live: dc.state === 'connected', at: dc.connectedAt, label: '서비스센터 ↔ 고객 통화' };
     if (c.call && (c.call.state === 'connected' || c.call.state === 'dialing')) return { who: c.call.dir === 'in' ? 'car' : 'phone', live: c.call.state === 'connected', at: c.call.connectedAt, label: c.call.dir === 'in' ? '차량 통화' : '휴대폰 통화' };
     if (c.inbound && !c.call) return { who: 'car', live: false, label: '헤드유닛 콜' };
     return null;
@@ -744,16 +763,18 @@
     callG.setAttribute('opacity', callA.toFixed(3));
     callLbl.setAttribute('opacity', callA.toFixed(3));
     if (!cc) { if (callA < 0.02 && callDots.length) { callDots.forEach((d) => d.c.remove()); callDots = []; } return; }
-    const key = cc.who;
+    const peer = cc.peer || 'ccw';
+    const key = cc.who + peer;
     if (key !== callKey) {
       callKey = key;
-      const d = path(cc.who, 'ccw').d;            // customer → agent
+      const d = path(cc.who, peer).d;            // customer → agent (or the dealer)
       callLine.setAttribute('d', d); callGlow.setAttribute('d', d);
       const L = callLine.getTotalLength(), m = callLine.getPointAtLength(L / 2);
       callLbl.dataset.x = m.x; callLbl.dataset.y = m.y;
     }
     const L = callLine.getTotalLength();
-    const speaking = caption && now < caption.until ? caption.who : null;     // 'agent' | 'customer'
+    let speaking = caption && now < caption.until ? caption.who : null;     // 'agent' | 'dealer' | 'customer'
+    if (speaking === 'dealer') speaking = 'agent';
     const toAgent = speaking !== 'agent';
     // the dashes crawl toward the listener; ringing just blinks
     callLine.setAttribute('stroke-dashoffset', ((toAgent ? -1 : 1) * now / 28 % 18).toFixed(1));
@@ -762,7 +783,7 @@
       lastVoice = now;
       const dir = speaking ? (speaking === 'agent' ? -1 : 1) : (Math.random() < 0.5 ? 1 : -1);
       callDots.push({ c: el('circle', { r: speaking ? 8 : 6, fill: VOICE_COL, filter: 'url(#dot)' }, callDotsG), t0: now, dir });
-      flash(dir > 0 ? 'ccw' : cc.who, VOICE_COL, 0.3);
+      flash(dir > 0 ? peer : cc.who, VOICE_COL, 0.3);
     }
     for (let i = callDots.length - 1; i >= 0; i--) {
       const d = callDots[i];
@@ -773,11 +794,12 @@
       d.c.setAttribute('opacity', (k < 0.1 ? k / 0.1 : k > 0.85 ? (1 - k) / 0.15 : 1).toFixed(2));
     }
     const sec = cc.live && cc.at ? Math.max(0, Math.floor((Date.now() - cc.at) / 1000)) : 0;
-    callLblT.textContent = cc.live ? `📞 ${cc.label} ${pad(Math.floor(sec / 60))}:${pad(sec % 60)}` : `📞 ${cc.label} · 연결 중…`;
+    callLblT.textContent = cc.live ? (cc.at ? `📞 ${cc.label} ${pad(Math.floor(sec / 60))}:${pad(sec % 60)}` : `📞 ${cc.label} · 통화 중`) : `📞 ${cc.label} · 연결 중…`;
     const bb = callLblT.getBBox();
     callLblBg.setAttribute('x', bb.x - 18); callLblBg.setAttribute('y', bb.y - 10); callLblBg.setAttribute('width', bb.width + 36); callLblBg.setAttribute('height', bb.height + 20);
     // on the line, in the Japan-server column where nothing else sits at that height
-    const lx = 520, ly = cc.who === 'car' ? 228 : 703;
+    let lx = 520, ly = cc.who === 'car' ? 228 : 703;
+    if (peer === 'dms') { const m = callLine.getPointAtLength(L / 2); lx = m.x; ly = m.y + 58; }
     callLbl.setAttribute('transform', `translate(${lx},${ly - bb.y - bb.height / 2})`);
   }
 
