@@ -121,18 +121,14 @@
     { who: 'customer', text: '네, 빠르게 조치해 주셔서 감사합니다.', audio: 'assets/audio/ecare_k_12_customer.mp3', dur: 3.33 },
     { who: 'agent', text: '네, 고객님. 안전한 곳에서 기다려 주세요. e-Care 상담센터였습니다.', audio: 'assets/audio/ecare_k_13_agent.mp3', dur: 5.6 },
   ];
-  // the service center's follow-up call: the advisor reassures the customer and books the visit
-  // (resv: the reservation is confirmed on that line)
+  // the service center's follow-up call, kept short: the advisor introduces himself, reassures the
+  // customer and books the visit (resv: the reservation is confirmed on that line)
   const CALL_DEALER = [
     { who: 'dealer', text: '안녕하세요, 렉서스 강남 서비스센터 이정비 어드바이저입니다. 김지현 고객님 되시죠? e-Care 상담센터에서 내용 전달받고 연락드렸습니다.', audio: 'assets/audio/ecare_d_01_dealer.mp3', dur: 10.06 },
-    { who: 'customer', text: '네, 맞아요.', audio: 'assets/audio/ecare_d_02_customer.mp3', dur: 1.2 },
     { who: 'dealer', text: '많이 놀라셨죠. 지금 견인 차량이 고객님 차를 저희 센터로 안전하게 옮기고 있으니, 걱정하지 않으셔도 됩니다.', audio: 'assets/audio/ecare_d_03_dealer.mp3', dur: 7.52 },
-    { who: 'customer', text: '네, 다행이에요. 감사합니다.', audio: 'assets/audio/ecare_d_04_customer.mp3', dur: 2.85 },
     { who: 'dealer', text: '차량은 오늘 입고해 두고, 내일 오전 10시에 엔진 점검을 진행하려고 하는데요. 일정 괜찮으실까요?', audio: 'assets/audio/ecare_d_05_dealer.mp3', dur: 6.79 },
     { who: 'customer', text: '네, 내일 10시 좋아요.', audio: 'assets/audio/ecare_d_06_customer.mp3', dur: 2.8 },
     { who: 'dealer', text: '네, 내일 오전 10시로 예약 확정해 드렸습니다. 점검 결과는 제가 직접 연락드리겠습니다.', audio: 'assets/audio/ecare_d_07_dealer.mp3', dur: 6.74, resv: true },
-    { who: 'customer', text: '네, 빠르게 챙겨 주셔서 감사합니다.', audio: 'assets/audio/ecare_d_08_customer.mp3', dur: 3.66 },
-    { who: 'dealer', text: '네, 고객님. 편히 쉬세요. 렉서스 강남 서비스센터였습니다.', audio: 'assets/audio/ecare_d_09_dealer.mp3', dur: 5.33 },
   ];
   const SCRIPTS = { in: CALL_IN, in2: CALL_IN2, out: CALL_OUT, gen: CALL_GEN, dealer: CALL_DEALER };
   const SCRIPT_NAMES = { in2: '메인 · 여성 운전자 · 엔진 경고', in: '보조 · 남성 고객 · 브레이크 경고', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)', dealer: '서비스센터 후속 통화 (딜러 ↔ 고객)' };
@@ -881,7 +877,11 @@
     try {
       const v = JSON.parse(localStorage.getItem('ecare-scripts-v7'));
       // sets added since the scripts were saved come from the defaults
-      if (v && typeof v === 'object') { Object.keys(d).forEach((k) => { if (!Array.isArray(v[k])) v[k] = d[k]; }); return v; }
+      if (v && typeof v === 'object') {
+        Object.keys(d).forEach((k) => { if (!Array.isArray(v[k])) v[k] = d[k]; });
+        if (v.dealer.length === 9 && v.dealer[1] && v.dealer[1].text === '네, 맞아요.') v.dealer = d.dealer;   // the longer first version
+        return v;
+      }
     } catch (e) { /* none saved */ }
     return d;
   }

@@ -116,7 +116,27 @@
     '고객에게 차량을 <em>인도</em>했습니다',
     '고객 인도 · <em>정비 종결</em> · e-Care 과업 종료',
   ];
+  /* who gets the room on the screen: the support center while e-Care handles the case, the
+   * service center from the moment the case is theirs (the memo has reached DMS, or a Case B / C
+   * sent to them directly); evenly split while there is nothing going on */
+  let phase = '';
+  function setPhase() {
+    const cs = (snap && snap.cases) || [];
+    const c = cs[0];
+    let ph = 'even';
+    if (c) {
+      const g = c.got || {};
+      ph = c.kind === 'emergency' ? (c.dms >= 0 && (g.memo || !c.got) ? 'dms' : 'ccw') : ((g.dms || !c.got) ? 'dms' : 'even');
+    }
+    if (snap && snap.general && snap.general.state !== 'ended') ph = 'ccw';
+    if (ph === phase) return;
+    phase = ph;
+    document.body.dataset.phase = ph;
+    $('#ccwCol').classList.toggle('narrow', ph === 'dms');
+    $('#dmsCol').classList.toggle('narrow', ph === 'ccw');
+  }
   function renderSys() {
+    setPhase();
     const c = primary(E.gate(snap, 'ccw'));
     const [say, live] = ccwText(c);
     const cs = $('#ccwState');
