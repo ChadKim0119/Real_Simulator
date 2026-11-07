@@ -256,3 +256,17 @@ body.detail-on .fd .col, .fd.detail-on .col { transform: scale(0.985); opacity: 
 #qa .tl li.done b { color: #d4def0; }
 #qa .tl li.cur { background: color-mix(in srgb, var(--case, var(--blue)) 16%, transparent); color: #e6eef9; }
 #qa .tl li.cur b { color: #fff; } #qa .tl li.cur i { color: var(--case, var(--blue)); }
+
+/* GSAP drives the ceremony (js/fx.js): the CSS keyframes stand down */
+#fin.gs, #fin.gs * { animation: none !important; }
+#fin.gs { opacity: 0; }
+#fin .fx { position: relative; }
+#fin .burst { position: absolute; left: 50%; top: 110px; width: 260px; height: 260px; margin: -130px 0 0 -130px; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, rgba(143, 240, 179, 0.55), rgba(61, 220, 132, 0.18) 45%, transparent 70%); }
+#fin b .ch { display: inline-block; font: inherit; color: inherit; gap: 0; padding: 0; white-space: pre; will-change: transform, filter; }
+
+/* GSAP drives the conversation panel and its button (js/final-instrument.js) */
+#talk.gs { transition: none; transform: none; opacity: 0; }
+#talk.gs.on { opacity: 1; }
+#fab.gs { transition: none; }
+#fab.gs.hide { transform: none; opacity: 1; }

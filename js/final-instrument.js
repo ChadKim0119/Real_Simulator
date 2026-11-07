@@ -26,13 +26,37 @@
     const k = c.call;
     return { live: k.state === 'connected', ring: k.state === 'dialing', ended: k.state === 'ended' || k.state === 'failed', endedAt: k.endedAt, at: k.connectedAt, lines: (k.lines || []).filter((l) => !l.deleted).length, dir: k.dir, key: c.id + k.dir, c };
   }
+  /* The panel grows out of the button (bottom right) and its header settles in, then folds
+   * back into the button. GSAP when present (js/fx.js), the CSS transition otherwise. */
+  const G = window.gsap;
+  if (G) { talk.classList.add('gs'); fab.classList.add('gs'); G.set(talk, { autoAlpha: 0 }); }
+  let talkTl = null;
   function setOpen(v) {
     if (v === open) return;
     open = v;
     talk.classList.toggle('on', open);
     fab.classList.toggle('hide', open);
     if (open) { badge.classList.remove('on'); }
+    if (!G) return;
+    if (talkTl) talkTl.kill();
+    const head = talk.querySelectorAll('header > *');
+    if (open) {
+      talkTl = G.timeline()
+        .to(fab, { scale: 0.55, autoAlpha: 0, duration: 0.32, ease: 'power2.in' }, 0)
+        .fromTo(talk, { autoAlpha: 0, x: 70, y: 40, scale: 0.86, clipPath: 'inset(78% 0% 0% 72% round 42px)' },
+          { autoAlpha: 1, x: 0, y: 0, scale: 1, clipPath: 'inset(0% 0% 0% 0% round 26px)', duration: 0.95, ease: 'expo.out' }, 0.08)
+        .fromTo(head, { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.05, ease: 'power3.out' }, 0.35)
+        .fromTo(talk.querySelector('iframe'), { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 0.45)
+        .fromTo(talk.querySelector('.wave'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }, 0.6);
+    } else {
+      talkTl = G.timeline()
+        .to(talk, { autoAlpha: 0, x: 50, y: 30, scale: 0.9, clipPath: 'inset(78% 0% 0% 72% round 42px)', duration: 0.6, ease: 'power3.inOut' }, 0)
+        .fromTo(fab, { scale: 0.55, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.6, ease: 'back.out(2.2)' }, 0.38);
+    }
   }
+  // the badge pops when a new line comes in while the panel is closed
+  let badgeN = 0;
+  function popBadge(n) { if (n > badgeN && G && !open) G.fromTo(badge, { scale: 0.3 }, { scale: 1, duration: 0.5, ease: 'back.out(3)' }); badgeN = n; }
   function tick() {
     const k = call();
     const now = Date.now();
@@ -58,6 +82,7 @@
     const n = k ? k.lines : 0;
     if (open) seenLines = n;
     badge.textContent = Math.max(0, n - seenLines);
+    popBadge(Math.max(0, n - seenLines));
     badge.classList.toggle('on', !open && n > seenLines);
     fab.classList.toggle('ring', !open && !!k && (k.live || k.ring));
     // the scenario step playing on the control panel, top left (the panel sends it)

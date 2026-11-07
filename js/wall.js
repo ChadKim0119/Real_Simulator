@@ -295,14 +295,16 @@
   function ceremony(c) {
     const el = $('#fin');
     const steps = ['경고 감지', '고객 연결', c.kind === 'emergency' ? '상담 · 긴급출동' : '경고 판정', '서비스센터 이관', '예약 · 입고', '정비 · 종결'];
-    el.innerHTML = `<div class="fx"><svg viewBox="0 0 200 200" class="ring"><circle cx="100" cy="100" r="86" class="bg"/><circle cx="100" cy="100" r="86" class="fg"/><path d="M64 102 L90 128 L140 76" class="ck"/></svg>
+    const html = `<div class="fx"><svg viewBox="0 0 200 200" class="ring"><circle cx="100" cy="100" r="86" class="bg"/><circle cx="100" cy="100" r="86" class="fg"/><path d="M64 102 L90 128 L140 76" class="ck"/></svg>
       <b>e-Care 과업 종료</b><span>${steps.map((t) => `<i>${esc(t)}</i>`).join('<em>›</em>')}</span>
       <small>${esc(c.dealer || '서비스센터')} 정비 종결 · 모든 단계가 고객 앱과 상담원 화면에 반영되었습니다</small></div>`;
+    if (window.FX && FX.ceremony(el, html)) return;
+    el.innerHTML = html;
     el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
     clearTimeout(finT);
     finT = setTimeout(() => el.classList.remove('on'), 8500);
   }
-  Link.on('stage', (d) => { if (d.scene && d.scene !== 'live') $('#fin').classList.remove('on'); });
+  Link.on('stage', (d) => { if (d.scene && d.scene !== 'live') { if (window.FX && FX.gsap) FX.stopCeremony($('#fin')); else $('#fin').classList.remove('on'); } });
   Link.on('stage', (d) => { if (d.scene !== scene) { scene = d.scene; sceneRender(); } });
   Link.send('stage-hello', { screen: 'wall' });
   const pad = (n) => String(n).padStart(2, '0');

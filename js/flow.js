@@ -9,6 +9,7 @@
   const E = window.ECare;
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.getElementById('board');
+  const G = window.gsap && window.MotionPathPlugin ? window.gsap : null;   // GSAP packets when loaded (pilot)
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pad = (n) => String(n).padStart(2, '0');
 
@@ -348,7 +349,7 @@
     shown = [];
     for (const k in touched) delete touched[k];
     for (const k in used) { const l = used[k]; if (l.dataset.extra) l.remove(); else l.setAttribute('class', ''); delete used[k]; }
-    packets.splice(0).forEach((p) => { p.tail.remove(); p.dot.remove(); });
+    packets.splice(0).forEach((p) => { if (p.tl) p.tl.kill(); p.tail.remove(); p.dot.remove(); });
     chips.splice(0).forEach((c) => c.grp.remove());
     renderLog();
   }
@@ -532,6 +533,7 @@
     counts[f.to] = (counts[f.to] || 0) + 1;
     if (f.from === f.to) { flash(f.to, col); chip(f, N[f.to].x, N[f.to].y - 92, col, 5600, null, [{ x: N[f.to].x, y: N[f.to].y - 92 }, { x: N[f.to].x, y: N[f.to].y + 92 }, { x: N[f.to].x - 150, y: N[f.to].y - 92 }]); return; }
     const p0 = path(f.from, f.to);
+    if (G) { gsLaunch(f, col, p0); return; }
     const p = p0;
     const tail = el('path', { d: p.d, fill: 'none', stroke: col, 'stroke-width': 6, 'stroke-linecap': 'round', opacity: 0.9 }, g('pk'));
     const L = tail.getTotalLength();
@@ -550,6 +552,41 @@
     .concat(ZONES.map((z) => ({ x: z.x, y: 160, w: z.w, h: 52 })));        // zone titles
   const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
   const MAX_CHIPS = 1;        // only the message playing now has a label; the log has the rest
+  /* ---------------- GSAP packets (pilot) ----------------
+   * A capsule that turns along its path with a comet tail, eased in and out; a small ripple
+   * where it leaves, a larger one and the node's glow where it lands. Same travel time as
+   * before (a screen waiting for the message reacts when it lands). */
+  function ripple(x, y, col, big) {
+    const c = el('circle', { cx: x, cy: y, r: 8, fill: 'none', stroke: col, 'stroke-width': big ? 4 : 3, opacity: 0.9 }, g('pk'));
+    G.to(c, { attr: { r: big ? 86 : 42 }, opacity: 0, duration: big ? 1.1 : 0.7, ease: 'expo.out', onComplete: () => c.remove() });
+  }
+  function gsLaunch(f, col, p0) {
+    const tail = el('path', { d: p0.d, fill: 'none', stroke: col, 'stroke-width': 6, 'stroke-linecap': 'round', opacity: 0.9 }, g('pk'));
+    const L = tail.getTotalLength();
+    const dot = el('g', {}, g('pk'));
+    el('circle', { r: 26, fill: col, opacity: 0.22 }, dot);
+    el('rect', { x: -19, y: -9, width: 38, height: 18, rx: 9, fill: col, filter: 'url(#dot)' }, dot);
+    el('rect', { x: -10, y: -4, width: 20, height: 8, rx: 4, fill: '#fff', opacity: 0.9 }, dot);
+    const dur = (f.deliver || f.burst ? 1800 : Math.min(2300, 950 + L * 1.3)) / 1000;
+    const pk = { f, tail, dot, L, col, gs: true };
+    const prog = { h: 0 }, COMET = 170;
+    const draw = () => { const h = prog.h * L; tail.setAttribute('stroke-dasharray', `${Math.min(h, COMET)} ${L}`); tail.setAttribute('stroke-dashoffset', -Math.max(0, h - COMET)); };
+    draw();
+    const a = tail.getPointAtLength(0), b = tail.getPointAtLength(L);
+    ripple(a.x, a.y, col, false);
+    pk.tl = G.timeline({ onComplete: () => { tail.remove(); dot.remove(); const i = packets.indexOf(pk); if (i >= 0) packets.splice(i, 1); } })
+      .fromTo(dot, { scale: 0.2, opacity: 0, transformOrigin: '50% 50%' }, { scale: 1, opacity: 1, duration: 0.3, ease: 'back.out(2.4)' }, 0)
+      .to(dot, { duration: dur, ease: 'power2.inOut', motionPath: { path: tail, align: tail, alignOrigin: [0.5, 0.5], autoRotate: true } }, 0)
+      .to(prog, { h: 1, duration: dur, ease: 'power2.inOut', onUpdate: draw }, 0)
+      .add(() => { flash(f.to, col); ripple(b.x, b.y, col, true); }, dur)
+      .to(dot, { scale: 1.9, opacity: 0, duration: 0.45, ease: 'power2.out' }, dur)
+      .to(tail, { opacity: 0, duration: 0.5, ease: 'power1.out' }, dur);
+    packets.push(pk);
+    chip(f, p0.mx, p0.my, col, 5600, pk);
+    keep(f.from, f.to, col);
+    flash(f.from, col, 0.35);
+  }
+
   function chip(f, x, y, col, ms, p, spots) {
     const live = chips.filter((c) => !c.out);
     live.slice(0, Math.max(0, live.length - MAX_CHIPS + 1)).forEach((c) => { c.out = performance.now(); });
@@ -578,7 +615,18 @@
     }
     const cx = Math.max(50 + w / 2, Math.min(1870 - w / 2, best.x));
     grp.setAttribute('transform', `translate(${cx},${best.y - bb.y - bb.height / 2})`);
-    chips.push({ grp, t0: now, ms, box: { x: cx - w / 2, y: best.y - h / 2, w, h } });
+    const ch = { grp, t0: now, ms, box: { x: cx - w / 2, y: best.y - h / 2, w, h } };
+    if (G) {
+      // the label pops in, holds, and lifts away; an inner group so the placement stays put
+      const inner = el('g', {}, grp);
+      inner.appendChild(r); inner.appendChild(t);
+      grp.setAttribute('opacity', 1);
+      ch.gs = true; ch.inner = inner;
+      ch.tl = G.timeline({ onComplete: () => { grp.remove(); const i = chips.indexOf(ch); if (i >= 0) chips.splice(i, 1); } })
+        .fromTo(inner, { opacity: 0, scale: 0.78, y: 8, transformOrigin: '50% 50%' }, { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: 'back.out(2.2)' })
+        .to(inner, { opacity: 0, y: -10, duration: 0.6, ease: 'power2.in' }, ms / 1000 - 0.6);
+    }
+    chips.push(ch);
   }
   function flash(k, col, a) {
     glow[k] = { t0: performance.now(), col, a: a || 0.75 };
@@ -737,6 +785,7 @@
   function frame(now) {
     for (let i = packets.length - 1; i >= 0; i--) {
       const p = packets[i];
+      if (p.gs) continue;
       const k = Math.min(1, (now - p.t0) / p.dur);
       const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       const head = e * p.L;
@@ -748,6 +797,10 @@
     }
     for (let i = chips.length - 1; i >= 0; i--) {
       const c = chips[i];
+      if (c.gs) {
+        if (c.out && !c.outDone) { c.outDone = true; c.tl.kill(); G.to(c.inner, { opacity: 0, scale: 0.9, duration: 0.3, ease: 'power2.in', onComplete: () => { c.grp.remove(); const j = chips.indexOf(c); if (j >= 0) chips.splice(j, 1); } }); }
+        continue;
+      }
       const a = (now - c.t0) / c.ms;
       const out = c.out ? Math.max(0, 1 - (now - c.out) / 300) : 1;     // pushed out by newer labels
       c.grp.setAttribute('opacity', (a < 0.08 ? a / 0.08 : a > 0.8 ? Math.max(0, (1 - a) / 0.2) : 1) * out);

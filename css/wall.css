@@ -130,3 +130,11 @@ body.cur #bar, body.edit #bar { opacity: 1; pointer-events: auto; }
 #fin span em { font-style: normal; color: #3ddc84; }
 #fin small { font-size: 24px; font-weight: 500; color: #8aa69a; animation: opIn 1.2s 3s ease both; }
 @media (prefers-reduced-motion: reduce) { #fin * { animation-duration: 0.01s !important; animation-delay: 0s !important; } }
+
+/* GSAP drives the ceremony (js/fx.js): the CSS keyframes stand down */
+#fin.gs, #fin.gs * { animation: none !important; }
+#fin.gs { opacity: 0; }
+#fin .fx { position: relative; }
+#fin .burst { position: absolute; left: 50%; top: 110px; width: 260px; height: 260px; margin: -130px 0 0 -130px; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle, rgba(143, 240, 179, 0.55), rgba(61, 220, 132, 0.18) 45%, transparent 70%); }
+#fin b .ch { display: inline-block; font: inherit; color: inherit; gap: 0; padding: 0; white-space: pre; will-change: transform, filter; }
