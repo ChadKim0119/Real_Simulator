@@ -64,7 +64,7 @@
   function tick() {
     const k = call();
     const now = Date.now();
-    const ck = k ? k.key : (snap && snap.cases && snap.cases.length ? 'case:' + snap.cases[snap.cases.length - 1].id : '');
+    const ck = k ? k.key : (snap && snap.cases && snap.cases.length ? 'case:' + snap.cases[0].id : '');
     if (ck !== callKey) { callKey = ck; seenLines = 0; manual = null; closeAt = 0; }     // a new case or call: start afresh
     let want = open;
     if (manual != null) want = manual;

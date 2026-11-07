@@ -18,6 +18,6 @@
     esc: (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
     CASECOL: { A: '#ff4d5e', B: '#ffb02e', C: '#3fd0c9' },
     // the case the screens follow: the newest (a new scenario starts afresh)
-    primary: (snap) => snap && snap.cases && snap.cases[snap.cases.length - 1],
+    primary: (snap) => snap && snap.cases && snap.cases[0],          // the newest case (new cases go in front)
   };
 })();

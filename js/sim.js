@@ -15,9 +15,10 @@
   // high-resolution layer (hu_band.webp, BAND.k pixels per plate pixel) so it stays sharp
   const BAND = { x: 1186, y: 280, k: 3.6, src: 'assets/hu_band.webp' };
   // hand_call.webm (the driver: a woman's hand, cream knit sleeve): fingertip on the button at
-  // this second; aspect of the view it was shot on; the clip's fingertip lands this far
-  // (share of its height) above the button, so the layer is moved down by it
-  const HAND_CONTACT = 1.35, HAND_AR = 1680 / 720, HAND_DY = 0.075;
+  // this second; aspect of the view it was shot on; where the pad of the index finger is in the
+  // clip at that moment (share of its width / height) — the layer is placed so it lands on the
+  // middle of [전화 연결] on the head unit
+  const HAND_CONTACT = 1.35, HAND_AR = 1680 / 720, HAND_TIP = { x: 707 / 1680, y: 252 / 712 };
   // 10-speed automatic: engine rpm per km/h in each gear
   const GEAR_FACTOR = [0, 142, 90, 64, 48, 38, 31, 26, 21, 17.5, 15];
   const IDLE = 650;
@@ -622,8 +623,18 @@
   let handHold = false;
   function initHand() {
     const HAND = { src: 'assets/hand_call.webm?v=2', contact: HAND_CONTACT, ar: HAND_AR };
-    const R = { h: HU_VIEW.h, w: HU_VIEW.h * HAND.ar };
-    R.x = HU_VIEW.cx - R.w / 2; R.y = HU_VIEW.cy - R.h / 2 + HAND_DY * R.h;
+    const R = { h: HU_VIEW.h, w: HU_VIEW.h * HAND.ar, x: 0, y: 0 };
+    // the button's middle on the plate: read from the head unit screen (design px → plate px)
+    const aim = () => {
+      let bx = 1258, by = 541;                     // where [전화 연결] sits on the 1920x622 screen
+      try {
+        const b = huLayer.scr.contentDocument.querySelector('.pop button.call');
+        if (b) { const r = b.getBoundingClientRect(); bx = r.left + r.width / 2; by = r.top + r.height / 2; }
+      } catch (e) { /* not loaded */ }
+      const px = HU_SCREEN.x + bx * huLayer.k, py = HU_SCREEN.y + by * huLayer.k;
+      R.x = px - HAND_TIP.x * R.w; R.y = py - HAND_TIP.y * R.h;
+    };
+    aim();
     const vid = document.createElement('video');
     vid.id = 'huHand';
     vid.muted = true; vid.playsInline = true; vid.preload = 'auto';
@@ -646,6 +657,7 @@
       if (huFocus !== 1) focusPolicy(true);
       for (let i = 0; i < 40 && !ready(); i++) await new Promise((r) => setTimeout(r, 100));
       await new Promise((r) => setTimeout(r, 450));
+      aim();
       let pressed = false;
       const press = () => { if (!pressed) { pressed = true; Link.send('hu', { action: 'press' }); } };
       const tick = () => {

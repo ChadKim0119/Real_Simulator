@@ -140,7 +140,8 @@
   const cmd = (name, args) => Link.send('cmd', { name, args: args || {} });
   // what the agent knows of the service center: the transfer, then only the reservation it sends
   // (the dealer talks to the customer directly; no other status comes back)
-  const svcOf = (c) => (c.got && c.got.resv && c.reservation ? `예약 확정 · ${E.hm(c.reservation.at).slice(0, 5)}` : c.kind === 'emergency' ? '이관 완료' : E.DMS[Math.min(c.dms, 2)]);
+  // (the service center reports to TSP; the agent sees its stage by looking it up)
+  const svcOf = (c) => (c.dms >= 1 ? `${E.DMS[c.dms]} (조회)` : c.kind === 'emergency' ? '이관 완료' : E.DMS[c.dms]);
   // the rescue status the agent has heard (the dispatch reports only while she is on the call)
   const dispOf = (c) => (c.dispSeen != null ? Math.min(c.dispatch, c.dispSeen) : c.dispatch);
 
@@ -836,7 +837,7 @@
     if (g) return { general: true, lines: g.lines, title: `일반 전화 · ${E.CUSTOMER.name} 고객`, call: g, log: [] };
     // the newest case: a new scenario (a new warning) starts a fresh conversation
     if (!snap || !snap.cases) return null;   // before the director's first state
-    const c = snap.cases[snap.cases.length - 1];
+    const c = snap.cases[0];                 // the newest case (new cases go in front)
     if (!c) return null;
     // the service center's follow-up call takes over the panel once it starts
     if (c.dcall) return { general: false, dealer: true, id: c.id + ':dealer', lines: c.dcall.lines, title: `서비스센터 후속 통화 · ${E.CUSTOMER.name} 고객`, call: c.dcall, log: c.log, c };

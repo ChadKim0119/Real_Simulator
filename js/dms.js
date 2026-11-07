@@ -200,7 +200,7 @@
     const c = r.live && r.c;
     const dc = c && c.dcall;
     if (dc && dc.state !== 'ended') mid = `<div class="callchip ${dc.state === 'connected' ? 'on' : ''}"><i></i>${dc.state === 'connected' ? '고객과 통화 중' : '고객 휴대폰 발신 중…'}<b data-dcall-t>${dc.state === 'connected' ? E.mmss(Date.now() - dc.connectedAt) : ''}</b></div>` + mid;
-    const share = c && (c.resvSent || c.done) ? `<div class="share ${c.done ? 'ok' : ''}">${c.done ? '✓ e-Care 상담원 공유 완료' : '→ e-Care 상담원에게 예약 · 입고 정보 전송 중'}</div>` : '';
+    const share = c && c.dms >= 2 ? `<div class="share ${c.done ? 'ok' : ''}">${c.done ? '✓ 종결 · TSP 기록 완료' : `→ TSP 상태 기록 · ${E.DMS[c.dms]}`}</div>` : '';
     return `<div class="card ${r.stopInfo ? 'stopped' : ''} ${warn ? 'warnb' : ''} ${r.live ? 'live' : ''} ${dc && dc.state === 'connected' ? 'calling' : ''}" data-open="${r.id}">
       <div class="ch">${badge(r.g, r.stopInfo)}<div><b>${esc(r.plate)}</b><small>${esc(r.model)}${r.stopInfo ? ' <span class="st stop">중단</span>' : ''}</small></div><div class="cr"><small>${esc(r.center)}센터</small><small>${md(r.at)}</small></div></div>
       ${r.stage < 2 || r.stopInfo ? `<p class="wn">경고등명 <b>${esc(r.wname)}</b>${r.more ? ` 외 ${r.more}건` : ''}${r.live ? '<em class="livetag">e-Care 실시간</em>' : ''}</p>` : ''}
@@ -209,15 +209,15 @@
       ${r.stage < 2 || r.stopInfo ? `<div class="cf"><span>발생 후 경과</span><b>${span(Date.now() - r.at)}</b></div>` : ''}</div>`;
   }
   /* the live e-Care case across the top of the card view: where it is in the center's work */
-  const FW = [['e-Care 이관 접수', '상담 메모 · 컨택대기'], ['딜러 → 고객 통화', '안심 안내 · 일정 조율'], ['입고 예약 확정', '오늘 견인 입고 · 내일 10:00 점검'], ['예약 · 입고 정보 → e-Care', '상담원 도착 시 과업 종료']];
+  const FW = [['e-Care 이관 접수', '상담 메모 · 컨택대기'], ['딜러 → 고객 통화 · 예약', '안심 안내 · 내일 10:00 점검'], ['견인 입고', '견인차 → 센터 · 입고 접수'], ['정비 → 고객 인도 · 종결', '단계마다 DMS → TSP']];
   function flowBand(all) {
     const r = all.find((x) => x.live && !x.pending && x.c && x.c.kind === 'emergency');
     if (!r) return `<div class="wfband idle"><div class="wl"><span class="lv">서비스센터 업무 흐름</span><b>e-Care 이관 건 대기</b><small>e-Care 고객지원실에서 이관되면 이 흐름을 따라 진행됩니다</small></div>
       <ol>${FW.map(([t, d], i) => `<li><i>${i + 1}</i><b>${t}</b><small>${d}</small></li>`).join('')}</ol></div>`;
     const c = r.c, dc = c.dcall;
-    const st = ['done', !dc ? 'cur' : dc.state === 'ended' ? 'done' : 'cur', c.dms >= 2 ? 'done' : '', c.done ? 'done' : c.resvSent ? 'cur' : ''];
+    const st = ['done', !dc ? 'cur' : dc.state === 'ended' && c.dms >= 2 ? 'done' : 'cur', c.dms >= 3 ? 'done' : c.towing ? 'cur' : '', c.done || c.dms >= 7 ? 'done' : c.dms >= 3 ? 'cur' : ''];
     const now = !dc ? ['고객 연락 대기', '서비스 어드바이저가 고객에게 전화할 차례'] : dc.state === 'dialing' ? ['고객 휴대폰 발신 중…', `${SERVICE_ADVISOR} 어드바이저 → ${E.CUSTOMER.name} 고객`]
-      : dc.state === 'connected' ? ['고객과 통화 중', '안심 안내 · 입고 예약'] : c.done ? ['e-Care 과업 종료', '예약 · 입고 정보 상담원 도착'] : c.resvSent ? ['e-Care 상담원에게 전송 중', '예약 · 입고 정보'] : ['입고 예약 확정', '오늘 견인 입고 · 내일 10:00 점검'];
+      : dc.state === 'connected' ? ['고객과 통화 중', '안심 안내 · 입고 예약'] : c.done || c.dms >= 7 ? ['고객 인도 · 정비 종결', 'e-Care 과업 종료 · TSP 기록'] : c.dms >= 3 ? [E.DMS[c.dms], 'DMS → TSP 상태 기록'] : c.towing ? ['견인 입고 중', '견인차 → 강남 서비스센터'] : ['입고 예약 확정', '오늘 견인 입고 · 내일 10:00 점검'];
     return `<div class="wfband ${dc && dc.state === 'connected' ? 'calling' : ''}" data-open="${r.id}"><div class="wl"><span class="lv"><i></i>e-Care 실시간 이관 건</span><b>${esc(r.model)} · ${esc(r.plate)}</b><small>${esc(E.CUSTOMER.name)} 고객 · ${esc(r.wname)} (${GRADE[r.g].k})</small></div>
       <ol>${FW.map(([t, d], i) => `<li class="${st[i]}"><i>${st[i] === 'done' ? '✓' : i + 1}</i><b>${t}</b><small>${d}</small></li>`).join('')}</ol>
       <div class="wr"><b>${now[0]}${dc && dc.state === 'connected' ? ` <span data-dcall-t>${E.mmss(Date.now() - dc.connectedAt)}</span>` : ''}</b><small>${now[1]}</small></div></div>`;
@@ -316,7 +316,7 @@
   let lastKey = '';
   function render(force) {
     const all = rows();
-    const key = JSON.stringify([view, detail, detailTab, stageList, q, snap && snap.cases.map((c) => [c.id, c.dms, c.dmsStop, (c.contacts || []).length, c.contact, c.sheet && c.sheet.saved, c.dcall && c.dcall.state, c.resvSent, c.done]), Object.keys(edits).length, Math.floor(Date.now() / 30000)]);
+    const key = JSON.stringify([view, detail, detailTab, stageList, q, snap && snap.cases.map((c) => [c.id, c.dms, c.dmsStop, (c.contacts || []).length, c.contact, c.sheet && c.sheet.saved, c.dcall && c.dcall.state, c.towing, c.done]), Object.keys(edits).length, Math.floor(Date.now() / 30000)]);
     if (!force && key === lastKey) return;
     const f = document.activeElement;
     if (!force && f && app.contains(f) && f.matches('input, textarea, select')) return;
@@ -440,12 +440,12 @@
   function frame() { place(); requestAnimationFrame(frame); }
 
   /* the live e-Care case and what the center is doing with it now */
-  const liveCase = () => snap && snap.cases.filter((c) => c.dms >= 0 || (c.wcase === 'A' && c.contact < 3)).slice(-1)[0];
+  const liveCase = () => snap && snap.cases.filter((c) => c.dms >= 0 || (c.wcase === 'A' && c.contact < 3))[0];      // the newest
   const lastChange = () => {
     const c = liveCase();
     if (!c) return 0;
     if (c.dcall && c.dcall.state !== 'ended') return Date.now();          // the dealer is on the phone: stay on it
-    return Math.max(flash[c.id] || 0, c.at || 0, (c.sheet && c.sheet.saved) || 0, (c.dcall && c.dcall.endedAt) || 0, c.resvSent || 0, c.done || 0);
+    return Math.max(flash[c.id] || 0, c.at || 0, (c.sheet && c.sheet.saved) || 0, (c.dcall && c.dcall.endedAt) || 0, c.towing || 0, c.done || 0);
   };
   function stepText() {
     const c = liveCase();
@@ -456,9 +456,9 @@
     const T = {
       0: ['상담 메모 이관 접수 · 컨택대기', '고객지원실 → 서비스센터 상담 메모 이관 · 첫 컨택 SLA 시작'],
       1: ['딜러 → 고객 통화', `서비스 어드바이저 ${'이정비'} · 고객 안심 안내 · 일정 조율`],
-      2: ['입고 예약 확정', c.done ? '예약 · 입고 정보 → e-Care 상담원 도착 · 과업 종료' : c.resvSent ? '예약 · 입고 정보 → e-Care 상담원 전송 중' : '오늘 견인 입고 · 내일 10:00 점검'],
-      3: ['차량 입고', '긴급출동 견인 차량 서비스센터 도착'],
-      4: ['정비 진행', '진단 · 수리'], 5: ['정비 완료', '고객 인도 준비'], 6: ['고객 인도', ''], 7: ['정비 종결', 'e-Care 케이스 종결'],
+      2: ['입고 예약 확정', c.towing ? '견인차 → 강남 서비스센터 차량 운송' : '오늘 견인 입고 · 내일 10:00 점검 · DMS → TSP'],
+      3: ['차량 입고', '긴급출동 견인 차량 서비스센터 도착 · DMS → TSP'],
+      4: ['정비 진행', '진단 · 수리'], 5: ['정비 완료', '고객 인도 준비'], 6: ['고객 인도', ''], 7: ['고객 인도 · 정비 종결', 'e-Care 과업 종료 · DMS → TSP'],
     };
     const t = T[c.dms] || T[0];
     return dlg && c.dms <= 1 ? ['컨택 결과 등록', `${E.CUSTOMER.name} 고객 · ${E.VEHICLE.model} · 예약 확정`] : t;

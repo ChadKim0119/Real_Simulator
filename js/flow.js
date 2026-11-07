@@ -42,6 +42,7 @@
   const LINKS = [['car', 'vdp'], ['vdp', 'vep'], ['vep', 'ccw'], ['vep', 'dms'], ['vdp', 'phone'], ['ccw', 'rescue'], ['ccw', 'dms'], ['dms', 'phone']];
   const CASECOL = { A: '#ff4d5e', B: '#ffb02e', C: '#3fd0c9' };
   const BLUE = '#5aa2ff';
+  const FIELD_COL = '#e0a54a';
 
   let snap = null;
   let seen = 0;              // highest flow id animated
@@ -529,7 +530,7 @@
   /* ---------------- packets ---------------- */
   const touched = {};
   function launch(f) {
-    const col = f.wcase ? CASECOL[f.wcase] : BLUE;
+    const col = f.field ? FIELD_COL : f.wcase ? CASECOL[f.wcase] : BLUE;   // a vehicle moved (field) in amber
     touched[f.from] = touched[f.to] = true;
     counts[f.to] = (counts[f.to] || 0) + 1;
     if (f.from === f.to) { flash(f.to, col); chip(f, N[f.to].x, N[f.to].y - 92, col, 5600, null, [{ x: N[f.to].x, y: N[f.to].y - 92 }, { x: N[f.to].x, y: N[f.to].y + 92 }, { x: N[f.to].x - 150, y: N[f.to].y - 92 }]); return; }

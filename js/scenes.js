@@ -52,10 +52,10 @@
     const seen = new Set();
     let first = true, finT = 0;
     function ceremony(c) {
-      const steps = ['경고 감지', '고객 연결', c.kind === 'emergency' ? '상담 · 긴급출동' : '경고 판정', '서비스센터 이관', '딜러 후속 통화', '예약 → 상담원'];
+      const steps = ['경고 감지', '고객 연결', c.kind === 'emergency' ? '상담 · 긴급출동' : '경고 판정', '서비스센터 이관', '딜러 후속 통화', '입고 · 정비 · 종결'];
       const html = `<div class="fx"><svg viewBox="0 0 200 200" class="ring"><circle cx="100" cy="100" r="86" class="bg"/><circle cx="100" cy="100" r="86" class="fg"/><path d="M64 102 L90 128 L140 76" class="ck"/></svg>
         <b>e-Care 과업 종료</b><span>${steps.map((t) => `<i>${esc(t)}</i>`).join('<em>›</em>')}</span>
-        <small>${esc(c.dealer || '서비스센터')} 예약 · 입고 정보가 e-Care 상담원에게 전달되었습니다</small></div>`;
+        <small>${esc(c.dealer || '서비스센터')} 고객 인도 · 정비 종결 · 모든 상태가 TSP에 기록되었습니다</small></div>`;
       if (window.FX && FX.ceremony(fin, html)) return;
       fin.innerHTML = html;
       fin.classList.remove('on'); void fin.offsetWidth; fin.classList.add('on');
