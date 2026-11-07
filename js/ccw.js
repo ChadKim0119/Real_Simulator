@@ -829,6 +829,7 @@
     const g = snap && snap.general;
     if (g) return { general: true, lines: g.lines, title: `일반 전화 · ${E.CUSTOMER.name} 고객`, call: g, log: [] };
     // the newest case: a new scenario (a new warning) starts a fresh conversation
+    if (!snap || !snap.cases) return null;   // before the director's first state
     const c = snap.cases[snap.cases.length - 1];
     if (!c) return null;
     return { general: false, id: c.id, lines: c.call ? c.call.lines : [], title: `${c.warn.title} · ${E.CUSTOMER.name} 고객`, call: c.call, log: c.log, c };
