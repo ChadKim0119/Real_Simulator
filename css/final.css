@@ -10,7 +10,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: "Pretendard", "Noto Sans KR", sans-serif; -webkit-font-smoothing: antialiased; }
 button { font: inherit; color: inherit; }
-#canvas { position: absolute; left: 0; top: 0; width: 2560px; height: 1080px; transform-origin: 0 0; overflow: hidden; background: var(--bg); }
+#canvas { position: fixed; left: 0; top: 0; width: 2560px; height: 1080px; transform-origin: 0 0; overflow: hidden; background: var(--bg); }
 iframe { border: 0; display: block; }
 .num { font-family: "Barlow", "Pretendard", sans-serif; font-variant-numeric: tabular-nums; }
 
@@ -285,3 +285,7 @@ body[data-phase="dms"] #dmsCol { left: 1164px; width: 1380px; }
 .sys.narrow .facts { display: none; }
 .sys.narrow .say p { font-size: 24px; }
 .sys.narrow { opacity: 0.86; }
+
+/* a phone held upright: the 21:9 screen is small, a hint under it */
+#rotHint { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: none; padding: 10px 18px; border-radius: 999px; background: rgba(255, 255, 255, 0.1); color: #cfd9e8; font-size: 14px; font-weight: 600; white-space: nowrap; z-index: 100; }
+#rotHint.on { display: block; }
