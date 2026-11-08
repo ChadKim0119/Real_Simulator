@@ -63,7 +63,7 @@
     C: { label: '알림', en: 'Notification', kind: '정비 안내', owner: '서비스센터 · 고객 (DMS · App/헤드유닛)', sla: 7 * 24 * 3600 * 1000, slaText: '7일' },
   };
 
-  const CUSTOMER = { name: '김지현', phone: '010-1234-5678', grade: 'Lexus Premium' };
+  const CUSTOMER = { name: '홍길동', phone: '010-1234-5678', grade: 'Lexus Premium' };
   const VEHICLE = { model: 'GX 550', year: 2026, brand: '렉서스', vin: 'JTJBA7BX5T4041417', plate: '123가4567', color: 'Atomic Silver' };
   const AGENTS = [
     { id: 'a1', name: '김상담', ext: '2101' },
@@ -78,7 +78,7 @@
   ];
   // outbound call after 25 minutes (recorded Korean lines)
   const CALL_OUT = [
-    { who: 'agent', text: '안녕하세요, e-Care 상담센터입니다. 김지현 고객님 휴대폰 맞으신가요?', audio: 'assets/audio/ecare_out_01_agent.mp3', dur: 6.39 },
+    { who: 'agent', text: '안녕하세요, e-Care 상담센터입니다. 홍길동 고객님 휴대폰 맞으신가요?', audio: 'assets/audio/ecare_out_01_agent.mp3', dur: 6.39 },
     { who: 'customer', text: '네, 맞아요.', audio: 'assets/audio/ecare_out_02_customer.mp3', dur: 1.27 },
     { who: 'agent', text: '25분 전에 차량에서 브레이크 시스템 경고가 감지됐는데, 연락이 없으셔서 먼저 전화드렸습니다. 지금 안전한 곳에 계신가요?', audio: 'assets/audio/ecare_out_03_agent.mp3', dur: 8.84 },
     { who: 'customer', text: '경황이 없어서 연락을 못 했어요. 갓길에 세워 뒀어요.', audio: 'assets/audio/ecare_out_04_customer.mp3', dur: 3.85 },
@@ -107,7 +107,7 @@
   // truck (dispatch: on that line), the preferred service center, the callback number, anything
   // to pass on, and who calls next (the truck driver, the service center). Short, to the point.
   const CALL_IN2 = [
-    { who: 'agent', text: '네, e-Care 상담센터입니다. 김지현 고객님, 차량에서 엔진 이상 경고가 접수됐습니다. 지금 올림픽대로 한남대교 남단 부근에 계신 걸로 확인되는데, 맞으신가요?', audio: 'assets/audio/ecare_k_01_agent.mp3', dur: 14.17 },
+    { who: 'agent', text: '네, e-Care 상담센터입니다. 홍길동 고객님, 차량에서 엔진 이상 경고가 접수됐습니다. 지금 올림픽대로 한남대교 남단 부근에 계신 걸로 확인되는데, 맞으신가요?', audio: 'assets/audio/ecare_k_01_agent.mp3', dur: 14.17 },
     { who: 'customer', text: '네, 맞아요. 갑자기 경고등이 떠서 좀 놀랐어요.', audio: 'assets/audio/ecare_k_02_customer.mp3', dur: 4.95 },
     { who: 'agent', text: '많이 놀라셨죠. 우선 갓길에 차를 세우시고 비상등을 켜 주세요.', audio: 'assets/audio/ecare_k_03_agent.mp3', dur: 5.5 },
     { who: 'customer', text: '네, 갓길에 세우고 비상등 켰어요.', audio: 'assets/audio/ecare_k_04_customer.mp3', dur: 3.56, stop: true },
@@ -124,7 +124,7 @@
   // the service center's follow-up call, kept short: the advisor introduces himself, reassures the
   // customer and books the visit (resv: the reservation is confirmed on that line)
   const CALL_DEALER = [
-    { who: 'dealer', text: '안녕하세요, 렉서스 강남 서비스센터 이정비 어드바이저입니다. 김지현 고객님 되시죠? e-Care 상담센터에서 내용 전달받고 연락드렸습니다.', audio: 'assets/audio/ecare_d_01_dealer.mp3', dur: 10.06 },
+    { who: 'dealer', text: '안녕하세요, 렉서스 강남 서비스센터 이정비 어드바이저입니다. 홍길동 고객님 되시죠? e-Care 상담센터에서 내용 전달받고 연락드렸습니다.', audio: 'assets/audio/ecare_d_01_dealer.mp3', dur: 10.06 },
     { who: 'dealer', text: '많이 놀라셨죠. 지금 견인 차량이 고객님 차를 저희 센터로 안전하게 옮기고 있으니, 걱정하지 않으셔도 됩니다.', audio: 'assets/audio/ecare_d_03_dealer.mp3', dur: 7.52 },
     { who: 'dealer', text: '차량은 오늘 입고해 두고, 내일 오전 10시에 엔진 점검을 진행하려고 하는데요. 일정 괜찮으실까요?', audio: 'assets/audio/ecare_d_05_dealer.mp3', dur: 6.79 },
     { who: 'customer', text: '네, 내일 10시 좋아요.', audio: 'assets/audio/ecare_d_06_customer.mp3', dur: 2.8 },
@@ -913,6 +913,8 @@
       if (v && typeof v === 'object') {
         Object.keys(d).forEach((k) => { if (!Array.isArray(v[k])) v[k] = d[k]; });
         if (v.dealer.length === 9 && v.dealer[1] && v.dealer[1].text === '네, 맞아요.') v.dealer = d.dealer;   // the longer first version
+        // the customer is 홍길동 now (the Case A recording): saved captions follow
+        Object.keys(v).forEach((k) => { if (Array.isArray(v[k])) v[k].forEach((l) => { if (l && typeof l.text === 'string') l.text = l.text.replace(/김지현/g, '홍길동'); }); });
         return v;
       }
     } catch (e) { /* none saved */ }

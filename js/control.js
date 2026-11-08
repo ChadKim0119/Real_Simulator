@@ -141,7 +141,7 @@
   // the repair (정비 진행 → 정비 완료), then the last scene: the car goes back to the customer and
   // the case closes (고객 인도 → 종결 · the e-Care task ends) — each state DMS → TSP
   const REPAIR = { t: '정비 진행 → 정비 완료', cue: '“서비스센터가 DTC로 정밀 진단하고 엔진오일 압력 센서를 교체합니다. 오일 · 필터 교환과 시운전까지 마치면 정비 완료입니다. 상태는 DMS → TSP로 기록됩니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance']], until: 'repDone', pause: 3000 };
-  const HANDOVER = { t: '고객 인도 · 정비 종결', cue: '“정비를 마친 차량을 김지현 고객에게 인도합니다. 고객이 인도를 확인하면 서비스센터가 종결하고, 종결이 TSP에 기록되면 e-Care 과업이 끝납니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 5000], ['cmd', 'dmsAdvance']], until: 'done', pause: 9000 };
+  const HANDOVER = { t: '고객 인도 · 정비 종결', cue: '“정비를 마친 차량을 홍길동 고객에게 인도합니다. 고객이 인도를 확인하면 서비스센터가 종결하고, 종결이 TSP에 기록되면 e-Care 과업이 끝납니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 5000], ['cmd', 'dmsAdvance']], until: 'done', pause: 9000 };
   // the end: the recap ceremony stays up until [다음]; then the end message and silence everywhere
   const SIM_END = { t: 'e-Care 시뮬레이션 종료', cue: '종료 메시지를 띄우고 모든 소리(시동 · 비상등 · 콜센터 소음)를 멈춥니다. 처음부터 다시 하려면 [초기화] 또는 시나리오를 다시 고릅니다.', run: [['hush'], ['scene', 'end']] };
   // the rescue truck the agent called pulls up in front of the customer's car (car panel scene)

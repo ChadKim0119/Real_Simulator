@@ -78,7 +78,7 @@
     else if (k && k.ring) { st.textContent = k.dir === 'out' || k.dealer ? '발신 중' : '연결 중'; st.className = ''; tm.textContent = ''; }
     else if (k && k.ended) { st.textContent = '통화 종료'; st.className = ''; }
     else { st.textContent = '대기'; st.className = ''; tm.textContent = ''; }
-    const male = !!(k && k.c && k.c.call && (k.c.call.lines || []).some((l) => /ecare_m_/.test(l.audio || '')));
+    const male = !!(k && k.c && k.c.call && (k.c.call.lines || []).some((l) => /ecare_[ma]_/.test(l.audio || '')));
     const ci = $('#talk .av2 img:last-child'), avSrc = `assets/avatar_${male ? 'customer_m' : 'customer'}.webp`;
     if (!ci.src.endsWith(avSrc)) ci.src = avSrc;
     const ai = $('#talk .av2 img:first-child'), agSrc = `assets/avatar_${k && k.dealer ? 'dealer' : 'agent'}.webp`;

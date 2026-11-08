@@ -874,7 +874,7 @@
     const fresh = (k) => { if (trSeen.has(k)) return ''; trSeen.add(k); return ' new'; };
     const items = v.lines.map((l, i) => ({ t: l.t, l, i })).filter((x) => !x.l.deleted);
     // the second inbound set is a male customer
-    const male = v.lines.some((l) => /ecare_m_/.test(l.audio || ''));
+    const male = v.lines.some((l) => /ecare_[ma]_/.test(l.audio || ''));
     const bubbles = items.map(({ l, i }) => {
       const who = l.who === 'agent' ? 'e-Care 상담원' : l.who === 'dealer' ? '서비스센터 · 이정비 어드바이저' : `${E.CUSTOMER.name} 고객`;
       const av = `<img class="av" src="assets/avatar_${l.who === 'agent' ? 'agent' : l.who === 'dealer' ? 'dealer' : male ? 'customer_m' : 'customer'}.webp" alt="">`;
