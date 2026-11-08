@@ -289,7 +289,7 @@
   let finFirst = true, finT = 0;
   function finCheck(d) {
     for (const c of d.cases || []) {
-      if ((c.done || c.dms >= 7) && !finSeen.has(c.id)) { finSeen.add(c.id); if (!finFirst) { ceremony(c); finCase = c.id; } }
+      if ((c.done || c.dms >= 7) && !finSeen.has(c.id)) { finSeen.add(c.id); if (!finFirst) { ceremony(c); finCase = c.id; finStep = stepNow; } }
       if (!c.done && c.dms < 7) finSeen.delete(c.id);        // [이전] went back before the close
     }
     if (!(d.cases || []).length) finSeen.clear();
@@ -309,6 +309,9 @@
   }
   // the recap stays until the presenter moves on; it leaves when the close is undone or reset
   let finCase = null;
+  // the presenter moved on to another step: the recap leaves (e.g. act 2 of the full show)
+  let stepNow = '', finStep = '';
+  Link.on('scn-step', (d) => { stepNow = d ? `${d.sc}|${d.i}` : ''; if (finCase && stepNow !== finStep) finOff(); });
   const finOff = () => { finCase = null; if (window.FX && FX.gsap) FX.stopCeremony($('#fin')); else $('#fin').classList.remove('on'); };
   Link.on('stage', (d) => { if (d.scene && d.scene !== 'live') { if (window.FX && FX.gsap) FX.stopCeremony($('#fin')); else $('#fin').classList.remove('on'); } });
   Link.on('stage', (d) => { if (d.scene !== scene) { scene = d.scene; sceneRender(); } });
@@ -327,10 +330,8 @@
       const memo = find((f) => f.api === '상담 메모 이관');
       kpi = [reach ? `${((reach.t - c.at) / 1000).toFixed(1)}초` : '—', c.call && c.call.connectedAt ? rel(at(c.call.connectedAt)) : '—', memo ? rel(at(memo.t)) : '—'];
     }
-    return `<div class="cl"><h2>e-Care 시연 요약</h2><div class="kpis">
-      <div><b>${kpi[0]}</b><span>경고 → 고객지원실 · 서비스센터 도달</span></div>
-      <div><b>${kpi[1]}</b><span>경고 → 고객 통화 연결</span></div>
-      <div><b>${kpi[2]}</b><span>경고 → 서비스센터 이관</span></div></div>
+    // no timings on the closing (the summary of seconds was taken out): the journey and thanks
+      return `<div class="cl"><h2>e-Care 고객 경험 여정</h2>
       <p>고객 차량 · 일본측 서버 [VDP] · 한국측 서버 [TSP] · e-Care 고객지원실 · 긴급출동 · 서비스센터</p><div class="thanks">감사합니다</div></div>`;
   }
   const OPENING = '<div class="op"><b>Real Simulator 시연</b><span>e-Care에 대한 고객의 경험 여정 및 업무 flow</span><small>본 시연에 사용되는 화면, 이미지, UI 디자인은 일부 변경될 수 있습니다.</small></div>';

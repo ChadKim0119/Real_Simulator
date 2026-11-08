@@ -68,6 +68,26 @@
       setTimeout(() => { if (!reachAck) Link.send('hu', { action: 'press' }); }, 1500);
     }
   }
+  /* the agent's call must really connect: the head unit's press can be lost (pressed before
+   * the warning reached the car, or the presenter moved on mid-reach), so the call is brought
+   * in from wherever it stands — the customer's call, the agent's answer, or the agent's call */
+  function connectCall() {
+    const c = active();
+    if (!c || c.kind !== 'emergency' || c.call) return;
+    if (c.inbound) send('cmd', 'ack');
+    else if (c.assign) send('act', 'accept');
+    else if (c.contact === 0) send('cmd', 'inbound');
+  }
+  async function ensureCall(tok) {
+    const t0 = Date.now();
+    while ((tok == null || tok === token) && Date.now() - t0 < 12000) {
+      const c = active();
+      if (c && c.call && c.call.state !== 'failed') return true;
+      connectCall();
+      await wait(500);
+    }
+    return false;
+  }
   let reachAck = false;
   Link.on('hu', (d) => { if (d.action === 'reaching') reachAck = true; });
   async function run(ops, tok) {
@@ -79,6 +99,7 @@
         Link.send('hush', {}); send('act', 'clear'); send('act', 'careReset'); send('cmd', 'noAnswer', { on: false });
         await wait(700);
       } else if (kind === 'hush') Link.send('hush', {});
+      else if (kind === 'ensure' && a === 'call') await ensureCall(tok);
       else send(kind, a, b);
     }
   }
@@ -131,7 +152,7 @@
       steps: [PREP, DRIVE,
         { t: '긴급 경고 · HU 팝업', cue: '“주행불가 경고가 발생했습니다. TSP(VEP)가 필터 · 긴급(Case A) 판정을 마치고 CCW와 DMS로 보내며, 고객 문구는 VDP를 다시 거쳐 헤드유닛 팝업 ‘엔진오일 압력 시스템 이상 · 고객 지원실로 연결하시겠습니까?’와 앱 푸시로 전달됩니다.” 경고등은 고른 대화 세트에 맞춰 나옵니다.', run: [['warn', '@in']], until: 'hu', pause: 3000, timeout: 20000 },
         { t: '고객 HU [전화연결]', cue: '“고객이 화면의 전화연결 버튼을 누릅니다. 헤드유닛 콜이 CTI를 거쳐 유휴 상담원에게 배정됩니다.”', run: [['hu', 'press']], until: 'inbound', pause: 2500 },
-        { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 위치와 진단 정보가 이미 화면에 있습니다.” 위치 확인 → 정차 · 비상등 안내 → 긴급출동 요청 → 선호 서비스센터 진행 동의 · 연락처 확인 · 추가 전달 사항 → 출동 기사와 서비스센터가 연락드린다는 안내로 통화를 마칩니다. 통화가 끝나면 출동 차량이 도착합니다.', run: [['cmd', 'ack']], until: 'callEnd', pause: 2500, long: true },
+        { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 위치와 진단 정보가 이미 화면에 있습니다.” 위치 확인 → 정차 · 비상등 안내 → 긴급출동 요청 → 선호 서비스센터 진행 동의 · 연락처 확인 · 추가 전달 사항 → 출동 기사와 서비스센터가 연락드린다는 안내로 통화를 마칩니다. 통화가 끝나면 출동 차량이 도착합니다.', run: [['ensure', 'call']], until: 'callEnd', pause: 2500, long: true },
         { t: '상담 완료 · 서비스센터 이관', cue: '“견인 전에 상담 메모가 서비스센터 DMS로 이관됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 3000 },
         ARRIVE,
         DEALER_CALL, TOW_IN, REPAIR_CLOSE, SIM_END,
@@ -142,7 +163,7 @@
       steps: [PREP, DRIVE,
         { t: '긴급 경고 (고객 미연락)', cue: '“이번에는 고객이 전화하지 못하는 상황입니다.” 경고와 팝업은 뜨지만 전화연결을 누르지 않습니다.', run: [['warn', 'brake']], until: 'hu', pause: 3000, timeout: 20000 },
         { t: '25분 경과 · 상담원 자동 배정', cue: '“25분간 고객 연락이 없으면 TSP가 대기 만료를 판단해 유휴 상담원에게 배정합니다. 상담원 화면에 경고 알림 팝업이 뜹니다.”', run: [['act', 'sla25']], until: 'assigned', pause: 3500 },
-        { t: '상담원 전화 걸기 · 통화', cue: '“상담원이 고객 휴대전화로 전화를 겁니다.” 고객 휴대전화가 울리고 통화가 자막으로 흐릅니다. 통화 중 긴급출동을 요청하고, 출동 기사가 직접 연락한다고 안내합니다.', run: [['act', 'accept']], until: 'callEnd', pause: 2500, long: true },
+        { t: '상담원 전화 걸기 · 통화', cue: '“상담원이 고객 휴대전화로 전화를 겁니다.” 고객 휴대전화가 울리고 통화가 자막으로 흐릅니다. 통화 중 긴급출동을 요청하고, 출동 기사가 직접 연락한다고 안내합니다.', run: [['act', 'accept'], ['ensure', 'call']], until: 'callEnd', pause: 2500, long: true },
         { t: '상담 완료 · 서비스센터 이관', cue: '“같은 방식으로 견인 전에 상담 메모가 서비스센터 DMS로 넘어갑니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 6000 },
         ARRIVE,
         DEALER_CALL, TOW_IN, REPAIR_CLOSE, SIM_END,
@@ -177,17 +198,16 @@
   ];
   // the whole presentation: opening, scenario 1, scenario 2, Case B, closing
   SCENARIOS.unshift({
-    id: 'show', n: '★', title: '전체 발표', sub: '오프닝 → 1 · 2 · 4 → 클로징', sets: true,
+    id: 'show', n: '★', title: '전체 발표', sub: '오프닝 → 1 · 2 · 4 → 종료', sets: true,
     steps: [
       { t: '오프닝', cue: '“Real Simulator 시연 — e-Care에 대한 고객의 경험 여정과 업무 flow를 보여 드리겠습니다.”', run: [['reset'], ['scene', 'opening']] },
       { t: '라이브 · 시동', cue: '라이브 화면으로 전환하며 시동을 켭니다.', run: [['scene', 'live'], ['wait', 900], ['ign', true]] },
-      ...SCENARIOS[0].steps.slice(1).map((s) => ({ ...s, grp: '1막 · 고객 인바운드' })),
-      { t: '다른 상황 · 다시 주행', cue: '“이번에는 고객이 전화하지 못하는 상황입니다.”', run: [['act', 'clear'], ['wait', 600], ['act', 'drive']], pause: 2500, grp: '2막 · 상담원 아웃바운드' },
-      ...SCENARIOS[1].steps.slice(2, 8).map((s) => ({ ...s, grp: '2막 · 상담원 아웃바운드' })),
-      { ...SCENARIOS[3].steps[2], run: [['act', 'clear'], ['wait', 900], ['warn', 'airbag']], grp: '3막 · 경고 등급' },
+      ...SCENARIOS[0].steps.slice(1).filter((s) => s !== SIM_END).map((s) => ({ ...s, grp: '1막 · 고객 인바운드' })),
+      { t: '다른 상황 · 다시 주행', cue: '“이번에는 고객이 전화하지 못하는 상황입니다.” 견인으로 꺼졌던 시동을 다시 켜고 출발합니다.', run: [['act', 'clear'], ['ign', true], ['act', 'drive']], pause: 2500, grp: '2막 · 상담원 아웃바운드' },
+      ...SCENARIOS[1].steps.slice(2).filter((s) => s !== SIM_END).map((s) => ({ ...s, grp: '2막 · 상담원 아웃바운드' })),
+      { ...SCENARIOS[3].steps[2], run: [['act', 'clear'], ['ign', true], ['act', 'drive'], ['wait', 2500], ['warn', 'airbag']], grp: '3막 · 경고 등급' },
       { ...SCENARIOS[3].steps[3], grp: '3막 · 경고 등급' },
-      { t: '시동 끄기', cue: 'IG OFF 세리머니가 재생됩니다.', run: [['ign', false]], grp: '클로징' },
-      { t: '3면 클로징 · 요약', cue: '“경고 발생부터 상담 · 출동 · 딜러 이관까지의 흐름을 정리하면 이렇습니다. 감사합니다.”', run: [['scene', 'closing']], grp: '클로징' },
+      { ...SIM_END, grp: '클로징' },
     ],
   });
 
@@ -242,22 +262,31 @@
   let jumping = false;
   /* [다음] while a step plays: what it waits for is brought about at once (FINISH), waited for
    * a moment at most, and the next step starts — the presenter is never left waiting */
-  let advancing = false;
+  let advancing = false, running = false;
   async function advance() {
     if (advancing) return;
     advancing = true;
-    const tok = ++token;                              // the step's own run and wait stop here
-    const i = cur, s = sc.steps[i];
-    skip = true;
+    const i = cur, s = sc.steps[i], tok0 = token;
+    skip = true;                                      // the step's own pauses end at once …
     Link.send('hush', {});
     send('act', 'settle');                            // a car still starting is on at once
     waiting = '마무리 중 · 곧 다음 단계'; steps();
+    // … but every one of its actions is still sent (nothing is cut off half-way: the ignition,
+    // the warning, the call all happen), then what it waits for is brought about
+    const tr = Date.now();
+    while (running && token === tok0 && Date.now() - tr < 15000) await wait(60);
+    if (token !== tok0) { advancing = false; return; }   // [이전] · a jump · 초기화 came first
+    const tok = ++token;
+    send('act', 'settle');
     if (s && s.until) {
-      const t0 = Date.now(), cap = SETTLE[s.until] || 3000;
+      // [다음] stays dimmed until the step has really reached its end (the warning is in, the
+      // call is up and settled …); a safety cap only for something truly stuck
+      const t0 = Date.now(), cap = SETTLE_MAX;
       while (tok === token && !UNTIL[s.until]() && Date.now() - t0 < cap) {
-        if (FINISH[s.until] && Date.now() - t0 < cap - 400) FINISH[s.until]();
+        if (FINISH[s.until]) FINISH[s.until]();
         await wait(350);
       }
+      if (tok === token && !UNTIL[s.until]()) note(`‘${s.t}’ 마무리가 늦어 다음 단계로 넘어갑니다`);
     }
     advancing = false;
     if (tok !== token) return;
@@ -267,6 +296,7 @@
   // the end message is over once the presenter goes back or jumps to another step
   function leaveEnd() { if (scene === 'end') { scene = 'live'; Link.send('stage', { scene: 'live' }); } }
   async function go(i) {
+    if (advancing || jumping) return;                // still catching up: [다음] is dimmed
     if (busy) { advance(); return; }                 // next while a step runs: settle it, then go on
     if (i < 0 || i >= sc.steps.length) return;
     const tok = ++token;
@@ -279,14 +309,15 @@
     Link.send('act', { name: 'checkpoint', args: { k: cpKey(i) } });
     visited.add(i);
     screenOnly();
-    await run(s.run, tok);
-    if (tok !== token) return;
+    running = true;
+    try { await run(s.run, tok); } finally { running = false; }
+    if (tok !== token || advancing) return;           // [다음] took over: it finishes this step
     if (s.until) {
       waiting = s.long ? '통화 진행 중 · 끝나면 다음' : '반영 대기';
       steps();
       const t0 = Date.now();
-      while (tok === token && !skip && !UNTIL[s.until]() && Date.now() - t0 < (s.timeout || (s.long ? 180000 : 15000))) await wait(300);
-      if (tok !== token) return;
+      while (tok === token && !advancing && !UNTIL[s.until]() && Date.now() - t0 < (s.timeout || (s.long ? 180000 : 15000))) await wait(300);
+      if (tok !== token || advancing) return;
     }
     waiting = '';
     busy = false;
@@ -307,20 +338,21 @@
    * brought about at once (the call is settled, the truck pulls up, the DMS steps finish),
    * so the next step starts from the situation it expects */
   // conditions that need a little time of their own (a missed call takes a few seconds)
-  const SETTLE = { hu: 6000, failed1: 9000, failed2: 9000, sms: 9000, inbound: 4000 };
+  const SETTLE_MAX = 15000;
   const FINISH = {
-    inbound: () => Link.send('hu', { action: 'press' }),
+    inbound: () => { const c = active(); if (c && !c.inbound && c.contact === 0) send('cmd', 'inbound'); },
     assigned: () => send('act', 'sla25'),
     saved: () => send('act', 'complete'),
     dealerEnd: () => send('cmd', 'finishDealer'),
     recv: () => send('cmd', 'towIn'),
     repDone: () => { const c = active(); if (c && c.dms >= 5) return; [0, 1].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 200)); },
     done: () => { const c = active(); if (c && c.dms >= 7) return; [0, 1, 2].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 200)); },
-    callEnd: () => send('cmd', 'finishCall'),
+    // a call not yet up is connected first, then settled: the agent's call is never skipped
+    callEnd: () => { const c = active(); if (c && !c.call) connectCall(); else send('cmd', 'finishCall'); },
     genEnd: () => send('cmd', 'endGeneral'),
     arrived: () => send('cmd', 'arrive'),
     dmsIn: () => send('act', 'complete'),
-    resv: () => send('cmd', 'dmsContact', DMS_RESULT),
+    resv: () => { send('cmd', 'dmsContact', DMS_RESULT); setTimeout(() => Link.send('dms-close', {}), 1500); },
     closed: () => { const c = active(); if (c && c.dms >= 7) return; [0, 1, 2, 3, 4].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 180)); },
   };
   function finishNow() {
@@ -345,16 +377,21 @@
   function resetAll() {
     token++;
     visited.clear();
-    busy = false; skip = false; auto = false; waiting = ''; cur = -1;
+    busy = false; skip = false; auto = false; waiting = ''; cur = -1; advancing = false; jumping = false;
     Link.send('hush', {});
     Link.send('act', { name: 'fullReset', args: {} });
     send('cmd', 'noAnswer', { on: false });
-    scene = 'live'; Link.send('stage', { scene: 'live' });
+    // every screen (not this panel) goes to the opening and waits there
+    scene = 'opening'; Link.send('stage', { scene: 'opening' });
     camView = 'auto'; Link.send('cam', { view: 'auto' });
     ccwManual = false; localStorage.removeItem('control-ccwcam-manual');
     ccwCam = 'auto'; localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: 'auto' });
     steps(); manualState();
+    const tok = token;
+    setTimeout(() => { if (tok === token) note('초기화 완료 · 모든 화면이 오프닝에서 대기합니다'); }, 1600);
   }
+  // a short message on this panel
+  function note(msg) { const t = $('#toast'); if (!t) return; t.textContent = msg; t.classList.add('on'); clearTimeout(t.tid); t.tid = setTimeout(() => { t.textContent = ''; t.classList.remove('on'); }, 5000); }
   /* the call center and DMS panels show the screen alone (화면만) once a scenario runs,
    * until the presenter picks a view for them on the dock */
   let ccwManual = localStorage.getItem('control-ccwcam-manual') === '1';
@@ -410,6 +447,10 @@
     set('#auto', auto ? '■ 멈춤' : '▶▶ 자동');
     $('#auto').classList.toggle('on', auto);
     $('#prev').disabled = cur < 0;
+    // the demo is catching up (a step being settled, or a jump): [다음] waits, dimmed
+    const hold = advancing || jumping;
+    $('#next').disabled = hold || !next;
+    $('#next').classList.toggle('hold', hold);
     sendStep();
     let grp = '';
     $('#steps').innerHTML = sc.steps.map((x, i) => {
@@ -529,7 +570,7 @@
   });
   addEventListener('keydown', (e) => {
     if (e.target.matches('input,textarea')) return;
-    if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'Space' || e.code === 'PageDown') { e.preventDefault(); go(cur + 1); }
+    if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'Space' || e.code === 'PageDown') { e.preventDefault(); if (!advancing && !jumping) go(cur + 1); }
     if (e.code === 'ArrowLeft' || e.code === 'ArrowUp' || e.code === 'PageUp') { e.preventDefault(); back(); }
   });
 

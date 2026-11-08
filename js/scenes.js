@@ -30,10 +30,8 @@
         const memo = find((f) => f.api === '상담 메모 이관');
         kpi = [reach ? `${((reach.t - c.at) / 1000).toFixed(1)}초` : '—', c.call && c.call.connectedAt ? rel(at(c.call.connectedAt)) : '—', memo ? rel(at(memo.t)) : '—'];
       }
-      return `<div class="cl"><h2>e-Care 시연 요약</h2><div class="kpis">
-        <div><b>${kpi[0]}</b><span>경고 → 고객지원실 · 서비스센터 도달</span></div>
-        <div><b>${kpi[1]}</b><span>경고 → 고객 통화 연결</span></div>
-        <div><b>${kpi[2]}</b><span>경고 → 서비스센터 이관</span></div></div>
+      // no timings on the closing (the summary of seconds was taken out): the journey and thanks
+        return `<div class="cl"><h2>e-Care 고객 경험 여정</h2>
         <p>고객 차량 · 일본측 서버 [VDP] · 한국측 서버 [TSP] · e-Care 고객지원실 · 긴급출동 · 서비스센터</p><div class="thanks">감사합니다</div></div>`;
     }
     // scenes fade in and out (and cross-fade into each other); the content leaves after the fade
@@ -65,13 +63,16 @@
     }
     // the recap stays until the presenter moves on; it leaves when the close is undone or reset
     let finCase = null;
+    // the presenter moved on to another step: the recap leaves (e.g. act 2 of the full show)
+    let stepNow = '', finStep = '';
+    Link.on('scn-step', (d) => { stepNow = d ? `${d.sc}|${d.i}` : ''; if (finCase && stepNow !== finStep) finOff(); });
     const finOff = () => { finCase = null; if (window.FX && FX.gsap) FX.stopCeremony(fin); else fin.classList.remove('on'); };
     Link.on('ecare', (d) => {
       if (!d || !d.cases) return;
       snap = d;
       if (scene === 'closing') render(true);
       for (const c of d.cases || []) {
-        if ((c.done || c.dms >= 7) && !seen.has(c.id)) { seen.add(c.id); if (!first && scene === 'live') { ceremony(c); finCase = c.id; } }
+        if ((c.done || c.dms >= 7) && !seen.has(c.id)) { seen.add(c.id); if (!first && scene === 'live') { ceremony(c); finCase = c.id; finStep = stepNow; } }
         if (!c.done && c.dms < 7) seen.delete(c.id);
       }
       if (!(d.cases || []).length) seen.clear();

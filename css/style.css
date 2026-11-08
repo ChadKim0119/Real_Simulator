@@ -56,6 +56,10 @@ body.ready #stage { opacity: 1; }
    seen through the windshield and the side glass, its speed follows the car */
 #drive { left: 0; top: 0; width: 2300px; height: 240px; object-fit: fill; pointer-events: none; opacity: 0; transition: opacity 0.6s; filter: saturate(0.96) contrast(1.02); }
 #drive.ready { opacity: 1; }
+/* the other shots of the same band (first drive · pull-over · truck in front), shown one at a time */
+.extv { left: 0; top: 0; width: 2300px; height: 240px; object-fit: fill; pointer-events: none; opacity: 0; transition: opacity 0.45s; filter: saturate(0.96) contrast(1.02); }
+.extv.on { opacity: 1; }
+#drive.ready.off { opacity: 0; }
 /* the driver's side window: tinted side glass, the roadside a motion-blurred smear */
 #sideGlass { left: 0; top: 0; width: 250px; height: 236px; pointer-events: none; transition: opacity 0.8s;
   -webkit-backdrop-filter: blur(7px) saturate(0.6) brightness(0.72); backdrop-filter: blur(7px) saturate(0.6) brightness(0.72);
@@ -512,11 +516,11 @@ body.stage #showUi, body.stage #toast { display: none !important; }
    the photo show it */
 #rescue { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; display: none; }
 #rescue.on { display: block; }
-#rescue .bg { position: absolute; inset: -60px; background: #0b0d10 url(../assets/rescue_first.webp) center / cover; filter: blur(26px) brightness(0.45); opacity: 0; }
+#rescue .bg { position: absolute; inset: -60px; background: #0b0d10 url(../assets/rescue_first.webp?v=2) center / cover; filter: blur(26px) brightness(0.45); opacity: 0; }
 #rescue .frame { position: absolute; left: 0; top: 0; width: 2560px; height: 1086px; transform-origin: 0 0; will-change: transform, opacity; opacity: 0; }
 #rescue video { position: absolute; left: 0; top: 0; display: block; width: 100%; height: 100%; }
 /* the light bar keeps flashing once the clip has stopped on the truck */
-#rescue .bar { position: absolute; left: 1062px; top: 170px; width: 240px; height: 100px; border-radius: 50%; mix-blend-mode: screen; opacity: 0;
+#rescue .bar { position: absolute; left: 1069px; top: 157px; width: 180px; height: 90px; border-radius: 50%; mix-blend-mode: screen; opacity: 0;
   background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(255, 196, 70, 0.95), rgba(255, 150, 20, 0.45) 38%, rgba(255, 140, 0, 0) 72%); }
 #rescue.stopped .bar { animation: rescueBar 0.62s steps(1, end) infinite; }
 @keyframes rescueBar { 0% { opacity: 0.95; } 50% { opacity: 0.08; } }

@@ -80,13 +80,76 @@
     if (driveVid.readyState >= 3) ready(); else driveVid.addEventListener('canplay', ready, { once: true });
     driveVid.addEventListener('error', () => { driveOk = false; driveVid.remove(); extCanvas.style.visibility = ''; });
   }
+  /* The world outside, one filmed shot after another, each joined on a shared frame:
+   *   intro  the first drive after a reset: a gentle S-curve that ends on the loop's first frame
+   *   loop   the endless drive in the middle lane
+   *   pull   braking: indicator, over to the right shoulder, stopped (it holds its stop frame)
+   *   truck  after the rescue: the tow truck parked in front, light bar flashing
+   * Every shot is the same windshield band (2300×240, lined up on the cabin photo). */
+  const EXT = { intro: 'assets/drive_intro.mp4?v=1', pull: 'assets/drive_pull.mp4?v=1', truck: 'assets/drive_truck.mp4?v=1', PULL_STOP: 6.2 };
+  const extVids = {};
+  if (driveVid) {
+    for (const k of ['intro', 'pull', 'truck']) {
+      const v = document.createElement('video');
+      v.id = 'drive_' + k; v.className = 'extv'; v.muted = true; v.playsInline = true; v.preload = 'auto';
+      v.setAttribute('aria-hidden', 'true');
+      if (k === 'truck') v.loop = true;
+      v.src = EXT[k];
+      v.addEventListener('error', () => { v.dataset.bad = '1'; });
+      driveVid.after(v);
+      extVids[k] = v;
+    }
+  }
+  const extOk = (k) => extVids[k] && !extVids[k].dataset.bad && extVids[k].readyState >= 2;
+  let extPhase = 'intro';
+  function extShow(k) {
+    extPhase = k;
+    for (const n of Object.keys(extVids)) { extVids[n].classList.toggle('on', n === k); if (n !== k && !extVids[n].paused) extVids[n].pause(); }
+    driveVid.classList.toggle('off', k !== 'loop');
+    if (k !== 'loop' && !driveVid.paused) driveVid.pause();
+  }
+  if (driveVid) extShow('intro');
+  function extReset() {                     // a reset: the next drive starts with the S-curve
+    for (const n of Object.keys(extVids)) { try { extVids[n].pause(); extVids[n].currentTime = 0; } catch (e) { /* */ } }
+    try { driveVid.pause(); driveVid.currentTime = 0; } catch (e) { /* */ }
+    extShow(extOk('intro') || (extVids.intro && !extVids.intro.dataset.bad) ? 'intro' : 'loop');
+  }
+  function extPull() {                      // the car brakes to a stop: over to the shoulder
+    if (!extVids.pull || extVids.pull.dataset.bad || extPhase === 'pull' || extPhase === 'truck') return;
+    try { extVids.pull.currentTime = 0; } catch (e) { /* */ }
+    extShow('pull');
+  }
+  function extTruck() { if (extVids.truck && !extVids.truck.dataset.bad) { extShow('truck'); extVids.truck.play().catch(() => {}); } }
   function driveTick() {
     if (!driveOk) return;
     const v = st.speed;
-    if (v < 1.5) { if (!driveVid.paused) driveVid.pause(); return; }
+    const moving = st.mode === 'accel' || st.mode === 'cruise';
+    // driving again after a stop: back on the road in the middle lane
+    if ((extPhase === 'pull' || extPhase === 'truck') && moving && v > 3) extShow('loop');
+    if (extPhase === 'truck') return;
+    if (extPhase === 'pull') {
+      const P = extVids.pull;
+      // the film's stop lands when the car's does: its speed follows the braking that is left
+      const left = Math.max(0, EXT.PULL_STOP - P.currentTime);
+      const tStop = v > 0.5 ? (v / 3.6) / 3.6 + 0.5 : 0;
+      if (v > 0.5 && left > 0.04) {
+        const r = clamp(left / Math.max(0.3, tStop), 0.5, 2.5);
+        if (Math.abs(P.playbackRate - r) > 0.03) P.playbackRate = r;
+        if (P.paused) P.play().catch(() => {});
+      } else if (left > 0.04) { P.playbackRate = 2.5; if (P.paused) P.play().catch(() => {}); }
+      else if (!P.paused) P.pause();
+      return;
+    }
+    const V = extPhase === 'intro' ? extVids.intro : driveVid;
+    if (extPhase === 'intro' && (V.ended || V.dataset.bad)) {
+      extShow('loop');
+      try { driveVid.currentTime = 0; } catch (e) { /* */ }
+      return driveTick();
+    }
+    if (v < 1.5) { if (!V.paused) V.pause(); return; }
     const r = Math.max(0.15, Math.min(2.4, v / 70));     // the film was shot at about 70 km/h
-    if (Math.abs(driveVid.playbackRate - r) > 0.02) driveVid.playbackRate = r;
-    if (driveVid.paused) driveVid.play().catch(() => {});
+    if (Math.abs(V.playbackRate - r) > 0.02) V.playbackRate = r;
+    if (V.paused) V.play().catch(() => {});
   }
   const wheel = new Wheel(wheelCanvas, $('#wheelArt'));
   const audio = new SimAudio();
@@ -318,6 +381,7 @@
     if (st.mode === 'accel' || st.mode === 'cruise' || (st.mode === 'hold' && st.speed > 0.5)) {
       // pulling over while on the phone with the agent: the driver always puts the hazards on
       if (onCall()) setHazard(true);
+      extPull();
       st.mode = 'brake';
       st.cruise = false;
       cam.zoomAt = null;
@@ -732,7 +796,9 @@
   // two filmed parts of the same truck: the approach (A), slowing to a stop centred in front of
   // the car at switchAt; then the parked truck (C, first frame = last frame = A at switchAt)
   // looping for as long as the scene holds — light bar flashing, traffic passing in the other lanes
-  const RESCUE = { src: 'assets/rescue_arrive.mp4?v=4', srcC: 'assets/rescue_hold.mp4?v=4', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 5.7, switchAt: 6.6, playDelay: 1.6, hold: 12 };
+  // the arrival continues the pull-over shot (same light, same shoulder): the truck shows in the
+  // mirror at ~1.5 s, passes the driver's window at ~2.5 s and stops in front at ~5.6 s
+  const RESCUE = { src: 'assets/rescue_arrive.mp4?v=5', srcC: 'assets/rescue_hold.mp4?v=5', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 4.9, switchAt: 5.8, playDelay: 1.6, hold: 12 };
   const rescueEl = document.createElement('div');
   rescueEl.id = 'rescue';
   rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vc" muted playsinline preload="auto" loop></video><i class="bar"></i></div>';
@@ -758,7 +824,7 @@
   }
   function rescueStop(now_) {
     if (!rescue) return;
-    if (now_) { sirenStop(); rescue = null; extCanvas.style.opacity = ''; if (driveVid) driveVid.style.opacity = ''; document.body.classList.remove('rescue'); rescueEl.classList.remove('on', 'stopped'); capOn(false); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
+    if (now_) { sirenStop(); rescue = null; extCanvas.style.opacity = ''; if (driveVid) { driveVid.style.opacity = ''; for (const n of Object.keys(extVids)) extVids[n].style.opacity = ''; } document.body.classList.remove('rescue'); rescueEl.classList.remove('on', 'stopped'); capOn(false); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
     if (rescue.phase !== 'narrow' && rescue.phase !== 'out') { rescue.phase = 'narrow'; rescue.t0 = now(); rescue.from = rescue.cur; capOn(false); }
   }
   director.hooks.rescue = (c) => (c ? rescueStart() : rescueStop(true));
@@ -792,8 +858,8 @@
    * still behind the car and the clock runs ahead of it. Distance sets the level and the
    * muffling (the car's cabin), the speed along the line of sight the Doppler pitch. */
   // the truck in the film: [film s, metres right of the driver (−: left), metres behind (−: ahead)]
-  const SIREN_PATH = [[-7, -3.6, 230], [0, -3.6, 62], [0.5, -3.6, 44], [1, -3.5, 28], [1.5, -3.4, 15], [2, -3.2, 6], [2.5, -3, 0],
-    [3, -2.8, -4], [3.5, -2.2, -8], [4, -1.4, -11], [4.5, -0.6, -14], [5, 0, -16], [5.7, 0.2, -18], [6.6, 0.2, -19]];
+  const SIREN_PATH = [[-7, -3.6, 270], [0, -3.6, 60], [1, -3.6, 38], [1.5, -3.5, 26], [2, -3.3, 13], [2.5, -3, 1],
+    [3, -2.8, -6], [3.5, -2.4, -10], [4, -1.6, -13], [4.5, -0.6, -15.5], [5, 0.1, -17], [5.6, 0.3, -18], [6, 0.3, -18]];
   const sirenAt = (ct) => {
     const P = SIREN_PATH;
     if (ct <= P[0][0]) return [P[0][1], P[0][2] + (P[0][0] - ct) * 30];
@@ -908,6 +974,7 @@
         const ct = rVid.currentTime;
         if (ct >= RESCUE.switchAt - 0.02 || rVid.ended) {
           R.stopped = now(); rescueEl.classList.add('stopped'); capOn(true);
+          extTruck();                           // behind the film: the truck stays in front afterwards
           // the same truck on the same frame: a 0.25 s dissolve hides the films' small difference
           if (rC.readyState >= 2) { rC.currentTime = 0; rC.play().catch(() => {}); rC.style.zIndex = 3; rC.style.opacity = 0; R.xC = now(); }
           rVid.pause();
@@ -931,7 +998,7 @@
     R.cur = v;
     rescueEl.classList.add('on'); document.body.classList.add('rescue');
     extCanvas.style.opacity = (1 - op).toFixed(3);      // the film shows through the windows
-    if (driveVid) driveVid.style.opacity = (1 - op).toFixed(3);
+    if (driveVid) { const o = (1 - op).toFixed(3); driveVid.style.opacity = o; for (const n of Object.keys(extVids)) extVids[n].style.opacity = extVids[n].classList.contains('on') ? o : ''; }
     rFrame.style.transform = `translate3d(${v.x.toFixed(2)}px, ${v.y.toFixed(2)}px, 0) scale(${v.k.toFixed(5)})`;
     rFrame.style.opacity = op.toFixed(3);
     // a soft blurred copy fills the view where the clip does not reach (an upright or 4:3 screen)
@@ -1067,7 +1134,7 @@
   function checkpoint(k) {
     const v = {}; ST_KEYS.forEach((x) => { v[x] = st[x]; });
     v.red = [...st.redActive]; v.amber = [...st.amberActive];
-    checkpoints.set(k, { st: v, care: director.dumpState() });
+    checkpoints.set(k, { st: v, care: director.dumpState(), ext: extPhase, extT: extVids[extPhase] ? extVids[extPhase].currentTime : driveVid ? driveVid.currentTime : 0 });
   }
   function restore(k) {
     const cp = checkpoints.get(k);
@@ -1079,6 +1146,13 @@
     if (st.ign === 'starting') { st.ign = 'on'; st.engine = true; }
     rescueStop(true);
     if (huLayer && huLayer.cancelHand) huLayer.cancelHand();
+    // the world outside as it was: the same shot, at the same moment
+    if (cp.ext && driveVid) {
+      extShow(cp.ext);
+      const V = extVids[cp.ext] || driveVid;
+      try { V.pause(); V.currentTime = cp.ext === 'pull' && st.speed < 0.5 ? EXT.PULL_STOP : cp.extT || 0; } catch (e) { /* */ }
+      if (cp.ext === 'truck') V.play().catch(() => {});
+    }
     director.loadState(cp.care);
     camTo(st.mode === 'accel' || st.mode === 'cruise' ? 1 : 0, 1.6);
     syncUI();
@@ -1096,6 +1170,8 @@
   }
   function fullReset() {
     rescueStop(true);
+    st.odoMeters = 0;                          // the route starts again with its S-curve
+    extReset();
     if (huLayer && huLayer.cancelHand) huLayer.cancelHand();
     setHazard(false);
     clearWarnings();

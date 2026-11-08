@@ -54,8 +54,14 @@
     }
   }
 
-  // pulling away in the lane: a long straight first, then the river's gentle sweeps
-  push(0, 1200);
+  // the first drive after a reset: a short straight, then a gentle S-curve (left, then right —
+  // the same bends as the first filmed shot), so the wheel and the map's curve guidance move
+  // at once; then the river's long sweeps
+  push(0, 140);
+  corner(-1, 300, 13);
+  push(0, 70);
+  corner(1, 300, 13);
+  push(0, 700);
   corner(-1, 1100, 9);
   push(0, 500);
   corner(1, 1300, 8);
@@ -71,7 +77,7 @@
   const Road = {
     LANE: 1.8,                     // the car keeps to the middle of the right-hand lane
     NAME: '올림픽대로',
-    JUNCTION_EVERY: 1800,
+    JUNCTION_EVERY: 1200,
 
     curvature: (s) => sample(K, s),
     heading: (s) => sample(TH, s),
@@ -118,7 +124,7 @@
   };
 
   // named junctions for turn-by-turn guidance
-  const NAMES = ['진부 IC', '월정사 입구', '대관령 삼거리', '횡계 교차로', '용평 리조트', '봉평 IC', '장평 교차로', '속사 삼거리'];
+  const NAMES = ['반포대교', '동작대교', '한남대교 남단', '잠수교', '성수대교', '영동대교', '청담대교', '잠실대교'];
   Road.nextJunction = (s) => {
     const n = Math.floor(s / Road.JUNCTION_EVERY) + 1;
     return { name: NAMES[n % NAMES.length], dist: n * Road.JUNCTION_EVERY - s, right: n % 3 !== 0 };
