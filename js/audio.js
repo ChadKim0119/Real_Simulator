@@ -62,7 +62,10 @@
       comp.threshold.value = -16;
       comp.knee.value = 12;
       comp.ratio.value = 3.5;
-      this.master.connect(comp).connect(ctx.destination);
+      // under a call (customer ↔ agent / dealer) the car steps back so the voices carry
+      this.duckG = ctx.createGain();
+      this.duckG.gain.value = this.ducked ? 0.32 : 1;
+      this.master.connect(this.duckG).connect(comp).connect(ctx.destination);
 
       // everything mechanical is heard through the cabin: dull it down
       this.cabin = ctx.createBiquadFilter();
@@ -422,6 +425,13 @@
       this.muted = !!on;
       if (on) this.stopRepeat();
       if (this.ctx) this.master.gain.setTargetAtTime(on ? 0 : this.enabled ? 1 : 0, this.ctx.currentTime, on ? 0.12 : 0.05);
+    }
+
+    duck(on) {
+      on = !!on;
+      if (on === this.ducked) return;
+      this.ducked = on;
+      if (this.ctx && this.duckG) this.duckG.gain.setTargetAtTime(on ? 0.32 : 1, this.ctx.currentTime, on ? 0.35 : 0.8);
     }
 
     stopRepeat() {

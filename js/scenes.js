@@ -65,7 +65,18 @@
     let finCase = null;
     // the presenter moved on to another step: the recap leaves (e.g. act 2 of the full show)
     let stepNow = '', finStep = '';
-    Link.on('scn-step', (d) => { stepNow = d ? `${d.sc}|${d.i}` : ''; if (finCase && stepNow !== finStep) finOff(); });
+    Link.on('scn-step', (d) => {
+      stepNow = d ? `${d.sc}|${d.i}` : '';
+      if (!finCase || stepNow === finStep) return;
+      // a step that keeps the recap up (the full show's “다음 시뮬레이션 진행”) adds its note under it
+      if (d && d.keepFin) { finStep = stepNow; finNext(fin, d.keepFin); return; }
+      finOff();
+    });
+    function finNext(el, text) {
+      const fx = el.querySelector('.fx');
+      if (!fx || fx.querySelector('.nx')) return;
+      fx.insertAdjacentHTML('beforeend', `<p class="nx"><i></i>${esc(text)}<em>›</em></p>`);
+    }
     const finOff = () => { finCase = null; if (window.FX && FX.gsap) FX.stopCeremony(fin); else fin.classList.remove('on'); };
     Link.on('ecare', (d) => {
       if (!d || !d.cases) return;

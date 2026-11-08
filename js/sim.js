@@ -13,7 +13,10 @@
   const HU_VIEW = { cx: 1447, cy: 262, w: 620, h: 350 };
   // the climate band under the screen, from a photo of the real 14" unit: a separate
   // high-resolution layer (hu_band.webp, BAND.k pixels per plate pixel) so it stays sharp
-  const BAND = { x: 1186, y: 280, k: 3.6, src: 'assets/hu_band.webp?v=2' };
+  // hu_band.webp leaves out where the steering wheel's rim passes in front of it (the wheel is
+  // never covered); hu_band_full.webp is the whole band, faded in when the camera closes in
+  // and the wheel turns to a see-through ghost
+  const BAND = { x: 1186, y: 280, k: 3.6, src: 'assets/hu_band.webp?v=3', full: 'assets/hu_band_full.webp?v=1' };
   // hand_call.webm (a woman's hand, cream knit sleeve; hand_call_m.webm is a man's): fingertip on the button at
   // this second; aspect of the view it was shot on; where the pad of the index finger is in the
   // clip at that moment (share of its width / height) — the layer is placed so it lands on the
@@ -266,7 +269,7 @@
         huLayer.glass.style.transform = `${t3} scale(${s.toFixed(5)})`;
         let bx = tx + shakeX + BAND.x * s, by = ty + shakeY + BAND.y * s;
         if (still) { bx = Math.round(bx); by = Math.round(by); }
-        huLayer.band.style.transform = `translate3d(${bx.toFixed(2)}px, ${by.toFixed(2)}px, 0) scale(${(s / BAND.k).toFixed(5)})`;
+        huLayer.band.style.transform = huLayer.bandFull.style.transform = `translate3d(${bx.toFixed(2)}px, ${by.toFixed(2)}px, 0) scale(${(s / BAND.k).toFixed(5)})`;
       }
       const fl = z > 0.05 ? `brightness(${(1 - 0.55 * smooth(0.25, 1, z) * (1 - cam.h)).toFixed(2)})` : '';
       if (fl !== huLayer.lastFl) { huLayer.lastFl = fl; huLayer.scr.style.filter = fl; }
@@ -276,6 +279,7 @@
     // zoomed in, the wheel fades to a faint translucent ghost that keeps moving
     const wheelA = 1 - 0.8 * smooth(0.1, 0.72, z);
     wheelCanvas.style.opacity = wheelA.toFixed(3);
+    if (huLayer) huLayer.bandFull.style.opacity = smooth(0.1, 0.5, z).toFixed(3);
     // the hub sits right of the display's centre in the photo; as the wheel turns
     // see-through, slide it under the display's centre so it reads as centred
     const zk = smooth(0.1, 0.72, z);
@@ -621,6 +625,8 @@
     if (g && (g.state === 'connected' || g.state === 'ringing')) return true;
     return director.cases.some((c) => c.call && (c.call.state === 'connected' || c.call.state === 'dialing'));
   }
+  // while anyone talks on the phone (the e-Care agent or the dealer), the engine and road go quieter
+  setInterval(() => audio.duck(onCall() || director.cases.some((c) => c.dcall && c.dcall.state === 'connected')), 250);
   director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); setHazard(true); toast('고객 차량 갓길 정차 · 비상등 · e-Care 상담센터 발신'); } };
   director.hooks.stop = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); setHazard(true); toast('고객 차량 갓길 정차 · 비상등'); } };
   // hazard lights: on when the call says the customer switched them on (director), or from
@@ -697,9 +703,14 @@
     band.id = 'huBand';
     band.src = BAND.src;
     band.alt = '';
-    stage.after(band, scr, glare);
+    const bandFull = document.createElement('img');
+    bandFull.id = 'huBandFull';
+    bandFull.src = BAND.full;
+    bandFull.alt = '';
+    bandFull.style.opacity = 0;
+    stage.after(band, bandFull, scr, glare);
     stage.appendChild(huShade);
-    huLayer = { scr, glass: glare, band, k };
+    huLayer = { scr, glass: glare, band, bandFull, k };
     const ov = document.createElement('iframe');
     ov.id = 'huPhone';
     ov.src = 'hu.html?overlay=1';

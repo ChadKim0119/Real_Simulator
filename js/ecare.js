@@ -140,8 +140,9 @@
     { who: 'agent', text: '네, 많이 당황하셨을 텐데요. 제가 지금부터 차분히 대처 요령을 안내해 드릴 테니 걱정하지 않으셔도 됩니다.', audio: 'assets/audio/ecare_a_03_agent.mp3', dur: 8.86 },
     { who: 'customer', text: '네, 고맙습니다. 이제 어떻게 해야 하죠?', audio: 'assets/audio/ecare_a_04_customer.mp3', dur: 3.74 },
     { who: 'agent', text: '우선 고객님, 지금 올림픽대로 한남대교 남단 부근에 계신 걸로 확인되는데 맞으신가요? 차량에 엔진 이상 경고등이 발생한 상태이고, 진단 정보도 파악되었습니다.', audio: 'assets/audio/ecare_a_05_agent.mp3', dur: 12.96 },
-    { who: 'agent', text: '많이 놀라셨겠지만 위험하지 않은 가까운 갓길에 차를 세우시고 비상등을 켜 주세요.', audio: 'assets/audio/ecare_a_06_agent.mp3', dur: 6.27, stop: true, hazard: true },
-    { who: 'customer', text: '고맙습니다. 차량은 위험하지 않은 곳에 잘 세웠어요.', audio: 'assets/audio/ecare_a_07_customer.mp3', dur: 3.74 },
+    { who: 'agent', text: '많이 놀라셨겠지만 위험하지 않은 가까운 갓길에 차를 세우시고 비상등을 켜 주세요.', audio: 'assets/audio/ecare_a_06_agent.mp3', dur: 6.27, hazard: true },
+    // the car pulls over as the customer says it has (“잘 세웠어요”)
+    { who: 'customer', text: '고맙습니다. 차량은 위험하지 않은 곳에 잘 세웠어요.', audio: 'assets/audio/ecare_a_07_customer.mp3', dur: 3.74, stop: true },
     { who: 'agent', text: '잘하셨습니다. 안전을 위해서 지금 바로 긴급출동을 접수해 드리는 것이 좋겠습니다. 긴급출동 접수를 진행해 드릴까요? 아울러 선호하시는 강남 서비스센터로 입고도 함께 진행을 도와 드릴까요?', audio: 'assets/audio/ecare_a_08_agent.mp3', dur: 14.63 },
     { who: 'customer', text: '네네, 그렇게 해 주세요.', audio: 'assets/audio/ecare_a_09_customer.mp3', dur: 1.91, dispatch: true },
     { who: 'agent', text: '서비스센터에서 따로 연락을 드릴 예정인데, 지금 이 번호로 연락드리면 될까요?', audio: 'assets/audio/ecare_a_10_agent.mp3', dur: 5.88 },
@@ -915,6 +916,17 @@
         if (v.dealer.length === 9 && v.dealer[1] && v.dealer[1].text === '네, 맞아요.') v.dealer = d.dealer;   // the longer first version
         // the customer is 홍길동 now (the Case A recording): saved captions follow
         Object.keys(v).forEach((k) => { if (Array.isArray(v[k])) v[k].forEach((l) => { if (l && typeof l.text === 'string') l.text = l.text.replace(/김지현/g, '홍길동'); }); });
+        // recorded lines keep their scene cues from the defaults (when the car stops, the
+        // hazard lights, the dispatch), even in a set that was edited and saved earlier
+        Object.keys(d).forEach((k) => {
+          if (!Array.isArray(v[k])) return;
+          const cue = {};
+          d[k].forEach((l) => { if (l.audio) cue[l.audio] = l; });
+          v[k].forEach((l) => {
+            const o = l && l.audio && cue[l.audio];
+            if (o) ['stop', 'hazard', 'dispatch', 'rescue', 'arrive'].forEach((f) => { if (o[f]) l[f] = o[f]; else delete l[f]; });
+          });
+        });
         return v;
       }
     } catch (e) { /* none saved */ }

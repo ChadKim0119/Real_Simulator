@@ -163,12 +163,31 @@
     if (actx && actx.state === 'suspended') actx.resume();
     return actx;
   }
+  // the recordings are quiet (about -29 dB): they are played through a voice bus that lifts
+  // them about 8 dB, with a limiter so the loud syllables never clip (the files stay as they are)
+  let vbus = null;
+  function louder(a) {
+    if (a.dataset.bus) return;
+    const c = ac();
+    if (!c || c.state !== 'running') return;   // not unlocked yet: it plays straight out as before
+    try {
+      if (!vbus) {
+        vbus = c.createGain(); vbus.gain.value = 2.5;
+        const lim = c.createDynamicsCompressor();
+        lim.threshold.value = -6; lim.knee.value = 4; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.15;
+        vbus.connect(lim).connect(c.destination);
+      }
+      c.createMediaElementSource(a).connect(vbus);
+      a.dataset.bus = '1';
+    } catch (e) { /* plays at its own level */ }
+  }
   function speak(line) {
     if (!soundOn) return;
     if (line.audio) {
       VoiceSet.url(line.audio).then((u) => {
         if (!u) return;
         const a = audios[u] || (audios[u] = new Audio(u));
+        louder(a);
         a.currentTime = 0;
         a.play().catch(() => {});
       });
@@ -856,33 +875,62 @@
     trKey = key;
     // only the two views: the live conversation and the scripts (no customer, case or call data)
     const head = `<header class="trh"><nav class="trtabs"><button data-trtab="live" class="${trTab === 'live' ? 'on' : ''}">실시간 대화</button><button data-trtab="script" class="${trTab === 'script' ? 'on' : ''}">대화 스크립트</button></nav></header>`;
+    // the live conversation grows: new lines are added at the bottom of the list as it is,
+    // never by rebuilding it (a rebuilt list jumps to the top and scrolls back down)
+    if (!force && trTab === 'live' && v && trSel < 0 && trEdit < 0 && liveAppend(v)) return;
     let body;
     if (trTab === 'script') body = scriptsView();
     else if (!v || !v.lines.some((l) => !l.deleted)) body = `<div class="tr-empty">통화가 시작되면 대화가 여기에 실시간으로 표시됩니다.</div>`;
     else body = liveView(v);
     const prev = $('.tr-list', tr);
     const keep = prev && (trSel >= 0 || trEdit >= 0) ? prev.scrollTop : null;
+    if (trTab !== 'live' || !v) trLive = null;
     tr.innerHTML = head + body;
     const list = $('.tr-list', tr);
-    if (list) list.scrollTop = keep != null ? keep : list.scrollHeight;
+    // jump there at once (the list scrolls smoothly, which would run down from the top)
+    if (list) { list.style.scrollBehavior = 'auto'; list.scrollTop = keep != null ? keep : list.scrollHeight; list.style.scrollBehavior = ''; }
     drawVs();
     tickTranscript();
+  }
+  // what the live list shows now: the conversation, its voices and each line's text
+  let trLive = null;
+  const liveSig = (v) => {
+    const conv = v.general ? `G${v.call.at}` : v.id;
+    const male = v.lines.some((l) => /ecare_[ma]_/.test(l.audio || ''));
+    return { conv, male, rows: v.lines.map((l, i) => (l.deleted ? null : `${i}|${l.who}|${l.text}`)).filter(Boolean) };
+  };
+  function liveAppend(v) {
+    const list = $('.tr-list', tr);
+    const now = liveSig(v);
+    const was = trLive;
+    if (!list || !was || was.conv !== now.conv || was.male !== now.male || now.rows.length < was.rows.length) return false;
+    if (was.rows.some((r, j) => r !== now.rows[j])) return false;
+    if (now.rows.length > was.rows.length) {
+      const fresh = now.rows.slice(was.rows.length).map((r) => +r.split('|')[0]);
+      const atEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+      list.insertAdjacentHTML('beforeend', fresh.map((i) => bubble(v.lines[i], i, now.male, true)).join(''));
+      if (atEnd) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    }
+    trLive = now;
+    tickTranscript();
+    return true;
+  }
+  function bubble(l, i, male, isNew) {
+    const who = l.who === 'agent' ? 'e-Care 상담원' : l.who === 'dealer' ? '서비스센터 · 이정비 어드바이저' : `${E.CUSTOMER.name} 고객`;
+    const av = `<img class="av" src="assets/avatar_${l.who === 'agent' ? 'agent' : l.who === 'dealer' ? 'dealer' : male ? 'customer_m' : 'customer'}.webp" alt="">`;
+    if (i === trEdit) return `<div class="tb ${l.who} editing"><span class="who">${who}</span><textarea data-edit="${i}" rows="3">${esc(l.text)}</textarea><div class="acts on"><button data-save-line="${i}" class="pri">저장</button><button data-cancel>취소</button></div></div>`;
+    return `<div class="tb ${l.who === 'dealer' ? 'agent dealer' : l.who} ${i === trSel ? 'picked' : ''}${isNew ? ' new' : ''}" data-line="${i}"><span class="who">${av}${who}</span><div class="msg">${esc(l.text)}</div>
+        <div class="acts"><button data-edit-line="${i}">✎ 편집</button><button data-del-line="${i}" class="del">삭제</button></div></div>`;
   }
   function liveView(v) {
     const conv = v.general ? `G${v.call.at}` : v.id;
     if (conv !== trConv) { trConv = conv; trSeen = new Set(); }
-    const fresh = (k) => { if (trSeen.has(k)) return ''; trSeen.add(k); return ' new'; };
+    const fresh = (k) => { if (trSeen.has(k)) return false; trSeen.add(k); return true; };
     const items = v.lines.map((l, i) => ({ t: l.t, l, i })).filter((x) => !x.l.deleted);
     // the second inbound set is a male customer
     const male = v.lines.some((l) => /ecare_[ma]_/.test(l.audio || ''));
-    const bubbles = items.map(({ l, i }) => {
-      const who = l.who === 'agent' ? 'e-Care 상담원' : l.who === 'dealer' ? '서비스센터 · 이정비 어드바이저' : `${E.CUSTOMER.name} 고객`;
-      const av = `<img class="av" src="assets/avatar_${l.who === 'agent' ? 'agent' : l.who === 'dealer' ? 'dealer' : male ? 'customer_m' : 'customer'}.webp" alt="">`;
-      if (i === trEdit) return `<div class="tb ${l.who} editing"><span class="who">${who}</span><textarea data-edit="${i}" rows="3">${esc(l.text)}</textarea><div class="acts on"><button data-save-line="${i}" class="pri">저장</button><button data-cancel>취소</button></div></div>`;
-      return `<div class="tb ${l.who === 'dealer' ? 'agent dealer' : l.who} ${i === trSel ? 'picked' : ''}${fresh('l' + i)}" data-line="${i}"><span class="who">${av}${who}</span><div class="msg">${esc(l.text)}</div>
-        <div class="acts"><button data-edit-line="${i}">✎ 편집</button><button data-del-line="${i}" class="del">삭제</button></div></div>`;
-    }).join('');
-    return `<div class="tr-wrap solo"><div class="tr-list">${bubbles}</div></div>`;
+    trLive = liveSig(v);
+    return `<div class="tr-wrap solo"><div class="tr-list">${items.map(({ l, i }) => bubble(l, i, male, fresh('l' + i))).join('')}</div></div>`;
   }
   // which conversation set each call type plays (only types with several sets)
   function pickBar() {
