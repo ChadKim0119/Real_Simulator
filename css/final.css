@@ -43,7 +43,7 @@ iframe { border: 0; display: block; }
 .cl p { margin: 50px 0 0; font-size: 30px; color: #7f93b0; }
 .cl .thanks { margin-top: 40px; font-size: 80px; font-weight: 800; }
 #fin { position: absolute; inset: 0; z-index: 41; display: none; place-content: center; text-align: center; pointer-events: none; background: radial-gradient(ellipse 55% 75% at 50% 50%, rgba(4, 14, 12, 0.8), rgba(2, 4, 8, 0.94)); }
-#fin.on { display: grid; animation: sfade 1.4s ease both, finOut 1.2s 7.3s ease forwards; }
+#fin.on { display: grid; animation: sfade 1.4s ease both; }
 @keyframes finOut { to { opacity: 0; } }
 #fin .fx { display: grid; justify-items: center; gap: 26px; }
 #fin .ring { width: 220px; height: 220px; filter: drop-shadow(0 0 40px rgba(61, 220, 132, 0.35)); }
@@ -280,6 +280,9 @@ body[data-phase="ccw"] #ccwCol { width: 1380px; }
 body[data-phase="ccw"] #dmsCol { left: 1988px; width: 556px; }
 body[data-phase="dms"] #ccwCol { width: 556px; }
 body[data-phase="dms"] #dmsCol { left: 1164px; width: 1380px; }
+/* the dealer's follow-up onwards: e-Care steps off the screen, DMS takes both columns */
+body[data-phase="dealer"] #ccwCol { width: 556px; opacity: 0; transform: translateX(-60px) scale(0.96); pointer-events: none; visibility: hidden; transition: left 1.1s cubic-bezier(.65, 0, .35, 1), width 1.1s cubic-bezier(.65, 0, .35, 1), transform 0.7s cubic-bezier(.4,0,.2,1), opacity 0.7s, visibility 0s 0.7s; }
+body[data-phase="dealer"] #dmsCol { left: 592px; width: 1952px; }
 .sys.narrow > header small { display: none; }
 .sys.narrow > header b { font-size: 26px; }
 .sys.narrow .facts { display: none; }

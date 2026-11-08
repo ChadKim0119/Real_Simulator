@@ -11,6 +11,8 @@
   const OPENING = '<div class="aur" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i></div>'
     + '<div class="op"><b>Real Simulator 시연</b><span>e-Care에 대한 고객의 경험 여정 및 업무 flow</span><small>본 시연에 사용되는 화면, 이미지, UI 디자인은 일부 변경될 수 있습니다.</small></div>';
 
+  const END = '<div class="cl end"><h2>Real Simulator</h2><div class="thanks">e-Care 시뮬레이션 종료</div><p>고객 경험 여정과 업무 flow 시연을 모두 마쳤습니다 · 감사합니다</p></div>';
+
   function mount(host) {
     const sc = document.createElement('div'); sc.id = 'scene'; host.appendChild(sc);
     const fin = document.createElement('div'); fin.id = 'fin'; fin.setAttribute('aria-live', 'polite'); host.appendChild(fin);
@@ -36,7 +38,7 @@
     }
     // scenes fade in and out (and cross-fade into each other); the content leaves after the fade
     let shown = 'live', swapT = 0;
-    const html = (k) => (k === 'opening' ? OPENING : k === 'closing' ? closing() : '');
+    const html = (k) => (k === 'opening' ? OPENING : k === 'closing' ? closing() : k === 'end' ? END : '');
     function render(refresh) {
       document.body.classList.toggle('scene-on', scene !== 'live');
       if (scene !== 'live') { if (window.FX && FX.gsap) FX.stopCeremony(fin); else fin.classList.remove('on'); }
@@ -60,17 +62,20 @@
       fin.innerHTML = html;
       fin.classList.remove('on'); void fin.offsetWidth; fin.classList.add('on');
       clearTimeout(finT);
-      finT = setTimeout(() => fin.classList.remove('on'), 8500);
     }
+    // the recap stays until the presenter moves on; it leaves when the close is undone or reset
+    let finCase = null;
+    const finOff = () => { finCase = null; if (window.FX && FX.gsap) FX.stopCeremony(fin); else fin.classList.remove('on'); };
     Link.on('ecare', (d) => {
       if (!d || !d.cases) return;
       snap = d;
       if (scene === 'closing') render(true);
       for (const c of d.cases || []) {
-        if ((c.done || c.dms >= 7) && !seen.has(c.id)) { seen.add(c.id); if (!first && scene === 'live') ceremony(c); }
+        if ((c.done || c.dms >= 7) && !seen.has(c.id)) { seen.add(c.id); if (!first && scene === 'live') { ceremony(c); finCase = c.id; } }
         if (!c.done && c.dms < 7) seen.delete(c.id);
       }
       if (!(d.cases || []).length) seen.clear();
+      if (finCase && !seen.has(finCase)) finOff();
       first = false;
     });
     Link.on('stage', (d) => { if (d.scene && d.scene !== scene) { scene = d.scene; render(); } });

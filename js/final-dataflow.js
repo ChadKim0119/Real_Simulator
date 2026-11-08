@@ -76,7 +76,7 @@
     for (const x of grp) {
       const hit = x.to === 'ccw' || x.to === 'cti' ? '#ccwCol' : x.to === 'dms' ? '#dmsCol' : null;
       // the panel lights when the packet arrives (the board's travel time)
-      if (hit) setTimeout(() => glow(hit, x.wcase ? CASECOL[x.wcase] : '#3ddc84'), x.deliver || x.burst ? 1800 : 900);
+      if (hit) setTimeout(() => glow(hit, x.wcase ? CASECOL[x.wcase] : '#3ddc84'), x.deliver || x.burst ? E.TRAVEL : 900);
     }
   }
   const glowT = {};
@@ -127,12 +127,14 @@
     if (c) {
       const g = c.got || {};
       ph = c.kind === 'emergency' ? (c.dms >= 0 && (g.memo || !c.got) ? 'dms' : 'ccw') : ((g.dms || !c.got) ? 'dms' : 'even');
+      // the dealer's follow-up onwards: the service center only (e-Care has handed the case over)
+      if (c.kind === 'emergency' && ph === 'dms' && (c.dcall || c.towing || c.dms >= 2)) ph = 'dealer';
     }
     if (snap && snap.general && snap.general.state !== 'ended') ph = 'ccw';
     if (ph === phase) return;
     phase = ph;
     document.body.dataset.phase = ph;
-    $('#ccwCol').classList.toggle('narrow', ph === 'dms');
+    $('#ccwCol').classList.toggle('narrow', ph === 'dms' || ph === 'dealer');
     $('#dmsCol').classList.toggle('narrow', ph === 'ccw');
   }
   function renderSys() {

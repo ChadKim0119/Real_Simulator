@@ -289,10 +289,11 @@
   let finFirst = true, finT = 0;
   function finCheck(d) {
     for (const c of d.cases || []) {
-      if ((c.done || c.dms >= 7) && !finSeen.has(c.id)) { finSeen.add(c.id); if (!finFirst) ceremony(c); }
+      if ((c.done || c.dms >= 7) && !finSeen.has(c.id)) { finSeen.add(c.id); if (!finFirst) { ceremony(c); finCase = c.id; } }
       if (!c.done && c.dms < 7) finSeen.delete(c.id);        // [이전] went back before the close
     }
     if (!(d.cases || []).length) finSeen.clear();
+    if (finCase && !finSeen.has(finCase)) finOff();
     finFirst = false;
   }
   function ceremony(c) {
@@ -305,8 +306,10 @@
     el.innerHTML = html;
     el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
     clearTimeout(finT);
-    finT = setTimeout(() => el.classList.remove('on'), 8500);
   }
+  // the recap stays until the presenter moves on; it leaves when the close is undone or reset
+  let finCase = null;
+  const finOff = () => { finCase = null; if (window.FX && FX.gsap) FX.stopCeremony($('#fin')); else $('#fin').classList.remove('on'); };
   Link.on('stage', (d) => { if (d.scene && d.scene !== 'live') { if (window.FX && FX.gsap) FX.stopCeremony($('#fin')); else $('#fin').classList.remove('on'); } });
   Link.on('stage', (d) => { if (d.scene !== scene) { scene = d.scene; sceneRender(); } });
   Link.send('stage-hello', { screen: 'wall' });
@@ -336,7 +339,7 @@
     const el = $('#scene');
     const html = () => (scene === 'opening' ? '<div class="aur" aria-hidden="true"><i class="a1"></i><i class="a2"></i><i class="a3"></i><i class="a4"></i></div>'
         + (mode === '63' ? `<div class="op3">${OPENING.replace('class="op"', 'class="op side"')}${OPENING}${OPENING.replace('class="op"', 'class="op side"')}</div>` : OPENING)
-      : scene === 'closing' ? closing() : '');
+      : scene === 'closing' ? closing() : scene === 'end' ? '<div class="cl end"><h2>Real Simulator</h2><div class="thanks">e-Care 시뮬레이션 종료</div><p>고객 경험 여정과 업무 flow 시연을 모두 마쳤습니다 · 감사합니다</p></div>' : '');
     clearTimeout(sceneT);
     // fades: in, out, and scene → scene through a short dip
     if (scene === sceneShown) { if (scene === 'closing') el.innerHTML = html(); return; }

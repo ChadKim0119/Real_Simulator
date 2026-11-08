@@ -41,29 +41,24 @@
     push((q) => k * (1 - q), T);
   }
 
+  // an urban expressway along the river (Olympic-daero): long straights and wide, gentle
+  // sweeps — the wheel only ever moves a few degrees, there are no sharp corners
   function addSection() {
-    push(0, Math.round(pick(70, 220)));
-    const r = rnd();
+    push(0, Math.round(pick(350, 800)));
     const dir = rnd() < 0.5 ? -1 : 1;
-    if (r < 0.35) corner(dir, pick(300, 650), pick(20, 45));             // sweeping bend
-    else if (r < 0.7) corner(dir, pick(R_MIN, 190), pick(45, 85));       // proper corner
-    else {                                                                // S-bend
-      corner(dir, pick(R_MIN + 20, 220), pick(30, 55));
-      push(0, Math.round(pick(25, 70)));
-      corner(-dir, pick(R_MIN + 20, 220), pick(30, 55));
+    if (rnd() < 0.6) corner(dir, pick(700, 1400), pick(6, 14));          // wide sweep
+    else {                                                                // gentle S along the river
+      corner(dir, pick(800, 1500), pick(5, 10));
+      push(0, Math.round(pick(150, 300)));
+      corner(-dir, pick(800, 1500), pick(5, 10));
     }
   }
 
-  // corners from the very start: a short straight while pulling away, then a
-  // right-hander, a left-hander and an S-bend before the random sections begin
-  push(0, 70);
-  corner(1, 150, 55);
-  push(0, 60);
-  corner(-1, 135, 65);
-  push(0, 90);
-  corner(1, 170, 40);
-  push(0, 35);
-  corner(-1, 170, 40);
+  // pulling away in the lane: a long straight first, then the river's gentle sweeps
+  push(0, 1200);
+  corner(-1, 1100, 9);
+  push(0, 500);
+  corner(1, 1300, 8);
   function ensure(s) { while (K.length - 2 < s) addSection(); }
 
   function sample(arr, s) {
@@ -75,7 +70,7 @@
 
   const Road = {
     LANE: 1.8,                     // the car keeps to the middle of the right-hand lane
-    NAME: '456번 지방도',
+    NAME: '올림픽대로',
     JUNCTION_EVERY: 1800,
 
     curvature: (s) => sample(K, s),

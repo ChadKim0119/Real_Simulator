@@ -135,6 +135,9 @@
     speak(d.line);
   });
   Link.on('ccw-noise', (d) => setNoise(d.on == null ? !noise.on : d.on));
+  // the end of the demo (scene "end"): the call-center room goes quiet too
+  let sceneQuiet = false;
+  Link.on('stage', (d) => { if (d && d.scene) { sceneQuiet = d.scene === 'end'; noise.level(); } });
   Link.on('@transport', () => conn());
   Link.send('hello', { screen: VIEW === 'transcript' ? 'transcript' : 'ccw' });
   const cmd = (name, args) => Link.send('cmd', { name, args: args || {} });
@@ -333,7 +336,7 @@
     },
     level() {
       if (!this.out || !actx) return;
-      this.out.gain.setTargetAtTime(this.on && soundOn ? 0.62 : 0, actx.currentTime, 0.6);
+      this.out.gain.setTargetAtTime(this.on && soundOn && !sceneQuiet ? 0.62 : 0, actx.currentTime, sceneQuiet ? 0.2 : 0.6);
     },
   };
   function setNoise(on) {

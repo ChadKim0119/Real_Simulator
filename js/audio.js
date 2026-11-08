@@ -178,7 +178,7 @@
 
     setEnabled(on) {
       this.enabled = on;
-      if (this.ctx) this.master.gain.setTargetAtTime(on ? 1 : 0, this.ctx.currentTime, 0.05);
+      if (this.ctx) this.master.gain.setTargetAtTime(on && !this.muted ? 1 : 0, this.ctx.currentTime, 0.05);
       if (!on) this.stopRepeat();
     }
 
@@ -415,6 +415,13 @@
       this.softBell(554.4, 1.75, 0.03, 3.8);
       this.softBell(830.6, 2.5, 0.024, 4.2);                                  // as the check is drawn
       this.softBell(69.3, 2.5, 0.06, 5.5);                                    // low gong
+    }
+
+    /* The end of the demo: everything goes silent (and comes back for the next run). */
+    mute(on) {
+      this.muted = !!on;
+      if (on) this.stopRepeat();
+      if (this.ctx) this.master.gain.setTargetAtTime(on ? 0 : this.enabled ? 1 : 0, this.ctx.currentTime, on ? 0.12 : 0.05);
     }
 
     stopRepeat() {

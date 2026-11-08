@@ -541,7 +541,7 @@
     const L = tail.getTotalLength();
     tail.setAttribute('stroke-dasharray', `0 ${L}`);
     const dot = el('circle', { r: 13, fill: col, filter: 'url(#dot)' }, g('pk'));
-    const pk = { f, tail, dot, L, t0: performance.now(), dur: f.deliver || f.burst ? 1800 : Math.min(2300, 950 + L * 1.3), col };
+    const pk = { f, tail, dot, L, t0: performance.now(), dur: f.deliver || f.burst ? E.TRAVEL : Math.min(2300, 950 + L * 1.3), col };
     packets.push(pk);
     chip(f, p.mx, p.my, col, 5600, pk);
     keep(f.from, f.to, col);
@@ -569,7 +569,7 @@
     el('circle', { r: 26, fill: col, opacity: 0.22 }, dot);
     el('rect', { x: -19, y: -9, width: 38, height: 18, rx: 9, fill: col, filter: 'url(#dot)' }, dot);
     el('rect', { x: -10, y: -4, width: 20, height: 8, rx: 4, fill: '#fff', opacity: 0.9 }, dot);
-    const dur = (f.deliver || f.burst ? 1800 : Math.min(2300, 950 + L * 1.3)) / 1000;
+    const dur = (f.deliver || f.burst ? E.TRAVEL : Math.min(2300, 950 + L * 1.3)) / 1000;
     const pk = { f, tail, dot, L, col, gs: true };
     const prog = { h: 0 }, COMET = 170;
     const draw = () => { const h = prog.h * L; tail.setAttribute('stroke-dasharray', `${Math.min(h, COMET)} ${L}`); tail.setAttribute('stroke-dashoffset', -Math.max(0, h - COMET)); };

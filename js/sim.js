@@ -236,6 +236,7 @@
   /* ---------------- vehicle ---------------- */
   function showNotice() {
     const el = $('#notice');
+    if (!el) return;
     el.classList.remove('show');
     void el.offsetWidth;
     el.classList.add('show');
@@ -314,7 +315,7 @@
 
   function stop() {
     audio.unlock();
-    if (st.mode === 'accel' || st.mode === 'cruise') {
+    if (st.mode === 'accel' || st.mode === 'cruise' || (st.mode === 'hold' && st.speed > 0.5)) {
       // pulling over while on the phone with the agent: the driver always puts the hazards on
       if (onCall()) setHazard(true);
       st.mode = 'brake';
@@ -326,8 +327,10 @@
     syncUI();
   }
 
-  function warn(level, id) {
+  function warn(level, id, tries) {
     audio.unlock();
+    // the presenter moved on while the car was still starting: the warning comes once it runs
+    if (st.ign === 'starting' && (tries || 0) < 25) { setTimeout(() => warn(level, id, (tries || 0) + 1), 300); return; }
     if (st.ign !== 'on') {
       toast(st.ign === 'off' ? '시동을 켠 후 경고등이 표시됩니다' : '계기판 점검 중입니다');
       return;
@@ -570,6 +573,27 @@
     if (on) { toast('비상등 점등'); hazLookUntil = Date.now() + 4200; }
   }
   director.hooks.hazard = (c, on) => setHazard(on);
+  // the tow truck has come for the car: the driver switches the engine and the flashers off
+  function parkForTow() {
+    if (st.hazard) setHazard(false);
+    if (st.ign === 'off') return;
+    if (st.speed > 0.5 || st.mode !== 'park') Object.assign(st, { speed: 0, accel: 0, throttle: 0, mode: 'park', cruise: false, pendingDrive: false });
+    if (st.ign === 'starting') Object.assign(st, { ign: 'on', engine: true, bulbCheck: false, sweep: -1, ceremony: false });
+    ignition();
+    toast('견인 준비 · 시동 OFF · 비상등 OFF');
+  }
+  director.hooks.tow = () => parkForTow();
+  // "e-Care 시뮬레이션 종료": the car is switched off and every sound stops (engine, flashers,
+  // chimes, the siren); any other scene brings the sound back for the next run
+  function quiet() {
+    setHazard(false);
+    st.hazOn = false; hazBtn.classList.remove('on');
+    if (st.ign !== 'off') Object.assign(st, { ign: 'off', ignT: 0, engine: false, rpm: 0, throttle: 0, speed: 0, accel: 0, gear: 'P', mode: 'park', cruise: false, popup: null, bulbCheck: false, sweep: -1, pendingDrive: false, ceremony: false });
+    sirenStop();
+    audio.mute(true);
+    syncUI();
+  }
+  Link.on('stage', (d) => { if (!d || !d.scene) return; if (d.scene === 'end') quiet(); else if (audio.muted) audio.mute(false); });
   // standing still for a minute with the flashers on: they go off (the driver is out of danger)
   let stoppedSince = 0;
   function hazardTick(t) {
@@ -647,24 +671,46 @@
       vid.style.transform = `translate3d(${(tx + R.x * s).toFixed(2)}px, ${(ty + R.y * s).toFixed(2)}px, 0) scale(${(s * R.w / vw).toFixed(5)}, ${(s * R.h / vh).toFixed(5)})`;
     };
     const ready = () => !cam.hdur && cam.h > 0.98;
+    // the popup is on the head unit, settled (its entrance played), with [전화 연결] on it
+    let popSince = 0;
+    const popReady = () => {
+      let b = null;
+      try { b = huLayer.scr.contentDocument.querySelector('.pop button.call'); } catch (e) { b = null; }
+      if (!b) { popSince = 0; return false; }
+      if (!popSince) popSince = performance.now();
+      return performance.now() - popSince > 450;
+    };
+    let reachTok = 0;
+    const cancel = () => { reachTok++; if (busy) { try { vid.pause(); } catch (e) { /* */ } busy = false; handHold = false; vid.classList.remove('on'); } };
+    huLayer.cancelHand = cancel;
     Link.on('hu', async (d) => {
+      if (d.action === 'cancelReach') { cancel(); return; }
       if (d.action !== 'reach') return;
       const c = director.cases[0];
       if (busy || !c || c.wcase !== 'A' || c.contact > 0 || c.inbound) return;
       Link.send('hu', { action: 'reaching' });
       Link.send('hu', { action: 'show' });     // the popup may have folded away: bring it back for the hand
       busy = true; handHold = true;
+      const tk = ++reachTok;
       if (huFocus !== 1) focusPolicy(true);
-      for (let i = 0; i < 40 && !ready(); i++) await new Promise((r) => setTimeout(r, 100));
-      await new Promise((r) => setTimeout(r, 450));
+      // the hand only moves once the camera is on the head unit AND the popup is up there:
+      // the finger never reaches an empty screen (the popup can come a moment after the warning)
+      popSince = 0;
+      for (let i = 0; i < 100 && !(ready() && popReady()); i++) {
+        if (i % 10 === 5) Link.send('hu', { action: 'show' });
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      if (tk !== reachTok) return;
+      await new Promise((r) => setTimeout(r, 80));
+      if (tk !== reachTok) return;
       aim();
       let pressed = false;
-      const press = () => { if (!pressed) { pressed = true; Link.send('hu', { action: 'press' }); } };
+      const press = () => { if (!pressed && tk === reachTok) { pressed = true; Link.send('hu', { action: 'press' }); } };
       const tick = () => {
         if (vid.currentTime >= HAND.contact) press();
         if (!vid.ended && busy) requestAnimationFrame(tick);
       };
-      const done = () => { press(); busy = false; handHold = false; vid.classList.remove('on'); };
+      const done = () => { if (tk !== reachTok) return; press(); busy = false; handHold = false; vid.classList.remove('on'); };
       vid.onended = done;
       vid.onerror = done;
       try {
@@ -673,7 +719,7 @@
         await vid.play();
         requestAnimationFrame(tick);
       } catch (e) { done(); }
-      setTimeout(() => { if (busy) { vid.pause(); done(); } }, 15000);
+      setTimeout(() => { if (busy && tk === reachTok) { vid.pause(); done(); } }, 15000);
     });
   }
   /* ---------------- the rescue truck arrives (filmed, hyperreal) ----------------
@@ -708,10 +754,11 @@
     rAll.forEach((v) => { try { v.pause(); v.currentTime = 0; v.playbackRate = 1; } catch (e) { /* not loaded yet */ } });
     rShow(rVid);
     focusPolicy(true);
+    sirenStart();
   }
   function rescueStop(now_) {
     if (!rescue) return;
-    if (now_) { rescue = null; extCanvas.style.opacity = ''; if (driveVid) driveVid.style.opacity = ''; document.body.classList.remove('rescue'); rescueEl.classList.remove('on', 'stopped'); capOn(false); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
+    if (now_) { sirenStop(); rescue = null; extCanvas.style.opacity = ''; if (driveVid) driveVid.style.opacity = ''; document.body.classList.remove('rescue'); rescueEl.classList.remove('on', 'stopped'); capOn(false); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
     if (rescue.phase !== 'narrow' && rescue.phase !== 'out') { rescue.phase = 'narrow'; rescue.t0 = now(); rescue.from = rescue.cur; capOn(false); }
   }
   director.hooks.rescue = (c) => (c ? rescueStart() : rescueStop(true));
@@ -737,7 +784,110 @@
     const cx = ca.x + (cb.x - ca.x) * f, cy = ca.y + (cb.y - ca.y) * f;
     return { k, x: vw / 2 - cx * k, y: vh / 2 - cy * k };
   }
+  /* ---------------- the rescue truck's siren ----------------
+   * A recorded siren (assets/audio/siren.mp3, from Openverse) placed in 3D around the driver:
+   * it comes from far behind, passes the driver's side and stops in front — the same path the
+   * truck takes in the film. Its clock is the film's own time (rescue_arrive.mp4), so where the
+   * sound is and where the truck is never drift apart; before the film starts the truck is
+   * still behind the car and the clock runs ahead of it. Distance sets the level and the
+   * muffling (the car's cabin), the speed along the line of sight the Doppler pitch. */
+  // the truck in the film: [film s, metres right of the driver (−: left), metres behind (−: ahead)]
+  const SIREN_PATH = [[-7, -3.6, 230], [0, -3.6, 62], [0.5, -3.6, 44], [1, -3.5, 28], [1.5, -3.4, 15], [2, -3.2, 6], [2.5, -3, 0],
+    [3, -2.8, -4], [3.5, -2.2, -8], [4, -1.4, -11], [4.5, -0.6, -14], [5, 0, -16], [5.7, 0.2, -18], [6.6, 0.2, -19]];
+  const sirenAt = (ct) => {
+    const P = SIREN_PATH;
+    if (ct <= P[0][0]) return [P[0][1], P[0][2] + (P[0][0] - ct) * 30];
+    for (let i = 1; i < P.length; i++) {
+      if (ct <= P[i][0]) { const a = P[i - 1], b = P[i], k = (ct - a[0]) / (b[0] - a[0]); return [a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]; }
+    }
+    return [P[P.length - 1][1], P[P.length - 1][2]];
+  };
+  const SIREN_SRC = 'assets/audio/siren.mp3';
+  let sirenBuf = null, sirenLoading = null, siren = null;
+  // no recording at hand: a two-tone wail made here, the same length and loop
+  function sirenSynth(ctx) {
+    const sr = ctx.sampleRate, len = Math.round(sr * 8), b = ctx.createBuffer(1, len, sr), d = b.getChannelData(0);
+    let ph = 0;
+    for (let i = 0; i < len; i++) {
+      const t = i / sr, u = (t % 4) / 4, f = 700 + 820 * (u < 0.5 ? Math.sin(u * Math.PI) : Math.sin(u * Math.PI));
+      ph += (2 * Math.PI * f) / sr;
+      d[i] = 0.42 * Math.sin(ph) + 0.2 * Math.sin(2 * ph) + 0.12 * Math.sin(3 * ph) + 0.05 * Math.sin(5 * ph);
+    }
+    return b;
+  }
+  function sirenLoad(ctx) {
+    if (sirenBuf || sirenLoading) return sirenLoading;
+    sirenLoading = fetch(SIREN_SRC).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
+      .then((ab) => new Promise((ok, no) => ctx.decodeAudioData(ab, ok, no)))
+      .catch(() => sirenSynth(ctx))
+      .then((b) => { sirenBuf = b; return b; });
+    return sirenLoading;
+  }
+  function sirenStart() {
+    sirenStop();
+    audio.unlock();
+    const ctx = audio.ctx;
+    if (!ctx) return;
+    const me = { ct: SIREN_PATH[0][0] + 2.5, last: now(), dist: null, src: null, ctx };
+    siren = me;
+    sirenLoad(ctx).then((buf) => {
+      if (siren !== me || !buf) return;
+      const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.5; lp.frequency.value = 1200;
+      const pan = ctx.createPanner();
+      Object.assign(pan, { panningModel: 'HRTF', distanceModel: 'inverse', refDistance: 7, rolloffFactor: 1.15, maxDistance: 2000 });
+      const g = ctx.createGain(); g.gain.value = 0;
+      src.connect(lp).connect(pan).connect(g).connect(audio.master);
+      const L = ctx.listener;
+      if (L.forwardZ) { L.positionX.value = 0; L.positionY.value = 0; L.positionZ.value = 0; L.forwardX.value = 0; L.forwardY.value = 0; L.forwardZ.value = -1; L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0; } else if (L.setOrientation) L.setOrientation(0, 0, -1, 0, 1, 0);
+      src.start(0, Math.random() * buf.duration);
+      g.gain.setTargetAtTime(0.9, ctx.currentTime, 0.6);
+      Object.assign(me, { src, lp, pan, g });
+    });
+  }
+  function sirenStop(fade) {
+    const s = siren;
+    siren = null;
+    if (!s || !s.src) return;
+    const t = s.ctx.currentTime;
+    s.g.gain.cancelScheduledValues(t);
+    s.g.gain.setTargetAtTime(0, t, fade ? 0.5 : 0.05);
+    setTimeout(() => { try { s.src.stop(); s.src.disconnect(); } catch (e) { /* stopped */ } }, fade ? 3000 : 300);
+  }
+  // per frame: the film's clock → where the truck is → the sound
+  function sirenTick() {
+    const S = siren, R = rescue;
+    if (!S) return;
+    const tn = now(), dt = Math.min(0.1, tn - S.last);
+    S.last = tn;
+    // what the film says the time is, when it can say
+    let film = null;
+    if (R && R.phase === 'widen' && !R.played) film = tn - R.t0 - RESCUE.playDelay;
+    else if (R && R.played && !R.onC) film = rVid.currentTime;
+    else if (R && R.onC) film = RESCUE.switchAt + (tn - R.stopped);
+    S.ct += dt * (R && R.played && !R.onC ? rVid.playbackRate : 1);
+    if (film != null) S.ct += (film - S.ct) * Math.min(1, dt * 4);
+    else if (R && (R.phase === 'pull' || R.phase === 'fade')) S.ct = Math.min(S.ct, -RESCUE.playDelay - 0.2);   // the film has not begun: the truck is still behind
+    if (!S.src) return;
+    const [x, z] = sirenAt(S.ct);
+    const dist = Math.hypot(x, z, 1.2);
+    const t = S.ctx.currentTime;
+    const p = S.pan;
+    if (p.positionX) { p.positionX.setTargetAtTime(x, t, 0.03); p.positionY.setTargetAtTime(0.3, t, 0.03); p.positionZ.setTargetAtTime(z, t, 0.03); } else p.setPosition(x, 0.3, z);
+    // Doppler: the truck closing in sounds higher, the pitch drops as it passes
+    if (S.dist != null && dt > 0) {
+      const vr = (dist - S.dist) / dt;                        // + receding
+      S.src.playbackRate.setTargetAtTime(clamp(343 / (343 + vr), 0.9, 1.1), t, 0.08);
+    }
+    S.dist = dist;
+    // the cabin muffles it; nearer and to the side (the driver's window) it opens up
+    S.lp.frequency.setTargetAtTime(1300 + 5200 * Math.exp(-dist / 18), t, 0.08);
+    // it has pulled up: the siren is switched off, the light bar keeps flashing
+    if (R && R.stopped && tn - R.stopped > 1.6) sirenStop(true);
+  }
+
   function rescueTick() {
+    sirenTick();
     if (!rescue) return;
     const t = now() - rescue.t0, R = rescue;
     let v = null, op = 1;
@@ -766,6 +916,7 @@
       }
       if (R.xC) { const k = clamp((now() - R.xC) / 0.25, 0, 1); rC.style.opacity = k.toFixed(3); if (k >= 1) { R.xC = 0; rShow(rC); } }
       if (R.stopped && now() - R.stopped > 4) capOn(false);
+      if (R.stopped && !R.parked && now() - R.stopped > 2.5) { R.parked = true; parkForTow(); }
       // after the call (and a while on the truck) the view closes back onto the dashboard
       if (R.stopped && now() - R.stopped > RESCUE.hold && !onCall()) rescueStop(false);
     } else if (R.phase === 'narrow') {
@@ -810,16 +961,18 @@
         // the head unit shows the popup once the message has reached the car (data flow)
         const shownAt = c.got ? c.got.car : c.at + 2800;
         const popup = c.contact === 0 && !c.inbound && !c.assign && shownAt && nowMs - shownAt < 13000;
-        const inCall = call && call.dir === 'in' && (call.state === 'connected' || nowMs - (call.endedAt || 0) < 4000);
-        if (!shownAt && c.contact === 0 && !c.inbound) want = 'cluster';
+        const inCall = call && call.dir === 'in' && (call.state === 'connected' || nowMs - (call.endedAt || 0) < 1200);
+        // the call with the e-Care agent is over: the whole cabin (the car waits for the rescue)
+        if (call && call.state === 'ended' && nowMs - (call.endedAt || 0) >= 1200) want = 'full';
+        else if (!shownAt && c.contact === 0 && !c.inbound) want = 'cluster';
         else if ((c.inbound && !call) || inCall || popup || (c.wcase !== 'A' && age < 20000)) want = 'hu';
       }
     }
     const h = want === 'hu' ? 1 : 0;
     if (h !== huFocus || force) {
       huFocus = h;
-      huTo(h, h ? 2.4 : 2.6);
-      if (h) camTo(0, 2.4);                     // leave the cluster while panning across
+      huTo(h, h ? 1.8 : 2.6);
+      if (h) camTo(0, 1.8);                     // leave the cluster while panning across
       else huEndAt = now();
     }
     if (!h) {
@@ -925,14 +1078,25 @@
     st.hazT0 = now(); stoppedSince = 0;
     if (st.ign === 'starting') { st.ign = 'on'; st.engine = true; }
     rescueStop(true);
+    if (huLayer && huLayer.cancelHand) huLayer.cancelHand();
     director.loadState(cp.care);
     camTo(st.mode === 'accel' || st.mode === 'cruise' ? 1 : 0, 1.6);
     syncUI();
     return true;
   }
   /* 초기화: everything back to the start, at once — the car stops and switches off */
+  /* [다음] while the car is still starting: it is on at once (and drives off if asked) */
+  function settle() {
+    if (st.ign === 'starting') {
+      Object.assign(st, { ign: 'on', engine: true, bulbCheck: false, sweep: -1, ceremony: false });
+      if (st.rpm < 480) st.rpm = 650;
+      syncUI();
+      if (st.pendingDrive) { st.pendingDrive = false; drive(); }
+    }
+  }
   function fullReset() {
     rescueStop(true);
+    if (huLayer && huLayer.cancelHand) huLayer.cancelHand();
     setHazard(false);
     clearWarnings();
     Object.assign(st, { ign: 'off', ignT: 99, bootT: 99, engine: false, rpm: 0, throttle: 0, speed: 0, accel: 0, gear: 'P', gearNum: 1, mode: 'park', cruise: false, popup: null, bulbCheck: false, sweep: -1, pendingDrive: false, ceremony: false, backlight: 0 });
@@ -955,7 +1119,8 @@
     checkpoint: (a) => checkpoint(a && a.k),
     restore: (a) => { if (!restore(a && a.k)) toast('되돌릴 단계 기록이 없습니다'); },
     fullReset,
-    hazard: () => setHazard(!st.hazard),
+    settle,
+    hazard: (a) => setHazard(a && typeof a.on === 'boolean' ? a.on : !st.hazard),
     mode: cycleMode,
     view: () => {
       cam.zoomAt = null;

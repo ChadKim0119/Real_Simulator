@@ -27,7 +27,7 @@
   Link.on('wall-state', (d) => { Object.assign(wall, d); manualState(); });
   Link.on('wall', (d) => { if (d.mode) wall.mode = d.mode; if (typeof d.labels === 'boolean') wall.labels = d.labels; if (typeof d.edit === 'boolean') wall.edit = d.edit; manualState(); });
   Link.on('ecare', (d) => { snap = d; status(); manualState(); });
-  Link.on('veh', (d) => { const hz = !!(veh && veh.hazard), en = veh && veh.engine; veh = d; if (!!d.hazard !== hz) manualState(); if (d.engine && d.engine !== en && mtab === 'car') manual(); });
+  Link.on('veh', (d) => { const hz = !!(veh && veh.hazard), en = veh && veh.engine; veh = d; if (!!d.hazard !== hz) manualState(); if (d.engine && d.engine !== en) engineMarks(); });
   // the engine voice the car panel plays (its own setting, shown here)
   let engineSel = null;
   const engineId = () => (veh && veh.engine) || engineSel || 'ls500';
@@ -74,11 +74,12 @@
     for (const [kind, a, b] of ops) {
       if (tok != null && tok !== token) return;
       if (kind === 'wait') await waitOrSkip(a);
-      else if (kind === 'ign') { if (!veh || (veh.ign === 'on') !== a) { send('act', 'ign'); await wait(a ? 6500 : 4000); } }
+      else if (kind === 'ign') { if (!veh || (veh.ign === 'on') !== a) { send('act', 'ign'); await waitOrSkip(a ? 6500 : 4000); } }
       else if (kind === 'reset') {
         Link.send('hush', {}); send('act', 'clear'); send('act', 'careReset'); send('cmd', 'noAnswer', { on: false });
         await wait(700);
-      } else send(kind, a, b);
+      } else if (kind === 'hush') Link.send('hush', {});
+      else send(kind, a, b);
     }
   }
 
@@ -118,6 +119,8 @@
   const TOW_IN = { t: '견인 입고 · 서비스센터 접수', cue: '“긴급출동 견인차가 차량을 강남 서비스센터로 옮기고, 서비스센터가 입고를 접수합니다. 상태는 DMS에서 TSP로 기록되고, 상담원은 조회로 확인합니다.”', run: [['cmd', 'towIn']], until: 'recv', pause: 1500 };
   // the repair and the hand-over in one step: 정비 → 정비 완료 → 고객 인도 · 종결 (the e-Care task ends)
   const REPAIR_CLOSE = { t: '정비 → 고객 인도 · 정비 종결', cue: '“서비스센터에서 정비를 마치고 고객에게 차량을 인도한 뒤 종결합니다. 단계마다 DMS → TSP로 기록되고, 종결이 도착하면 e-Care 과업이 끝납니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 1600], ['cmd', 'dmsAdvance'], ['wait', 1600], ['cmd', 'dmsAdvance']], until: 'done', pause: 9000 };
+  // the end: the recap ceremony stays up until [다음]; then the end message and silence everywhere
+  const SIM_END = { t: 'e-Care 시뮬레이션 종료', cue: '종료 메시지를 띄우고 모든 소리(시동 · 비상등 · 콜센터 소음)를 멈춥니다. 처음부터 다시 하려면 [초기화] 또는 시나리오를 다시 고릅니다.', run: [['hush'], ['scene', 'end']] };
   // the rescue truck the agent called pulls up in front of the customer's car (car panel scene)
   const ARRIVE = { t: '긴급출동 차량 도착', cue: '“상담원이 요청한 긴급출동 차량이 도착합니다. 출동 기사가 고객에게 직접 연락하고, 운전석 옆을 지나 고객 차 앞에 정차합니다.”', run: [['wait', 1200], ['cmd', 'arrive']], until: 'arrived', pause: 6500, timeout: 40000 };
   const PREP = { t: '준비 · 초기화 · 시동', cue: '경고와 상담 기록을 지우고 라이브 화면에서 시동을 켭니다.', run: [['reset'], ['scene', 'live'], ['ign', true]] };
@@ -131,7 +134,7 @@
         { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 위치와 진단 정보가 이미 화면에 있습니다.” 위치 확인 → 정차 · 비상등 안내 → 긴급출동 요청 → 선호 서비스센터 진행 동의 · 연락처 확인 · 추가 전달 사항 → 출동 기사와 서비스센터가 연락드린다는 안내로 통화를 마칩니다. 통화가 끝나면 출동 차량이 도착합니다.', run: [['cmd', 'ack']], until: 'callEnd', pause: 2500, long: true },
         { t: '상담 완료 · 서비스센터 이관', cue: '“견인 전에 상담 메모가 서비스센터 DMS로 이관됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 3000 },
         ARRIVE,
-        DEALER_CALL, TOW_IN, REPAIR_CLOSE,
+        DEALER_CALL, TOW_IN, REPAIR_CLOSE, SIM_END,
       ],
     },
     {
@@ -142,7 +145,7 @@
         { t: '상담원 전화 걸기 · 통화', cue: '“상담원이 고객 휴대전화로 전화를 겁니다.” 고객 휴대전화가 울리고 통화가 자막으로 흐릅니다. 통화 중 긴급출동을 요청하고, 출동 기사가 직접 연락한다고 안내합니다.', run: [['act', 'accept']], until: 'callEnd', pause: 2500, long: true },
         { t: '상담 완료 · 서비스센터 이관', cue: '“같은 방식으로 견인 전에 상담 메모가 서비스센터 DMS로 넘어갑니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 6000 },
         ARRIVE,
-        DEALER_CALL, TOW_IN, REPAIR_CLOSE,
+        DEALER_CALL, TOW_IN, REPAIR_CLOSE, SIM_END,
       ],
     },
     {
@@ -207,6 +210,7 @@
     const tok = ++token;
     busy = false; auto = false; waiting = ''; skip = false;
     Link.send('hush', {});
+    leaveEnd();
     if (visited.has(i)) {
       Link.send('act', { name: 'restore', args: { k: cpKey(i) } });
       cur = i - 1; steps();
@@ -236,8 +240,34 @@
     if (tok === token) go(i);
   }
   let jumping = false;
+  /* [다음] while a step plays: what it waits for is brought about at once (FINISH), waited for
+   * a moment at most, and the next step starts — the presenter is never left waiting */
+  let advancing = false;
+  async function advance() {
+    if (advancing) return;
+    advancing = true;
+    const tok = ++token;                              // the step's own run and wait stop here
+    const i = cur, s = sc.steps[i];
+    skip = true;
+    Link.send('hush', {});
+    send('act', 'settle');                            // a car still starting is on at once
+    waiting = '마무리 중 · 곧 다음 단계'; steps();
+    if (s && s.until) {
+      const t0 = Date.now(), cap = SETTLE[s.until] || 3000;
+      while (tok === token && !UNTIL[s.until]() && Date.now() - t0 < cap) {
+        if (FINISH[s.until] && Date.now() - t0 < cap - 400) FINISH[s.until]();
+        await wait(350);
+      }
+    }
+    advancing = false;
+    if (tok !== token) return;
+    busy = false; skip = false; waiting = '';
+    go(i + 1);
+  }
+  // the end message is over once the presenter goes back or jumps to another step
+  function leaveEnd() { if (scene === 'end') { scene = 'live'; Link.send('stage', { scene: 'live' }); } }
   async function go(i) {
-    if (busy) { skip = true; finishNow(); return; }   // next while a step runs: settle it, then go on
+    if (busy) { advance(); return; }                 // next while a step runs: settle it, then go on
     if (i < 0 || i >= sc.steps.length) return;
     const tok = ++token;
     busy = true;
@@ -276,17 +306,22 @@
   /* [다음] while a step is still playing: the voice stops and what the step waits for is
    * brought about at once (the call is settled, the truck pulls up, the DMS steps finish),
    * so the next step starts from the situation it expects */
+  // conditions that need a little time of their own (a missed call takes a few seconds)
+  const SETTLE = { hu: 6000, failed1: 9000, failed2: 9000, sms: 9000, inbound: 4000 };
   const FINISH = {
+    inbound: () => Link.send('hu', { action: 'press' }),
+    assigned: () => send('act', 'sla25'),
+    saved: () => send('act', 'complete'),
     dealerEnd: () => send('cmd', 'finishDealer'),
     recv: () => send('cmd', 'towIn'),
-    repDone: () => [0, 1].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 200)),
-    done: () => [0, 1, 2].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 200)),
+    repDone: () => { const c = active(); if (c && c.dms >= 5) return; [0, 1].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 200)); },
+    done: () => { const c = active(); if (c && c.dms >= 7) return; [0, 1, 2].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 200)); },
     callEnd: () => send('cmd', 'finishCall'),
     genEnd: () => send('cmd', 'endGeneral'),
     arrived: () => send('cmd', 'arrive'),
     dmsIn: () => send('act', 'complete'),
     resv: () => send('cmd', 'dmsContact', DMS_RESULT),
-    closed: () => [0, 1, 2, 3, 4].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 180)),
+    closed: () => { const c = active(); if (c && c.dms >= 7) return; [0, 1, 2, 3, 4].forEach((k) => setTimeout(() => send('cmd', 'dmsAdvance'), k * 180)); },
   };
   function finishNow() {
     Link.send('hush', {});
@@ -299,6 +334,9 @@
     token++;
     busy = false; skip = false; auto = false; waiting = '';
     Link.send('hush', {});
+    advancing = false;
+    Link.send('hu', { action: 'cancelReach' });
+    leaveEnd();
     Link.send('act', { name: 'restore', args: { k: cpKey(cur) } });
     cur -= 1;
     steps();
@@ -415,7 +453,7 @@
         + chunk('시간 · 상황', b('data-a="sla25"', '25분 경과') + b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음'))
         + chunk('서비스센터 (DMS)', b('data-dms="open"', 'DMS 상세 열기') + b('data-dms="close"', '닫기') + b('data-c="dmsAdvance"', '다음 단계 진행'), '예약 → 입고 → 정비 → 종결')
         + chunk('일반 전화 (경고 없음)', b('data-a="inbound"', '고객 전화 오기') + b('data-c="answerGeneral"', '전화 받기') + b('data-c="closeGeneral"', '메모 저장'))],
-      wall: ['장면 · 화면', chunk('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join(''))
+      wall: ['장면 · 화면', chunk('장면', ['opening:오프닝', 'live:라이브', 'closing:클로징', 'end:종료', 'black:암전'].map((x) => { const [k, n] = x.split(':'); return b(`data-scene="${k}"`, n); }).join(''))
         + chunk('시연 화면 비율', b('data-wmode="21"', '21:9') + b('data-wmode="169"', '16:9') + b('data-wmode="63"', '63:9'))
         + chunk('Final 화면 · 데이터 흐름', b('data-dfmode="simple"', '심플 (시연 중)') + b('data-dfmode="detail"', '상세 (Q&A)') + b('data-flowlog', flowLog ? '상세 로그 접기' : '상세 로그 펼치기'), 'Final_Dataflow')
         + chunk('Final 화면 · 상담 대화', b('data-talk="auto"', '자동') + b('data-talk="open"', '펼치기') + b('data-talk="close"', '접기'), 'Final_Instrument')
@@ -427,6 +465,8 @@
       <div class="mbody">${TABS[mtab][1]}</div>`;
     manualState();
   }
+  // the engine sound buttons: only their marks change (re-rendering the panel would swallow a click)
+  function engineMarks() { const id = engineId(); document.querySelectorAll('[data-engine]').forEach((x) => x.classList.toggle('on', x.dataset.engine === id)); }
   let dfMode = 'simple', talkMode = 'auto';
   Link.on('df-state', (d) => { dfMode = d.mode; manualState(); });
   function manualState() {
@@ -478,7 +518,8 @@
     else if ('wedit' in d) setWall({ edit: !wall.edit });
     else if ('wlabels' in d) setWall({ labels: !wall.labels });
     else if ('wreset' in d) { if (confirm('현재 비율의 배치를 기본값으로 되돌릴까요?')) Link.send('wall', { reset: true }); }
-    else if (d.engine) { Link.send('act', { name: 'engineSound', args: { id: d.engine } }); engineSel = d.engine; manual(); }
+    else if (d.engine) { Link.send('act', { name: 'engineSound', args: { id: d.engine } }); engineSel = d.engine; engineMarks(); }
+    else if (d.a === 'hazard') send('act', 'hazard', { on: !(veh && veh.hazard) });
     else if (d.a) send('act', d.a);
     else if (d.warn) send('warn', d.warn);
     else if (d.hu) send('hu', d.hu);
@@ -488,8 +529,8 @@
   });
   addEventListener('keydown', (e) => {
     if (e.target.matches('input,textarea')) return;
-    if (e.code === 'ArrowRight' || e.code === 'Space' || e.code === 'PageDown') { e.preventDefault(); go(cur + 1); }
-    if (e.code === 'ArrowLeft' || e.code === 'PageUp') { e.preventDefault(); back(); }
+    if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'Space' || e.code === 'PageDown') { e.preventDefault(); go(cur + 1); }
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowUp' || e.code === 'PageUp') { e.preventDefault(); back(); }
   });
 
   scenarios();

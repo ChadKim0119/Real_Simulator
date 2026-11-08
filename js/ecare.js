@@ -288,16 +288,16 @@
       const B = 'w' + id;
       const steps = [
         ['car', 'vdp', 'WNG', `경고 발생 · ${wng.code}`, info, 0],
-        ['vdp', 'vep', 'VDP 이벤트', 'WNG 이벤트 전달 (VDP → TSP)', { messageId: String(Date.now()).slice(-10), wngInfo: [info] }, 1400],
-        ['vep', 'vep', '필터 검사', 'VIN · 정비 · 중복 필터 통과', { vinFilter: 'pass', maintenanceFilter: 'pass', duplicateFilter: 'pass' }, 1400],
-        ['vep', 'vep', 'Case 판정 · 고객 문구', `WNG master ${wng.code} → ${K.label}(Case ${wng.case}) · 고객용 문구 매핑`, { dataLabel: wng.code, warningName: wng.name, case: wng.case, owner: K.owner, customerMessage: custText, source: wng.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master v8.2' }, 1400],
+        ['vdp', 'vep', 'VDP 이벤트', 'WNG 이벤트 전달 (VDP → TSP)', { messageId: String(Date.now()).slice(-10), wngInfo: [info] }, 700],
+        ['vep', 'vep', '필터 검사', 'VIN · 정비 · 중복 필터 통과', { vinFilter: 'pass', maintenanceFilter: 'pass', duplicateFilter: 'pass' }, 500],
+        ['vep', 'vep', 'Case 판정 · 고객 문구', `WNG master ${wng.code} → ${K.label}(Case ${wng.case}) · 고객용 문구 매핑`, { dataLabel: wng.code, warningName: wng.name, case: wng.case, owner: K.owner, customerMessage: custText, source: wng.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master v8.2' }, 500],
         // one judgement: TSP sends it to e-Care (CCW) and the service center (DMS) itself, and the
         // customer's text back to VDP, which delivers it to the car and the phone
         // Case B / C go to the service center only, not the support center
-        ...(wng.case === 'A' ? [['vep', 'ccw', 'e-Care 이벤트', 'CCW 긴급 케이스 등록 · 인바운드 대기 25:00', { caseId: id, case: wng.case, vin: VEHICLE.vin, warning: wng.name }, 1400, { burst: B, deliver: 'ccw' }]] : []),
-        ['vep', 'dms', 'DMS 이벤트', `경고 이벤트 · ${K.label} · 첫 컨택 SLA ${K.slaText}`, { vin: VEHICLE.vin, wngInfo: [{ wngId: wng.code, wngName: wng.name, grade: wng.case }], thresholdMinutes: K.sla / 60000 }, wng.case === 'A' ? 0 : 1400, { burst: B, deliver: 'dms' }],
+        ...(wng.case === 'A' ? [['vep', 'ccw', 'e-Care 이벤트', 'CCW 긴급 케이스 등록 · 인바운드 대기 25:00', { caseId: id, case: wng.case, vin: VEHICLE.vin, warning: wng.name }, 600, { burst: B, deliver: 'ccw' }]] : []),
+        ['vep', 'dms', 'DMS 이벤트', `경고 이벤트 · ${K.label} · 첫 컨택 SLA ${K.slaText}`, { vin: VEHICLE.vin, wngInfo: [{ wngId: wng.code, wngName: wng.name, grade: wng.case }], thresholdMinutes: K.sla / 60000 }, wng.case === 'A' ? 0 : 800, { burst: B, deliver: 'dms' }],
         ['vep', 'vdp', '고객 알림 요청', `고객 문구 → VDP · 차량 · 휴대폰 발송 요청`, { vin: VEHICLE.vin, customerMessage: custText, targets: ['헤드유닛', 'Global App'] }, 0, { burst: B }],
-        ['vdp', 'car', '헤드유닛 알림', `HU 경고 팝업 “${popup}”`, { popup: custText, case: wng.case }, TRAVEL + 300, { burst: B + 'v', deliver: 'car' }],
+        ['vdp', 'car', '헤드유닛 알림', `HU 경고 팝업 “${popup}”`, { popup: custText, case: wng.case }, TRAVEL, { burst: B + 'v', deliver: 'car' }],
         ['vdp', 'phone', '앱 푸시', `고객 앱 알림 · ${wng.name}`, { push: custText }, 0, { burst: B + 'v', deliver: 'phone' }],
       ];
       this.flow(c, steps);
@@ -729,6 +729,8 @@
       if (!c || c.dispatch >= 2) return;
       if (!c.rescueShown) this.rescue(c);
       this.dispatchStep(c, 2, '긴급출동 도착(목적지도착) · 고객 차량 앞 정차 · 견인 준비');
+      // the truck has pulled up: the car is switched off (engine and flashers) for the tow
+      this.after(12000, () => { if (this.hooks.tow) this.hooks.tow(c); });
       this.after(20000, () => this.dispatchStep(c, 3, '긴급출동 출동완료 · 견인 후 서비스센터 이동'));
     }
 
@@ -810,6 +812,7 @@
       if (!c.dcall || c.dcall.state !== 'ended') this.finishDealer(c);
       if (c.dms < 2) this.dealerConfirm(c);
       c.towing = Date.now();
+      if (this.hooks.tow) this.hooks.tow(c);
       if (c.dispatch < 3) { c.dispatch = 3; this.log(c, '긴급출동 출동완료 · 견인 후 서비스센터 이동', 'alert'); }
       this.log(c, `견인 입고 · 긴급출동 → ${c.dealer}`, 'flow');
       this.flow(c, [['rescue', 'dms', '견인 입고', `견인차 → ${c.dealer} 차량 운송 (현장)`, { from: '고객 차량 위치', to: c.dealer }, 0, { field: true }]]);
@@ -892,7 +895,7 @@
   }
   function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v7', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
-  const TRAVEL = 1800;          // a message's trip across the data flow board, ms
+  const TRAVEL = 1400;          // a message's trip across the data flow board, ms
   /* The case's journey in six steps, shared by the data flow screens. */
   const JOURNEY = ['경고 감지 · 판정', '고객 연결', '상담 · 긴급출동', '서비스센터 이관', '딜러 후속 통화', '입고 · 정비 · 종결'];
   // one plain sentence per step, for the audience
@@ -952,5 +955,5 @@
     return cases.length === snap.cases.length && cases.every((c, i) => c === snap.cases[i]) ? snap : { ...snap, cases, active: cases.some((c) => c.id === snap.active) ? snap.active : (cases[0] && cases[0].id) || null };
   }
 
-  window.ECare = { JOURNEY, gate, JOURNEY_PLAIN, journey, stageOfFlow, SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
+  window.ECare = { TRAVEL, JOURNEY, gate, JOURNEY_PLAIN, journey, stageOfFlow, SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();
