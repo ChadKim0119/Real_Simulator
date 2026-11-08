@@ -14,7 +14,7 @@
   // the climate band under the screen, from a photo of the real 14" unit: a separate
   // high-resolution layer (hu_band.webp, BAND.k pixels per plate pixel) so it stays sharp
   const BAND = { x: 1186, y: 280, k: 3.6, src: 'assets/hu_band.webp?v=2' };
-  // hand_call.webm (the driver: a woman's hand, cream knit sleeve): fingertip on the button at
+  // hand_call.webm (a woman's hand, cream knit sleeve; hand_call_m.webm is a man's): fingertip on the button at
   // this second; aspect of the view it was shot on; where the pad of the index finger is in the
   // clip at that moment (share of its width / height) — the layer is placed so it lands on the
   // middle of [전화 연결] on the head unit
@@ -713,6 +713,16 @@
   let handHold = false;
   function initHand() {
     const HAND = { src: 'assets/hand_call.webm?v=2', contact: HAND_CONTACT, ar: HAND_AR };
+    // two drivers' hands, both filmed on the same head-unit view and touching at the same second:
+    // a man's (dark sleeve) for a male customer's call, a woman's (cream knit) for a female one's;
+    // tip: where the pad of the index finger is at the touch (share of the frame)
+    const HANDS = {
+      m: { src: 'assets/hand_call_m.webm?v=2', tip: { x: 662 / 1680, y: 303 / 712 } },
+      f: { src: HAND.src, tip: HAND_TIP },
+    };
+    // the customer's voice of the inbound set picked: the Case A recording and the auxiliary set are men
+    const handKind = () => ((director.pick && director.pick.in) === 'in2' ? 'f' : 'm');
+    let tip = HANDS.m.tip;
     const R = { h: HU_VIEW.h, w: HU_VIEW.h * HAND.ar, x: 0, y: 0 };
     // the button's middle on the plate: read from the head unit screen (design px → plate px)
     const aim = () => {
@@ -722,13 +732,14 @@
         if (b) { const r = b.getBoundingClientRect(); bx = r.left + r.width / 2; by = r.top + r.height / 2; }
       } catch (e) { /* not loaded */ }
       const px = HU_SCREEN.x + bx * huLayer.k, py = HU_SCREEN.y + by * huLayer.k;
-      R.x = px - HAND_TIP.x * R.w; R.y = py - HAND_TIP.y * R.h;
+      R.x = px - tip.x * R.w; R.y = py - tip.y * R.h;
     };
     aim();
     const vid = document.createElement('video');
     vid.id = 'huHand';
     vid.muted = true; vid.playsInline = true; vid.preload = 'auto';
-    vid.src = HAND.src;
+    const useHand = (k) => { if (vid.dataset.k === k) return; vid.dataset.k = k; vid.src = HANDS[k].src; tip = HANDS[k].tip; };
+    useHand(handKind());
     document.body.appendChild(vid);
     let vw = 0, vh = 0, busy = false;
     vid.addEventListener('loadedmetadata', () => { vw = vid.videoWidth; vh = vid.videoHeight; });
@@ -762,7 +773,8 @@
       // the hand only moves once the camera is on the head unit AND the popup is up there:
       // the finger never reaches an empty screen (the popup can come a moment after the warning)
       popSince = 0;
-      for (let i = 0; i < 100 && !(ready() && popReady()); i++) {
+      useHand(handKind());                      // this customer's hand (loaded while the popup settles)
+      for (let i = 0; i < 100 && !(ready() && popReady() && vid.readyState >= 3); i++) {
         if (i % 10 === 5) Link.send('hu', { action: 'show' });
         await new Promise((r) => setTimeout(r, 100));
       }
