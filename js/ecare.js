@@ -285,17 +285,19 @@
       const K = CASE[wng.case];
       const popup = wng.case === 'A' ? '고객 지원실로 연결하시겠습니까?' : '지정된 서비스센터로 연결하시겠습니까?';
       const custText = `${wng.name} 경고가 감지되었습니다. ${popup}`;
+      const dtc = { dtcCode: c.warn.dtc || 'P0600', system: c.warn.sys || wng.name, description: c.warn.mid || wng.name, status: 'CONFIRMED' };
       const B = 'w' + id;
       const steps = [
-        ['car', 'vdp', 'WNG', `경고 발생 · ${wng.code}`, info, 0],
-        ['vdp', 'vep', 'VDP 이벤트', 'WNG 이벤트 전달 (VDP → TSP)', { messageId: String(Date.now()).slice(-10), wngInfo: [info] }, 700],
+        // the car sends the warning lamp (WNG) together with the diagnostic trouble code (DTC)
+        ['car', 'vdp', 'WNG · DTC', `경고 발생 · ${wng.code} + DTC ${dtc.dtcCode}`, { ...info, dtcInfo: [dtc] }, 0],
+        ['vdp', 'vep', 'VDP 이벤트', 'WNG · DTC 이벤트 전달 (VDP → TSP)', { messageId: String(Date.now()).slice(-10), wngInfo: [info], dtcInfo: [dtc] }, 700],
         ['vep', 'vep', '필터 검사', 'VIN · 정비 · 중복 필터 통과', { vinFilter: 'pass', maintenanceFilter: 'pass', duplicateFilter: 'pass' }, 500],
         ['vep', 'vep', 'Case 판정 · 고객 문구', `WNG master ${wng.code} → ${K.label}(Case ${wng.case}) · 고객용 문구 매핑`, { dataLabel: wng.code, warningName: wng.name, case: wng.case, owner: K.owner, customerMessage: custText, source: wng.assumed ? '시뮬레이터 가정 (master 미등록)' : 'WNG master v8.2' }, 500],
         // one judgement: TSP sends it to e-Care (CCW) and the service center (DMS) itself, and the
         // customer's text back to VDP, which delivers it to the car and the phone
         // Case B / C go to the service center only, not the support center
         ...(wng.case === 'A' ? [['vep', 'ccw', 'e-Care 이벤트', 'CCW 긴급 케이스 등록 · 인바운드 대기 25:00', { caseId: id, case: wng.case, vin: VEHICLE.vin, warning: wng.name }, 600, { burst: B, deliver: 'ccw' }]] : []),
-        ['vep', 'dms', 'DMS 이벤트', `경고 이벤트 · ${K.label} · 첫 컨택 SLA ${K.slaText}`, { vin: VEHICLE.vin, wngInfo: [{ wngId: wng.code, wngName: wng.name, grade: wng.case }], thresholdMinutes: K.sla / 60000 }, wng.case === 'A' ? 0 : 800, { burst: B, deliver: 'dms' }],
+        ['vep', 'dms', 'DMS 이벤트', `경고 이벤트 · ${K.label} · 첫 컨택 SLA ${K.slaText}`, { vin: VEHICLE.vin, wngInfo: [{ wngId: wng.code, wngName: wng.name, grade: wng.case }], dtcInfo: [dtc], thresholdMinutes: K.sla / 60000 }, wng.case === 'A' ? 0 : 800, { burst: B, deliver: 'dms' }],
         ['vep', 'vdp', '고객 알림 요청', `고객 문구 → VDP · 차량 · 휴대폰 발송 요청`, { vin: VEHICLE.vin, customerMessage: custText, targets: ['헤드유닛', 'Global App'] }, 0, { burst: B }],
         ['vdp', 'car', '헤드유닛 알림', `HU 경고 팝업 “${popup}”`, { popup: custText, case: wng.case }, TRAVEL, { burst: B + 'v', deliver: 'car' }],
         ['vdp', 'phone', '앱 푸시', `고객 앱 알림 · ${wng.name}`, { push: custText }, 0, { burst: B + 'v', deliver: 'phone' }],
@@ -350,7 +352,7 @@
     dmsAdvance(c) {
       if (!c || c.dms < 0 || c.dmsStop || c.dms >= 7) return;
       c.dmsManual = true;
-      const next = { 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 7, 6: 7 }[c.dms];
+      const next = { 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 6, 6: 7 }[c.dms];      // … 정비 완료 → 고객 인도 → 종결
       c.dmsAt = c.dmsAt || {};
       if (next === 1) (c.contacts = c.contacts || []).push({ n: (c.contacts || []).length + 1, t: Date.now(), method: '전화', result: '컨택', reply: '예약대기', memo: '', agent: SERVICE_ADVISOR });
       if (next === 2) c.reservation = c.reservation || { center: c.dealer, route: '전화', at: nextSlot() };
@@ -863,11 +865,16 @@
   /** What the service center reports: each stage goes to TSP (DMS 상태), the e-Care agent
    *  looks it up there; the dealer talks to the customer directly, there is no app step.
    *  Kept simple on the board: 예약 (컨택 포함) · 입고 · 정비 · 정비완료 · 고객인도 · 종결. */
-  const DMS_LABEL = { 2: '컨택 · 예약 확정', 3: '입고', 4: '정비 진행', 5: '정비 완료', 7: '고객 인도 · 정비 종결' };
+  const DMS_LABEL = { 2: '컨택 · 예약 확정', 3: '입고', 4: '정비 진행', 5: '정비 완료', 6: '고객 인도', 7: '정비 종결 · e-Care 과업 종료' };
+  // what the service center did to the car (DMS → TSP with the repair states)
+  const REPAIR_ITEMS = (c) => [`DTC ${(c.warn && c.warn.dtc) || ''} 정밀 진단`, '엔진오일 압력 센서 교체', '엔진오일 · 오일필터 교환', 'DTC 소거 · 시운전 확인'];
   function dmsBack(c, k, note) {
     if (!DMS_LABEL[k]) return [];
     const r = c.reservation;
-    const pl = { vin: VEHICLE.vin, repairStatus: k === 7 ? 'DELIVERED → CLOSED' : DMS_CODE[k], repairStatusName: k === 7 ? '고객인도 · 종결' : DMS[k], centerName: c.dealer };
+    const pl = { vin: VEHICLE.vin, repairStatus: DMS_CODE[k], repairStatusName: DMS[k], centerName: c.dealer };
+    if (k === 4 || k === 5) pl.repairItems = REPAIR_ITEMS(c);
+    if (k === 6) Object.assign(pl, { deliveredAt: stamp(Date.now()), deliveredTo: CUSTOMER.name, customerConfirm: 'SIGNED', advisor: SERVICE_ADVISOR });
+    if (k === 7) Object.assign(pl, { closedAt: stamp(Date.now()), ecareTask: 'CLOSED' });
     if (k === 2 && r) Object.assign(pl, { reservationAt: stamp(r.at), visit: '견인 입고 (오늘)', advisor: SERVICE_ADVISOR });
     const lb = k === 2 && r ? `${DMS_LABEL[k]} · ${ymd(r.at)} ${hm(r.at).slice(0, 5)} 점검 · 오늘 견인 입고` : DMS_LABEL[k];
     return [['dms', 'vep', 'DMS 상태', `${lb}${note ? ' · ' + note : ''}`, pl, 0, k === 7 && c.kind === 'emergency' ? { deliver: 'closed' } : null]];
@@ -955,5 +962,5 @@
     return cases.length === snap.cases.length && cases.every((c, i) => c === snap.cases[i]) ? snap : { ...snap, cases, active: cases.some((c) => c.id === snap.active) ? snap.active : (cases[0] && cases[0].id) || null };
   }
 
-  window.ECare = { TRAVEL, JOURNEY, gate, JOURNEY_PLAIN, journey, stageOfFlow, SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
+  window.ECare = { TRAVEL, REPAIR_ITEMS, JOURNEY, gate, JOURNEY_PLAIN, journey, stageOfFlow, SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
 })();

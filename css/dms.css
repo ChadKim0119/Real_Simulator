@@ -285,3 +285,31 @@ table.hist td.empty { color: var(--t3); }
 .card.calling { box-shadow: 0 0 0 3px #ffb02e, 0 0 24px rgba(255, 176, 46, 0.45); }
 .share { padding: 8px 12px; border-radius: 10px; background: #eef4ff; color: #2a5db0; font-size: 13.5px; font-weight: 800; }
 .share.ok { background: #e8f7ee; color: #1f7a45; }
+.wfband ol { grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.wfband li b { font-size: 17px; }
+/* the repair on the live card: a short checklist ticking through */
+.rep { list-style: none; margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: #f3fbf5; border: 1px solid #bfe5c9; display: grid; gap: 4px; }
+.rep li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; color: #7c8a80; }
+.rep li i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; background: #e5ece7; color: #fff; flex: none; }
+.rep li.ok { color: #1f5a31; } .rep li.ok i { background: #3fae63; }
+.rep li.cur { color: #8a4b00; } .rep li.cur i { background: #ffb02e; animation: wfb 0.9s infinite; }
+/* the hand-over: the car goes back to the customer, then the case closes */
+.handover { flex: none; display: grid; grid-template-columns: 330px 1fr 360px; align-items: center; gap: 22px; padding: 18px 24px; border-radius: 18px;
+  background: linear-gradient(100deg, #12351f, #1d4a2c); color: #fff; box-shadow: 0 10px 30px rgba(18, 53, 31, 0.3); animation: hoIn 0.8s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes hoIn { from { opacity: 0; transform: translateY(-14px) scale(0.98); } }
+.handover .lv { display: inline-block; padding: 4px 12px; border-radius: 999px; background: #ffcf7a; color: #2b1a05; font-size: 15px; font-weight: 800; }
+.handover.closed .lv { background: #8ff0b3; color: #0d2a17; }
+.handover .hl b { display: block; margin-top: 8px; font: 800 28px "Barlow", "Pretendard", sans-serif; }
+.handover .hl small { display: block; margin-top: 4px; font-size: 15px; color: #c8e6d1; }
+.handover .hw { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+.handover .hw li { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; color: #e8f6ec; }
+.handover .hw li i { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 14px; background: #3fae63; flex: none; }
+.handover .hs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.handover .sig, .handover .stamp { padding: 10px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); }
+.handover .sig small, .handover .stamp small { display: block; font-size: 13px; color: #c8e6d1; }
+.handover .sig b { display: block; margin-top: 2px; font: 700 24px "Nanum Pen Script", "Pretendard", cursive; font-style: italic; }
+.handover .sig em { display: block; font-style: normal; font-size: 13px; color: #8ff0b3; font-weight: 700; }
+.handover .stamp b { display: block; font-size: 22px; font-weight: 800; color: #ffcf7a; }
+.handover .stamp.on { border-color: #8ff0b3; background: rgba(143, 240, 179, 0.16); animation: stampIn 0.7s cubic-bezier(.2,1.6,.4,1) both; }
+.handover .stamp.on b { color: #8ff0b3; }
+@keyframes stampIn { from { transform: scale(1.4); opacity: 0; } }

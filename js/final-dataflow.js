@@ -64,6 +64,8 @@
     const grp = [f];
     while (f.burst && queue.length && queue[0].burst === f.burst) grp.push(queue.shift());
     showT = Date.now();
+    // one soft tone per message (a burst sent at once is one); the detail board plays its own
+    if (!detailOn && window.FlowSfx) FlowSfx.send(f, f.deliver || f.burst ? E.TRAVEL : 1400);
     const m = $('#msg');
     m.classList.remove('idle');
     const to = f.to === f.from ? f.to : f.to;
@@ -270,11 +272,14 @@
     // the three screens at this message, and which of them it goes to
     const id = shotFor(f, k);
     const sk = stills && stills.length ? (stills.find((x) => x.id === id) || {}).key : null;
-    if (sk && sk + id !== shotKey) {
-      shotKey = sk + id;
+    // the warning reaching the car is the head unit's popup (not the cluster)
+    const huAlert = id === 'warning' && grp.some((x) => x.to === 'car' || x.to === 'phone');
+    if (sk && sk + id + huAlert !== shotKey) {
+      shotKey = sk + id + huAlert;
       const huZoomed = ['warning', 'incoming', 'call', 'dispatch', 'sla25', 'outbound', 'outcall'].includes(id);
       const set = (who, file, pos) => { const el = $(`#shots [data-who="${who}"] .img`); el.style.opacity = 0; setTimeout(() => { el.style.backgroundImage = `url(assets/test/stills-63/${sk}_${file}.jpg)`; el.style.backgroundSize = pos ? pos[0] : 'cover'; el.style.backgroundPosition = pos ? pos[1] : 'center'; el.style.opacity = 1; }, 220); };
-      set('car', 'car', huZoomed ? null : ['250% auto', '80% 20%']);      // a full cockpit: the head unit up close
+      if (huAlert) set('car', 'hu');
+      else set('car', 'car', huZoomed ? null : ['250% auto', '80% 20%']);      // a full cockpit: the head unit up close
       set('ccw', 'ccw'); set('dms', 'dms');
     }
     const to = new Set(grp.map((x) => (x.to === 'cti' ? 'ccw' : x.to === 'phone' ? 'car' : x.to)));
@@ -286,7 +291,7 @@
     if (!f) return SHOT_ID[Math.max(0, k)];
     const a = f.api, st = (f.payload && f.payload.repairStatus) || '';
     if (a === '견인 입고') return 'towin';
-    if (a === 'DMS 상태') { const s2 = (f.payload && f.payload.repairStatus) || ''; return /RESERVED/.test(s2) ? 'dealer' : /RECEIVED/.test(s2) ? 'towin' : /CLOSED/.test(s2) ? 'done' : 'repair'; }
+    if (a === 'DMS 상태') { const s2 = (f.payload && f.payload.repairStatus) || ''; return /RESERVED/.test(s2) ? 'dealer' : /RECEIVED/.test(s2) ? 'towin' : /CLOSED|DELIVERED/.test(s2) ? 'done' : 'repair'; }
     if (/딜러/.test(a)) return 'dealer';
     if (/WNG|VDP 이벤트|필터|Case 판정|e-Care 이벤트|DMS 이벤트|고객 알림 요청|앱 푸시/.test(a) || (a === '헤드유닛 알림' && !/출동/.test(f.label))) return 'warning';
     if (/헤드유닛 콜|콜 배정|자동 할당/.test(a)) return 'incoming';
@@ -315,6 +320,12 @@
   Link.on('ecare', (d) => {
       if (!d || !d.cases) return;
     snap = d; ingest(); renderJourney(); renderSys();
+    // a call is up (customer ↔ agent, or the dealer ↔ customer): a calm pad under the voices
+    if (window.FlowSfx) {
+      const live = (d.cases || []).some((c) => (c.call && c.call.state === 'connected') || (c.dcall && c.dcall.state === 'connected')) || (d.general && d.general.state === 'connected');
+      FlowSfx.setCall(live);
+      if (!(d.cases || []).length) FlowSfx.reset();
+    }
     const n = (d.flows || []).length;
     if (n !== saveN) { saveN = n; saveRun(); if (ctl && !recorded) feed(); }
   });

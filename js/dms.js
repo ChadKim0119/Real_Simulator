@@ -199,6 +199,10 @@
     else if (r.stage === 2 && r.reservation) mid = `<dl class="resv"><dt>고객명</dt><dd>${r.live ? esc(E.CUSTOMER.name) : '고객'}</dd><dt>예약경로</dt><dd><em class="route ${r.reservation.route === 'AICC' ? 'aicc' : ''}">${esc(r.reservation.route)}</em></dd><dt>실예약일시</dt><dd>${md(r.reservation.at)}</dd></dl>`;
     const c = r.live && r.c;
     const dc = c && c.dcall;
+    if (c && c.dms >= 4) {
+      const items = E.REPAIR_ITEMS(c), doneN = c.dms >= 5 ? items.length : 2;
+      mid = `<ul class="rep">${items.map((t, i) => `<li class="${i < doneN ? 'ok' : i === doneN ? 'cur' : ''}"><i>${i < doneN ? '✓' : ''}</i>${esc(t)}</li>`).join('')}</ul>`;
+    }
     if (dc && dc.state !== 'ended') mid = `<div class="callchip ${dc.state === 'connected' ? 'on' : ''}"><i></i>${dc.state === 'connected' ? '고객과 통화 중' : '고객 휴대폰 발신 중…'}<b data-dcall-t>${dc.state === 'connected' ? E.mmss(Date.now() - dc.connectedAt) : ''}</b></div>` + mid;
     const share = c && c.dms >= 2 ? `<div class="share ${c.done ? 'ok' : ''}">${c.done ? '✓ 종결 · TSP 기록 완료' : `→ TSP 상태 기록 · ${E.DMS[c.dms]}`}</div>` : '';
     return `<div class="card ${r.stopInfo ? 'stopped' : ''} ${warn ? 'warnb' : ''} ${r.live ? 'live' : ''} ${dc && dc.state === 'connected' ? 'calling' : ''}" data-open="${r.id}">
@@ -209,25 +213,39 @@
       ${r.stage < 2 || r.stopInfo ? `<div class="cf"><span>발생 후 경과</span><b>${span(Date.now() - r.at)}</b></div>` : ''}</div>`;
   }
   /* the live e-Care case across the top of the card view: where it is in the center's work */
-  const FW = [['e-Care 이관 접수', '상담 메모 · 컨택대기'], ['딜러 → 고객 통화 · 예약', '안심 안내 · 내일 10:00 점검'], ['견인 입고', '견인차 → 센터 · 입고 접수'], ['정비 → 고객 인도 · 종결', '단계마다 DMS → TSP']];
+  const FW = [['e-Care 이관 접수', '상담 메모 · 컨택대기'], ['딜러 → 고객 통화 · 예약', '안심 안내 · 내일 10:00 점검'], ['견인 입고', '견인차 → 센터 · 입고 접수'], ['정비 진행 → 완료', '진단 · 부품 교체 · 시운전'], ['고객 인도 · 종결', '인도 확인 → TSP · 과업 종료']];
   function flowBand(all) {
     const r = all.find((x) => x.live && !x.pending && x.c && x.c.kind === 'emergency');
     if (!r) return `<div class="wfband idle"><div class="wl"><span class="lv">서비스센터 업무 흐름</span><b>e-Care 이관 건 대기</b><small>e-Care 고객지원실에서 이관되면 이 흐름을 따라 진행됩니다</small></div>
       <ol>${FW.map(([t, d], i) => `<li><i>${i + 1}</i><b>${t}</b><small>${d}</small></li>`).join('')}</ol></div>`;
     const c = r.c, dc = c.dcall;
-    const st = ['done', !dc ? 'cur' : dc.state === 'ended' && c.dms >= 2 ? 'done' : 'cur', c.dms >= 3 ? 'done' : c.towing ? 'cur' : '', c.done || c.dms >= 7 ? 'done' : c.dms >= 3 ? 'cur' : ''];
+    const st = ['done', !dc ? 'cur' : dc.state === 'ended' && c.dms >= 2 ? 'done' : 'cur', c.dms >= 3 ? 'done' : c.towing ? 'cur' : '', c.dms >= 5 ? 'done' : c.dms >= 3 ? 'cur' : '', c.done || c.dms >= 7 ? 'done' : c.dms >= 5 ? 'cur' : ''];
+    const NOW = { 3: ['입고 접수', '견인 차량 도착 · 정비 대기'], 4: ['정비 진행', `DTC ${(c.warn && c.warn.dtc) || ''} 진단 · 센서 교체`], 5: ['정비 완료', '시운전 확인 · 고객 인도 준비'], 6: ['고객 인도', `${E.CUSTOMER.name} 고객 · 차량 인도 확인`] };
     const now = !dc ? ['고객 연락 대기', '서비스 어드바이저가 고객에게 전화할 차례'] : dc.state === 'dialing' ? ['고객 휴대폰 발신 중…', `${SERVICE_ADVISOR} 어드바이저 → ${E.CUSTOMER.name} 고객`]
-      : dc.state === 'connected' ? ['고객과 통화 중', '안심 안내 · 입고 예약'] : c.done || c.dms >= 7 ? ['고객 인도 · 정비 종결', 'e-Care 과업 종료 · TSP 기록'] : c.dms >= 3 ? [E.DMS[c.dms], 'DMS → TSP 상태 기록'] : c.towing ? ['견인 입고 중', '견인차 → 강남 서비스센터'] : ['입고 예약 확정', '오늘 견인 입고 · 내일 10:00 점검'];
+      : dc.state === 'connected' ? ['고객과 통화 중', '안심 안내 · 입고 예약'] : c.done || c.dms >= 7 ? ['정비 종결', 'e-Care 과업 종료 · TSP 기록'] : NOW[c.dms] ? NOW[c.dms] : c.towing ? ['견인 입고 중', '견인차 → 강남 서비스센터'] : ['입고 예약 확정', '오늘 견인 입고 · 내일 10:00 점검'];
     return `<div class="wfband ${dc && dc.state === 'connected' ? 'calling' : ''}" data-open="${r.id}"><div class="wl"><span class="lv"><i></i>e-Care 실시간 이관 건</span><b>${esc(r.model)} · ${esc(r.plate)}</b><small>${esc(E.CUSTOMER.name)} 고객 · ${esc(r.wname)} (${GRADE[r.g].k})</small></div>
       <ol>${FW.map(([t, d], i) => `<li class="${st[i]}"><i>${st[i] === 'done' ? '✓' : i + 1}</i><b>${t}</b><small>${d}</small></li>`).join('')}</ol>
       <div class="wr"><b>${now[0]}${dc && dc.state === 'connected' ? ` <span data-dcall-t>${E.mmss(Date.now() - dc.connectedAt)}</span>` : ''}</b><small>${now[1]}</small></div></div>`;
+  }
+  /* the last scene: the car goes back to the customer — what was done, who took it, the close */
+  function handover(all) {
+    const r = all.find((x) => x.live && x.c && x.c.kind === 'emergency' && x.c.dms >= 6);
+    if (!r) return '';
+    const c = r.c, closed = c.done || c.dms >= 7;
+    const t6 = (c.dmsAt && c.dmsAt[6]) || Date.now(), t7 = c.dmsAt && c.dmsAt[7];
+    return `<section class="handover ${closed ? 'closed' : ''}">
+      <div class="hl"><span class="lv">${closed ? '정비 종결' : '고객 인도'}</span><b>${esc(r.model)} · ${esc(r.plate)}</b><small>${esc(E.CUSTOMER.name)} 고객 · 담당 ${SERVICE_ADVISOR} 어드바이저 · ${esc(c.dealer || '강남 서비스센터')}</small></div>
+      <ol class="hw">${E.REPAIR_ITEMS(c).map((t) => `<li><i>✓</i>${esc(t)}</li>`).join('')}</ol>
+      <div class="hs"><div class="sig"><small>인도 확인</small><b>${esc(E.CUSTOMER.name)}</b><em>✓ 서명 완료 · ${E.hm(t6).slice(0, 5)}</em></div>
+        <div class="stamp ${closed ? 'on' : ''}"><b>${closed ? '종결' : '인도 중'}</b><small>${closed ? `DMS → TSP 기록 · e-Care 과업 종료${t7 ? ' · ' + E.hm(t7).slice(0, 5) : ''}` : '인도 확인 후 종결 → TSP'}</small></div></div>
+    </section>`;
   }
   function cardView(all) {
     const col = (title, ks, extra) => {
       const rs = all.filter((r) => ks.includes(stageKey(r))).sort((a, b) => (b.live - a.live) || ((sla(a).left <= D) - (sla(b).left <= D)) * -1 || a.at - b.at);
       return `<section class="kcol"><h3><i></i>${title} <b>${rs.length}</b>${extra(rs)}</h3><div class="kbody">${rs.map(card).join('') || '<p class="empty">해당 건 없음</p>'}</div></section>`;
     };
-    return `${flowBand(all)}<div class="kanban">
+    return `${flowBand(all)}${handover(all)}<div class="kanban">
       ${col('① 컨택대기', [0], (rs) => { const o = rs.filter((r) => !r.pending && sla(r).over).length, n = rs.filter((r) => !r.pending && !sla(r).over && sla(r).left <= D).length; return `${o ? `<em class="exp">만료 ${o}</em>` : ''}${n ? `<em class="near">임박 ${n}</em>` : ''}`; })}
       ${col('② 고객 통화 · 예약대기', [1, 'stop'], (rs) => { const st = rs.filter((r) => r.stopInfo).length; return st ? `<em class="stp">중단 ${st}</em>` : ''; })}
       ${col('③ 예약 확정', [2], (rs) => { const a = rs.filter((r) => r.reservation && r.reservation.route === 'AICC').length; return a ? `<em class="aic">AICC ${a}</em>` : ''; })}

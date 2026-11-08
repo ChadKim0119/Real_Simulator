@@ -138,8 +138,10 @@
   // after the dealer's call: the tow truck brings the car in, the repair, then the car goes back to
   // the customer and the case closes — each stage DMS → TSP; the e-Care task ends at the close
   const TOW_IN = { t: '견인 입고 · 서비스센터 접수', cue: '“긴급출동 견인차가 차량을 강남 서비스센터로 옮기고, 서비스센터가 입고를 접수합니다. 상태는 DMS에서 TSP로 기록되고, 상담원은 조회로 확인합니다.”', run: [['cmd', 'towIn']], until: 'recv', pause: 1500 };
-  // the repair and the hand-over in one step: 정비 → 정비 완료 → 고객 인도 · 종결 (the e-Care task ends)
-  const REPAIR_CLOSE = { t: '정비 → 고객 인도 · 정비 종결', cue: '“서비스센터에서 정비를 마치고 고객에게 차량을 인도한 뒤 종결합니다. 단계마다 DMS → TSP로 기록되고, 종결이 도착하면 e-Care 과업이 끝납니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 1600], ['cmd', 'dmsAdvance'], ['wait', 1600], ['cmd', 'dmsAdvance']], until: 'done', pause: 9000 };
+  // the repair (정비 진행 → 정비 완료), then the last scene: the car goes back to the customer and
+  // the case closes (고객 인도 → 종결 · the e-Care task ends) — each state DMS → TSP
+  const REPAIR = { t: '정비 진행 → 정비 완료', cue: '“서비스센터가 DTC로 정밀 진단하고 엔진오일 압력 센서를 교체합니다. 오일 · 필터 교환과 시운전까지 마치면 정비 완료입니다. 상태는 DMS → TSP로 기록됩니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 2200], ['cmd', 'dmsAdvance']], until: 'repDone', pause: 3000 };
+  const HANDOVER = { t: '고객 인도 · 정비 종결', cue: '“정비를 마친 차량을 김지현 고객에게 인도합니다. 고객이 인도를 확인하면 서비스센터가 종결하고, 종결이 TSP에 기록되면 e-Care 과업이 끝납니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 5000], ['cmd', 'dmsAdvance']], until: 'done', pause: 9000 };
   // the end: the recap ceremony stays up until [다음]; then the end message and silence everywhere
   const SIM_END = { t: 'e-Care 시뮬레이션 종료', cue: '종료 메시지를 띄우고 모든 소리(시동 · 비상등 · 콜센터 소음)를 멈춥니다. 처음부터 다시 하려면 [초기화] 또는 시나리오를 다시 고릅니다.', run: [['hush'], ['scene', 'end']] };
   // the rescue truck the agent called pulls up in front of the customer's car (car panel scene)
@@ -155,7 +157,7 @@
         { t: '상담원 전화 받기 · 통화 · 긴급출동', cue: '“상담원이 전화를 받습니다. 차량 위치와 진단 정보가 이미 화면에 있습니다.” 위치 확인 → 정차 · 비상등 안내 → 긴급출동 요청 → 선호 서비스센터 진행 동의 · 연락처 확인 · 추가 전달 사항 → 출동 기사와 서비스센터가 연락드린다는 안내로 통화를 마칩니다. 통화가 끝나면 출동 차량이 도착합니다.', run: [['ensure', 'call']], until: 'callEnd', pause: 2500, long: true },
         { t: '상담 완료 · 서비스센터 이관', cue: '“견인 전에 상담 메모가 서비스센터 DMS로 이관됩니다. 서비스센터 화면에 컨택대기로 뜨고 첫 컨택 SLA가 시작됩니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 3000 },
         ARRIVE,
-        DEALER_CALL, TOW_IN, REPAIR_CLOSE, SIM_END,
+        DEALER_CALL, TOW_IN, REPAIR, HANDOVER, SIM_END,
       ],
     },
     {
@@ -166,7 +168,7 @@
         { t: '상담원 전화 걸기 · 통화', cue: '“상담원이 고객 휴대전화로 전화를 겁니다.” 고객 휴대전화가 울리고 통화가 자막으로 흐릅니다. 통화 중 긴급출동을 요청하고, 출동 기사가 직접 연락한다고 안내합니다.', run: [['act', 'accept'], ['ensure', 'call']], until: 'callEnd', pause: 2500, long: true },
         { t: '상담 완료 · 서비스센터 이관', cue: '“같은 방식으로 견인 전에 상담 메모가 서비스센터 DMS로 넘어갑니다.”', run: [['act', 'complete']], until: 'dmsIn', pause: 6000 },
         ARRIVE,
-        DEALER_CALL, TOW_IN, REPAIR_CLOSE, SIM_END,
+        DEALER_CALL, TOW_IN, REPAIR, HANDOVER, SIM_END,
       ],
     },
     {

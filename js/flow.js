@@ -372,6 +372,16 @@
     launch(f);
     replay.lastGroup = [f];
     while (f.burst && replay.i < replay.list.length && replay.list[replay.i].burst === f.burst) { const x = replay.list[replay.i++]; shown.push(x); launch(x); replay.lastGroup.push(x); }
+    // TSP's customer text reaches VDP and goes straight on to the car and the phone: the
+    // relay is part of the same step, leaving VDP the moment the first packet lands there
+    const nx = replay.list[replay.i];
+    if (f.burst && nx && nx.burst === f.burst + 'v') {
+      const rg = [];
+      while (replay.i < replay.list.length && replay.list[replay.i].burst === nx.burst) rg.push(replay.list[replay.i++]);
+      rg.forEach((x) => { shown.push(x); replay.lastGroup.push(x); replay.last = x; });
+      const rp = replay;
+      setTimeout(() => { if (replay === rp) { rg.forEach((x) => launch(x)); renderLog(); } }, E.TRAVEL);
+    }
     renderLog();
     renderProg();
     notify();
@@ -406,6 +416,8 @@
     return { group: replay && replay.lastGroup ? replay.lastGroup : null, src: ext && !liveList().length ? 'recorded' : 'live', mode: replay ? (replay.step ? 'step' : 'play') : 'live', i: replay ? replay.i : list.length, n: list.length, last: replay ? replay.last : shown[shown.length - 1] || null, list, stage: replay ? replay.maxStep : (primary() ? stepOf(primary()).i : -1) };
   }
   /** the board as of message n (1 = the first): earlier paths drawn still, the n-th one animated */
+  // one step on the board: a burst, and the relay that continues it (VDP → car · phone)
+  const sameStep = (a, b) => !!(a && b && a.burst && b.burst && (b.burst === a.burst || b.burst === a.burst + 'v' || (a.burst.endsWith('v') && b.burst === a.burst)));
   function seek(n) {
     const list = replayList();
     if (!list.length) return;
@@ -414,7 +426,7 @@
     replay = { list, i: 0, step: true, maxStep: -1, last: null };
     // n counts messages; a burst is drawn whole
     let upto = n - 1;
-    while (upto > 0 && upto < list.length && list[upto - 1].burst && list[upto].burst === list[upto - 1].burst) upto--;
+    while (upto > 0 && upto < list.length && sameStep(list[upto - 1], list[upto])) upto--;
     for (let k = 0; k < upto; k++) {
       const f = list[k];
       if (f.from !== f.to) keep(f.from, f.to, f.wcase ? CASECOL[f.wcase] : BLUE);
@@ -435,7 +447,7 @@
     prev: () => {
       const st = ctlState(), L = st.list;
       let k = (st.mode === 'live' ? st.n : st.i) - 1;
-      while (k > 0 && L[k] && L[k].burst && L[k - 1].burst === L[k].burst) k--;
+      while (k > 0 && L[k] && sameStep(L[k - 1], L[k])) k--;
       seek(k);
     },
     /** the first message of journey step k */
@@ -529,7 +541,12 @@
 
   /* ---------------- packets ---------------- */
   const touched = {};
+  // the detail view of Final_Dataflow: each packet the presenter plays sounds once, softly
+  const sfxOn = () => { try { return EMBED && window.FlowSfx && parent.document.body.classList.contains('detail-on'); } catch (e) { return false; } };
+  let sfxBurst = '';
   function launch(f) {
+    if (sfxOn() && !(f.burst && f.burst === sfxBurst)) FlowSfx.play(f, f.deliver || f.burst ? E.TRAVEL : 1400);
+    sfxBurst = f.burst || '';
     const col = f.field ? FIELD_COL : f.wcase ? CASECOL[f.wcase] : BLUE;   // a vehicle moved (field) in amber
     touched[f.from] = touched[f.to] = true;
     counts[f.to] = (counts[f.to] || 0) + 1;
