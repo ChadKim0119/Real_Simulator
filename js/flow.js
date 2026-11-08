@@ -753,7 +753,7 @@
     for (const f of shown) {
       const a = f.api || '';
       if (a === '헤드유닛 콜') cc = { who: 'car', peer: 'ccw', live: false, label: '헤드유닛 콜' };
-      else if (a === '음성' || (a === '수신' && cc && cc.who === 'car')) cc = { who: 'car', peer: 'ccw', live: true, label: '차량 통화', at: null };
+      else if (a === '음성' || a === '통화 연결' || (a === '수신' && cc && cc.who === 'car')) cc = { who: 'car', peer: 'ccw', live: true, label: '차량 통화', at: null };
       else if (a === '발신' && f.to === 'phone') cc = { who: 'phone', peer: 'ccw', live: false, label: '휴대폰 통화' };
       else if (a === '응답' && f.from === 'phone') cc = { who: 'phone', peer: 'ccw', live: true, label: '휴대폰 통화' };
       else if (a === '딜러 발신') cc = { who: 'phone', peer: 'dms', live: false, label: '서비스센터 ↔ 고객 통화' };

@@ -13,7 +13,7 @@
   const HU_VIEW = { cx: 1447, cy: 262, w: 620, h: 350 };
   // the climate band under the screen, from a photo of the real 14" unit: a separate
   // high-resolution layer (hu_band.webp, BAND.k pixels per plate pixel) so it stays sharp
-  const BAND = { x: 1186, y: 280, k: 3.6, src: 'assets/hu_band.webp' };
+  const BAND = { x: 1186, y: 280, k: 3.6, src: 'assets/hu_band.webp?v=2' };
   // hand_call.webm (the driver: a woman's hand, cream knit sleeve): fingertip on the button at
   // this second; aspect of the view it was shot on; where the pad of the index finger is in the
   // clip at that moment (share of its width / height) — the layer is placed so it lands on the
@@ -86,7 +86,9 @@
    *   pull   braking: indicator, over to the right shoulder, stopped (it holds its stop frame)
    *   truck  after the rescue: the tow truck parked in front, light bar flashing
    * Every shot is the same windshield band (2300×240, lined up on the cabin photo). */
-  const EXT = { intro: 'assets/drive_intro.mp4?v=1', pull: 'assets/drive_pull.mp4?v=1', truck: 'assets/drive_truck.mp4?v=1', PULL_STOP: 6.2 };
+  // LOOP_JOIN: where in the loop the first drive's last frame sits (the loop is cut where its
+  // traffic lines up best, so the cars ahead keep their places across the seam)
+  const EXT = { intro: 'assets/drive_intro.mp4?v=1', pull: 'assets/drive_pull.mp4?v=1', truck: 'assets/drive_truck.mp4?v=1', PULL_STOP: 6.2, LOOP_JOIN: 8.33 };
   const extVids = {};
   if (driveVid) {
     for (const k of ['intro', 'pull', 'truck']) {
@@ -143,7 +145,7 @@
     const V = extPhase === 'intro' ? extVids.intro : driveVid;
     if (extPhase === 'intro' && (V.ended || V.dataset.bad)) {
       extShow('loop');
-      try { driveVid.currentTime = 0; } catch (e) { /* */ }
+      try { driveVid.currentTime = EXT.LOOP_JOIN; } catch (e) { /* */ }
       return driveTick();
     }
     if (v < 1.5) { if (!V.paused) V.pause(); return; }

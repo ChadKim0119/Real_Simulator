@@ -438,10 +438,10 @@
         c.inbound = { at: Date.now(), agent: idle.id };
         c.agent = idle.id;
         c.assign = null;
-        this.log(c, `고객 인바운드 콜 (헤드유닛 콜 · CTI) · ${CUSTOMER.phone} → ${idle.name} 상담원`, 'call');
+        this.log(c, `고객 인바운드 콜 (헤드유닛 콜) · ${CUSTOMER.phone} → ${idle.name} 상담원`, 'call');
         this.flow(c, [
-          ['car', 'cti', '헤드유닛 콜', 'HU [전화연결] · 인바운드 콜', { from: '헤드유닛', vin: VEHICLE.vin }, 0],
-          ['cti', 'ccw', '콜 배정', `유휴 상담원 ${idle.name} 배정 · 전화 수신 팝업`, { agent: idle.name }],
+          // the head unit's call request goes straight to the support center's desk
+          ['car', 'ccw', '헤드유닛 콜', `HU [전화연결] → 고객지원실 · ${idle.name} 상담원 전화 수신`, { from: '헤드유닛', vin: VEHICLE.vin, agent: idle.name }, 0],
         ]);
         this.active = c.id;
         this.publish();
@@ -544,7 +544,8 @@
       // the car pulls over during the call when the script says so
       if (this.hooks.accept && !this.setFor('in').some((l) => l.stop)) this.hooks.accept(c);
       this.log(c, `${agent.name} 상담원 수신 · 통화 연결 (인바운드)`, 'call');
-      this.flow(c, [['ccw', 'cti', '수신', '상담원 응답 · 통화 연결 (녹취)', null, 0], ['cti', 'car', '음성', '차량 헤드유닛 ↔ 상담원 통화', null]]);
+      // the agent answers at the desk: the call is up with the car's head unit at once
+      this.flow(c, [['ccw', 'car', '통화 연결', '상담원 응답 · 헤드유닛 ↔ 상담원 통화 (녹취)', null, 0]]);
       this.publish();
       this.nextLine(c, 0, this.setFor('in'));
     }
@@ -664,7 +665,7 @@
       const agent = this.agents.find((a) => a.id === c.agent);
       if (agent) agent.state = '후처리중';
       this.log(c, `통화 종료 · ${mmss(c.call.endedAt - c.call.connectedAt)} · 후처리 (상담 메모)`, 'call');
-      this.flow(c, [['ccw', 'cti', '통화 종료', `통화 ${mmss(c.call.endedAt - c.call.connectedAt)} · 후처리`, null, 0]]);
+      this.flow(c, [['ccw', c.call.dir === 'in' ? 'car' : 'phone', '통화 종료', `통화 ${mmss(c.call.endedAt - c.call.connectedAt)} · 후처리`, null, 0]]);
       this.openSheet(c);
       this.publish();
     }
@@ -942,7 +943,7 @@
     if (a === '견인 입고') return 5;
     if (/딜러/.test(a)) return 4;
     if (/WAM-MEMO|상담 메모|통화 종료/.test(a)) return 3;
-    if (/긴급출동|출동 상태|음성|수신/.test(a) || (f.to === 'car' && /헤드유닛 알림/.test(a) && /출동/.test(f.label))) return 2;
+    if (/긴급출동|출동 상태|음성|수신|통화 연결/.test(a) || (f.to === 'car' && /헤드유닛 알림/.test(a) && /출동/.test(f.label))) return 2;
     if (/헤드유닛 콜|콜 배정|발신|응답|미응답|SMS|상담원 조회|IDLE|자동 할당|상태 전환|WNG 콜 팝업|일반 전화|대기 만료|배정 대상/.test(a)) return 1;
     return 0;
   }

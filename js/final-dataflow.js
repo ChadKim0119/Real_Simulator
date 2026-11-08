@@ -297,7 +297,7 @@
     if (/헤드유닛 콜|콜 배정|자동 할당/.test(a)) return 'incoming';
     if (/상담원 조회|IDLE|WNG 콜 팝업|대기 만료|배정 대상/.test(a)) return 'sla25';
     if (/발신|응답|SMS/.test(a) && f.to === 'phone') return 'outbound';
-    if (/수신|음성|응답/.test(a)) return 'call';
+    if (/수신|음성|응답|통화 연결/.test(a)) return 'call';
     if (/긴급출동/.test(a) || (a === '출동 상태' && !/도착|완료/.test(f.label)) || (a === '헤드유닛 알림')) return 'dispatch';
     if (a === '출동 상태') return 'arrive';
     if (/통화 종료|상담 메모/.test(a) || /CONTACT_REQUIRED/.test(st)) return 'memo';
