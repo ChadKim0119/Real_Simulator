@@ -56,7 +56,7 @@
   function send(kind, a, b) {
     if (kind === 'scene') { scene = a; Link.send('stage', { scene: a }); }
     else if (kind === 'act') Link.send('act', { name: a, args: b || {} });
-    else if (kind === 'warn') Link.send('act', { name: 'warnItem', args: { id: a === '@in' ? E.SCRIPT_WARN[(snap && snap.pick && snap.pick.in) || 'in'] : a } });
+    else if (kind === 'warn') Link.send('act', { name: 'warnItem', args: { id: a === '@in' ? E.SCRIPT_WARN[(snap && snap.pick && snap.pick.in) || 'a'] : a } });
     else if (kind === 'cmd') Link.send('cmd', { name: a, args: b || {} });
     else if (kind === 'dms') Link.send(a === 'open' ? 'dms-open' : 'dms-close', {});
     else if (kind === 'hu') {
@@ -410,7 +410,7 @@
 
   // chip labels (the full title and description are on hover)
   const SHORT = { show: '전체 발표', in: '고객 전화', out: '상담원 발신', noans: '미응답 → SMS', caseb: '경고 → DMS 직행', gen: '일반 전화' };
-  const SET_SHORT = { in2: '메인 · 여성 · 엔진', in: '보조 · 남성 · 브레이크' };
+  const SET_SHORT = { a: '메인 · Case A 녹음', in2: '이전 메인 · 여성 · 엔진', in: '보조 · 남성 · 브레이크' };
   function scenarios() {
     $('#scenarios').innerHTML = SCENARIOS.map((x) => `<button class="sc ${x === sc ? 'on' : ''}" data-sc="${x.id}" title="${esc(x.title)} — ${esc(x.sub)}"><i>${x.n}</i><b>${esc(SHORT[x.id] || x.title)}</b><small>${esc(x.sub)}</small></button>`).join('')
       + `<div class="sets"><h3>인바운드 대화</h3>${E.SCRIPT_SETS.in.keys.map((k) => `<button data-pick="in:${k}" title="${esc(E.SCRIPT_NAMES[k])}">${esc(SET_SHORT[k] || E.SCRIPT_NAMES[k])}</button>`).join('')}</div>`;
@@ -524,7 +524,7 @@
     document.querySelectorAll('[data-scene]').forEach((x) => x.classList.toggle('on', x.dataset.scene === scene));
     const op = $('[data-opening]');
     if (op) { op.classList.toggle('on', scene === 'opening'); op.textContent = scene === 'opening' ? '오프닝 끄기' : '오프닝'; }
-    document.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('on', x.dataset.pick === `in:${(snap && snap.pick && snap.pick.in) || 'in'}`));
+    document.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('on', x.dataset.pick === `in:${(snap && snap.pick && snap.pick.in) || 'a'}`));
     const hz = $('[data-a="hazard"]');
     if (hz) hz.classList.toggle('on', !!(veh && veh.hazard));
     const na = $('[data-noans]');

@@ -130,16 +130,38 @@
     { who: 'customer', text: '네, 내일 10시 좋아요.', audio: 'assets/audio/ecare_d_06_customer.mp3', dur: 2.8 },
     { who: 'dealer', text: '네, 내일 오전 10시로 예약 확정해 드렸습니다. 점검 결과는 제가 직접 연락드리겠습니다.', audio: 'assets/audio/ecare_d_07_dealer.mp3', dur: 6.74, resv: true },
   ];
-  const SCRIPTS = { in: CALL_IN, in2: CALL_IN2, out: CALL_OUT, gen: CALL_GEN, dealer: CALL_DEALER };
-  const SCRIPT_NAMES = { in2: '메인 · 여성 운전자 · 엔진 경고', in: '보조 · 남성 고객 · 브레이크 경고', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)', dealer: '서비스센터 후속 통화 (딜러 ↔ 고객)' };
+  // main inbound set (Case A), the recorded narration as it was given: the agent and the customer
+  // each recorded their part in one take, cut into lines and put in call order. The car pulls over
+  // with the hazards on while the agent asks for it (stop), so it stands on the shoulder when the
+  // customer says so; the rescue is requested when she agrees (dispatch). The voices are used exactly as recorded; nothing is generated.
+  const CALL_CASEA = [
+    { who: 'agent', text: '네, 안녕하세요. e-Care 고객지원실입니다. 홍길동 고객님 맞으실까요?', audio: 'assets/audio/ecare_a_01_agent.mp3', dur: 6.11 },
+    { who: 'customer', text: '아, 예예. 네, 맞아요. 갑자기 경고등이 떠서 당황했는데, 여기 콜 버튼이 있어서 눌러봤어요.', audio: 'assets/audio/ecare_a_02_customer.mp3', dur: 7.6 },
+    { who: 'agent', text: '네, 많이 당황하셨을 텐데요. 제가 지금부터 차분히 대처 요령을 안내해 드릴 테니 걱정하지 않으셔도 됩니다.', audio: 'assets/audio/ecare_a_03_agent.mp3', dur: 8.86 },
+    { who: 'customer', text: '네, 고맙습니다. 이제 어떻게 해야 하죠?', audio: 'assets/audio/ecare_a_04_customer.mp3', dur: 3.74 },
+    { who: 'agent', text: '우선 고객님, 지금 올림픽대로 한남대교 남단 부근에 계신 걸로 확인되는데 맞으신가요? 차량에 엔진 이상 경고등이 발생한 상태이고, 진단 정보도 파악되었습니다.', audio: 'assets/audio/ecare_a_05_agent.mp3', dur: 12.96 },
+    { who: 'agent', text: '많이 놀라셨겠지만 위험하지 않은 가까운 갓길에 차를 세우시고 비상등을 켜 주세요.', audio: 'assets/audio/ecare_a_06_agent.mp3', dur: 6.27, stop: true, hazard: true },
+    { who: 'customer', text: '고맙습니다. 차량은 위험하지 않은 곳에 잘 세웠어요.', audio: 'assets/audio/ecare_a_07_customer.mp3', dur: 3.74 },
+    { who: 'agent', text: '잘하셨습니다. 안전을 위해서 지금 바로 긴급출동을 접수해 드리는 것이 좋겠습니다. 긴급출동 접수를 진행해 드릴까요? 아울러 선호하시는 강남 서비스센터로 입고도 함께 진행을 도와 드릴까요?', audio: 'assets/audio/ecare_a_08_agent.mp3', dur: 14.63 },
+    { who: 'customer', text: '네네, 그렇게 해 주세요.', audio: 'assets/audio/ecare_a_09_customer.mp3', dur: 1.91, dispatch: true },
+    { who: 'agent', text: '서비스센터에서 따로 연락을 드릴 예정인데, 지금 이 번호로 연락드리면 될까요?', audio: 'assets/audio/ecare_a_10_agent.mp3', dur: 5.88 },
+    { who: 'customer', text: '네, 이 번호로 연락 부탁드려요.', audio: 'assets/audio/ecare_a_11_customer.mp3', dur: 3.16 },
+    { who: 'agent', text: '추가로 서비스센터에 전달하실 내용 있으실까요?', audio: 'assets/audio/ecare_a_12_agent.mp3', dur: 4.13 },
+    { who: 'customer', text: '아니요, 없어요.', audio: 'assets/audio/ecare_a_13_customer.mp3', dur: 1.65 },
+    { who: 'agent', text: '네, 곧 긴급출동 차량이 도착할 예정이고, 자세한 진행 사항은 출동 기사님이 직접 연락드릴 겁니다. 서비스센터에도 최대한 빨리 연락드리도록 요청하겠습니다.', audio: 'assets/audio/ecare_a_14_agent.mp3', dur: 12.15 },
+    { who: 'customer', text: '네, 빠르게 조치해 주셔서 감사합니다.', audio: 'assets/audio/ecare_a_15_customer.mp3', dur: 2.64 },
+    { who: 'agent', text: '네, 고객님. 안전한 곳에서 기다려 주세요. e-Care 고객지원실이었습니다.', audio: 'assets/audio/ecare_a_16_agent.mp3', dur: 5.83 },
+  ];
+  const SCRIPTS = { a: CALL_CASEA, in: CALL_IN, in2: CALL_IN2, out: CALL_OUT, gen: CALL_GEN, dealer: CALL_DEALER };
+  const SCRIPT_NAMES = { a: '메인 · Case A 녹음 나레이션', in2: '이전 메인 · 여성 운전자 · 엔진 경고', in: '보조 · 남성 고객 · 브레이크 경고', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)', dealer: '서비스센터 후속 통화 (딜러 ↔ 고객)' };
   /* Conversation sets per call type; the director plays the picked one.
    * warn: the lamp the presenter's run sheet raises for that set. */
   const SCRIPT_SETS = {
-    in: { label: '고객 인바운드 (HU 전화연결)', keys: ['in2', 'in'] },
+    in: { label: '고객 인바운드 (HU 전화연결)', keys: ['a', 'in2', 'in'] },
     out: { label: '상담원 아웃바운드', keys: ['out'] },
     gen: { label: '일반 전화', keys: ['gen'] },
   };
-  const SCRIPT_WARN = { in: 'brake', in2: 'oil', out: 'brake' };
+  const SCRIPT_WARN = { a: 'oil', in: 'brake', in2: 'oil', out: 'brake' };
   const CONTACT = ['컨택 전', '컨택 중', '상담 완료', '이관 완료'];
   const DISPATCH = ['신고접수', '출동', '도착', '출동완료'];
   // service center, DMS-SVC-002 repairStatus
@@ -514,7 +536,7 @@
       const set = SCRIPT_SETS[args.kind];
       if (!set || !set.keys.includes(args.key)) return;
       this.pick[args.kind] = args.key;
-      try { localStorage.setItem('ecare-pick-v2', JSON.stringify(this.pick)); } catch (e) { /* private mode */ }
+      try { localStorage.setItem('ecare-pick-v3', JSON.stringify(this.pick)); } catch (e) { /* private mode */ }
       this.publish();
     }
 
@@ -897,8 +919,9 @@
     return d;
   }
   function loadPick() {
-    const p = { in: 'in2', out: 'out', gen: 'gen' };
-    try { const v = JSON.parse(localStorage.getItem('ecare-pick-v2')); Object.keys(p).forEach((k) => { if (v && SCRIPT_SETS[k].keys.includes(v[k])) p[k] = v[k]; }); } catch (e) { /* none saved */ }
+    const p = { in: 'a', out: 'out', gen: 'gen' };
+    // v3: the recorded Case A narration became the main set (an older saved pick starts over)
+    try { const v = JSON.parse(localStorage.getItem('ecare-pick-v3')); Object.keys(p).forEach((k) => { if (v && SCRIPT_SETS[k].keys.includes(v[k])) p[k] = v[k]; }); } catch (e) { /* none saved */ }
     return p;
   }
   function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v7', JSON.stringify(v)); } catch (e) { /* private mode */ } }
