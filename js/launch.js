@@ -50,6 +50,36 @@
     wake();
   }
 
+  /* A window opened by these buttons (?fs=1) goes fullscreen by itself: at once where the
+   * browser allows it (a fullscreen popup, or the site allowed automatic fullscreen); if
+   * the browser wants a gesture first, a light layer asks for one click anywhere, and the
+   * first click or key makes it fullscreen. */
+  const q = new URLSearchParams(location.search);
+  if (q.has('fs')) {
+    q.delete('fs');
+    history.replaceState(null, '', location.pathname + (q.toString() ? `?${q}` : '') + location.hash);
+    const full = () => !!document.fullscreenElement || (Math.abs(innerWidth - screen.width) < 4 && Math.abs(innerHeight - screen.height) < 4);
+    const go = () => (document.fullscreenElement ? Promise.resolve() : document.documentElement.requestFullscreen({ navigationUI: 'hide' }));
+    const ask = () => {
+      if (full() || document.getElementById('fsAsk')) return;
+      const st2 = document.createElement('style');
+      st2.textContent = `#fsAsk { position: fixed; inset: 0; z-index: 2147483001; display: grid; place-items: center; cursor: pointer; background: rgba(4, 7, 12, .38); }
+        #fsAsk span { padding: 16px 30px; border-radius: 999px; font: 700 22px/1.2 "Pretendard", system-ui, sans-serif; color: #eaf2ff; background: rgba(14, 22, 38, .9); border: 1px solid rgba(160, 190, 255, .35); }`;
+      document.head.appendChild(st2);
+      const a = document.createElement('div');
+      a.id = 'fsAsk';
+      a.innerHTML = '<span>화면을 한 번 클릭하면 전체화면으로 전환됩니다</span>';
+      document.body.appendChild(a);
+      const done = () => { a.remove(); removeEventListener('keydown', onKey, true); };
+      const onKey = () => { go().then(done, () => {}); };
+      a.addEventListener('pointerdown', () => { go().then(done, done); });
+      addEventListener('keydown', onKey, true);
+    };
+    const tryNow = () => go().catch(() => setTimeout(ask, 300));
+    if (document.readyState === 'complete') tryNow(); else addEventListener('load', tryNow);
+    // a window that was fullscreen as a popup has no fullscreen element: nothing to ask then
+  }
+
   const wins = {};
   async function screenFor(k) {
     if (!('getScreenDetails' in window)) return null;
@@ -67,8 +97,10 @@
     const known = wins[k];
     if (known && !known.closed) { known.focus(); mark(); return; }
     const s = await screenFor(k);
+    // 'fullscreen': Chrome / Edge open the window straight into fullscreen on that monitor
+    // where fullscreen popups are allowed (window management permission); elsewhere ignored
     const feat = s
-      ? `popup,left=${s.availLeft},top=${s.availTop},width=${s.availWidth},height=${s.availHeight}`
+      ? `popup,fullscreen,left=${s.availLeft},top=${s.availTop},width=${s.availWidth},height=${s.availHeight}`
       : `popup,width=${Math.round(screen.availWidth * 0.8)},height=${Math.round(screen.availHeight * 0.8)}`;
     // an empty url finds a window of that name that is already open, without reloading it
     let w = null;
@@ -76,7 +108,7 @@
     if (!w) { window.open(SCREENS[k].url, name); return; }   // popups blocked: a tab
     let blank = true;
     try { blank = w.location.href === 'about:blank'; } catch (e) { blank = false; }
-    if (blank) w.location.href = new URL(SCREENS[k].url, location.href).href;
+    if (blank) { const u = new URL(SCREENS[k].url, location.href); u.searchParams.set('fs', '1'); w.location.href = u.href; }
     else if (s) { try { w.moveTo(s.availLeft, s.availTop); w.resizeTo(s.availWidth, s.availHeight); } catch (e) { /* the browser keeps it where it is */ } }
     wins[k] = w;
     w.focus();
