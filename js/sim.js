@@ -92,7 +92,7 @@
    * Every shot is the same windshield band (2300×240, lined up on the cabin photo). */
   // LOOP_JOIN: where in the loop the first drive's last frame sits (the loop is cut where its
   // traffic lines up best, so the cars ahead keep their places across the seam)
-  const EXT = { intro: 'assets/drive_intro.mp4?v=1', pull: 'assets/drive_pull.mp4?v=1', truck: 'assets/drive_truck.mp4?v=1', PULL_STOP: 6.2, LOOP_JOIN: 8.33 };
+  const EXT = { intro: 'assets/drive_intro.mp4?v=2', pull: 'assets/drive_pull.mp4?v=2', truck: 'assets/drive_truck.mp4?v=2', PULL_STOP: 6.2, LOOP_JOIN: 8.33 };
   const extVids = {};
   if (driveVid) {
     for (const k of ['intro', 'pull', 'truck']) {
@@ -368,14 +368,14 @@
       return;
     }
     if (st.mode === 'accel' || st.mode === 'cruise') return;
+    if (rescue && rescue.kind !== 'drive') rescueStop(true);     // driving off: the rescue scene is over
     st.gear = 'D';
     st.mode = 'accel';
     st.cruise = false;
     audio.click();
     cam.outAt = null;
-    // start from the full view (as in the photo); the view opens to the whole windshield while
-    // the car pulls away (wideDriveStart), then dollies into the cluster. Without the wide
-    // film: into the cluster after 3 s, as before
+    // start from the full view (as in the photo), then dolly into the cluster after 3 s
+    // (with WIDE.auto the view would first open to the whole windshield: wideDriveStart)
     if (cam.z > 0.01 || cam.to > 0) camTo(0, 1.4);
     if (wideDriveStart()) cam.zoomAt = null;
     else cam.zoomAt = now() + (cam.z > 0.01 || cam.to > 0 ? 1.4 : 0) + 3;
@@ -647,6 +647,7 @@
   director.hooks.hazard = (c, on) => setHazard(on);
   // the tow truck has come for the car: the driver switches the engine and the flashers off
   function parkForTow() {
+    if (st.mode === 'accel' || st.mode === 'cruise') return;     // a car that is driving is not being towed
     if (st.hazard) setHazard(false);
     if (st.ign === 'off') return;
     if (st.speed > 0.5 || st.mode !== 'park') Object.assign(st, { speed: 0, accel: 0, throttle: 0, mode: 'park', cruise: false, pendingDrive: false });
@@ -723,12 +724,12 @@
    * the head-unit view: its frame is HU_VIEW's height, centred on HU_VIEW. */
   let handHold = false;
   function initHand() {
-    const HAND = { src: 'assets/hand_call.webm?v=3', contact: HAND_CONTACT, ar: HAND_AR };
+    const HAND = { src: 'assets/hand_call.webm?v=4', contact: HAND_CONTACT, ar: HAND_AR };
     // two drivers' hands, both filmed on the same head-unit view and touching at the same second:
     // a man's (dark sleeve) for a male customer's call, a woman's (cream knit) for a female one's;
     // tip: where the pad of the index finger is at the touch (share of the frame)
     const HANDS = {
-      m: { src: 'assets/hand_call_m.webm?v=3', tip: { x: 662 / 1680, y: 303 / 712 } },
+      m: { src: 'assets/hand_call_m.webm?v=4', tip: { x: 662 / 1680, y: 303 / 712 } },
       f: { src: HAND.src, tip: HAND_TIP },
     };
     // the customer's voice of the inbound set picked: the Case A recording and the auxiliary set are men
@@ -841,13 +842,15 @@
    * (the film is 69 km/h), the river, the far bank and the cars in the other lanes stay. It
    * opens when the car pulls away and closes onto the cluster after a few seconds, or at once
    * when something happens (a warning, braking, a camera hold). */
-  const WIDE = { src: 'assets/drive_wide.mp4?v=1', kmh: 69, widen: 2.6, hold: 5.5 };
-  rD.src = WIDE.src;
+  // auto: open it by itself when the car pulls away. Off — the drive starts on the usual
+  // view of the cabin (the world outside does not need to show); the film is not even loaded
+  const WIDE = { src: 'assets/drive_wide.mp4?v=1', kmh: 69, widen: 2.6, hold: 5.5, auto: false };
+  if (WIDE.auto) rD.src = WIDE.src;
   const rAll = [rVid, rC, rD];
   const rShow = (v) => { rAll.forEach((x) => { x.style.opacity = x === v ? 1 : 0; x.style.zIndex = x === v ? 2 : 1; }); };
   let rescue = null;      // { phase: pull | fade | widen | hold | narrow | out, t0, stopped }
   function wideDriveStart() {
-    if (rescue || camHold !== 'auto' || rD.dataset.bad || rD.readyState < 2) return false;
+    if (!WIDE.auto || rescue || camHold !== 'auto' || rD.dataset.bad || rD.readyState < 2) return false;
     if (director.live && director.live()) return false;        // a case is being worked: the cabin view stays as it is
     rescue = { kind: 'drive', phase: 'pull', t0: now(), played: false, stopped: 0, onC: false };
     rShow(rD);
@@ -1198,11 +1201,12 @@
   /* checkpoints: the control panel saves the whole demo state before each scenario step,
    * so [이전] puts everything back exactly as it was before that step */
   const checkpoints = new Map();
-  const ST_KEYS = ['ign', 'ignT', 'bootT', 'backlight', 'bulbCheck', 'sweep', 'engine', 'rpm', 'throttle', 'speed', 'accel', 'gear', 'gearNum', 'mode', 'holdT', 'cruise', 'popup', 'hazard', 'pendingDrive', 'ceremony'];
+  const ST_KEYS = ['ign', 'ignT', 'bootT', 'backlight', 'bulbCheck', 'sweep', 'engine', 'rpm', 'throttle', 'speed', 'accel', 'gear', 'gearNum', 'mode', 'holdT', 'cruise', 'popup', 'hazard', 'pendingDrive', 'ceremony',
+    'odoMeters', 'odo', 'range', 'fuel'];      // where the car is on the route: the map, the address and the next junction come back too
   function checkpoint(k) {
     const v = {}; ST_KEYS.forEach((x) => { v[x] = st[x]; });
     v.red = [...st.redActive]; v.amber = [...st.amberActive];
-    checkpoints.set(k, { st: v, care: director.dumpState(), ext: extPhase, extT: extVids[extPhase] ? extVids[extPhase].currentTime : driveVid ? driveVid.currentTime : 0 });
+    checkpoints.set(k, { st: v, care: director.dumpState(), at: Date.now(), ext: extPhase, extT: extVids[extPhase] ? extVids[extPhase].currentTime : driveVid ? driveVid.currentTime : 0 });
   }
   function restore(k) {
     const cp = checkpoints.get(k);
@@ -1221,10 +1225,35 @@
       try { V.pause(); V.currentTime = cp.ext === 'pull' && st.speed < 0.5 ? EXT.PULL_STOP : cp.extT || 0; } catch (e) { /* */ }
       if (cp.ext === 'truck') V.play().catch(() => {});
     }
-    director.loadState(cp.care);
+    // every time in the saved state moves on by the time that has passed since: the waiting
+    // clocks, the call length, how long ago the warning came all read as they did then
+    director.loadState(cp.care, Date.now() - (cp.at || Date.now()));
+    if (st.popup) st.popup = null;               // (a cluster popup of that moment has had its time)
+    Link.send('restored', { k });                // screens drop what they remembered of the abandoned timeline
     camTo(st.mode === 'accel' || st.mode === 'cruise' ? 1 : 0, 1.6);
     syncUI();
     return true;
+  }
+  /* Catching up to a step picked in the list: the car is at once where the step would leave it —
+   * started, up to speed on the road, or stopped on the shoulder — as if it had been played out. */
+  function settleAll() {
+    settle();
+    // the truck's arrival film is not sat through: it has pulled up in front (the windshield shows it)
+    if (rescue && rescue.kind !== 'drive') {
+      rescueStop(true);
+      const k = director.cases[0];
+      if (k && k.dispatch >= 2 && !k.done) extTruck();
+    }
+    if (st.mode === 'accel') {
+      st.speed = Math.max(st.speed, (st.target || 72) - 0.4);
+      st.gearNum = Math.max(st.gearNum, 8); st.rpm = st.speed * GEAR_FACTOR[st.gearNum];
+      if (extPhase === 'intro') { extShow('loop'); try { driveVid.currentTime = EXT.LOOP_JOIN; } catch (e) { /* */ } }
+    } else if (st.mode === 'brake' || st.mode === 'hold') {
+      Object.assign(st, { speed: 0, accel: 0, throttle: 0, mode: 'park', gear: 'P', gearNum: 1, holdT: 0, cruise: false });
+      if (st.engine) st.rpm = IDLE;
+      if (extPhase === 'pull' && extVids.pull) { try { extVids.pull.pause(); extVids.pull.currentTime = EXT.PULL_STOP; } catch (e) { /* */ } }
+    }
+    syncUI();
   }
   /* 초기화: everything back to the start, at once — the car stops and switches off */
   /* [다음] while the car is still starting: it is on at once (and drives off if asked) */
@@ -1261,6 +1290,7 @@
     amber: () => warn('amber'),
     clear: clearWarnings,
     checkpoint: (a) => checkpoint(a && a.k),
+    settleAll: () => settleAll(),
     restore: (a) => { if (!restore(a && a.k)) toast('되돌릴 단계 기록이 없습니다'); },
     fullReset,
     settle,

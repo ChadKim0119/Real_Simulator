@@ -52,7 +52,8 @@
   /* ---------------- ops ---------------- */
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   // a step's own pauses end early once the presenter pressed [다음]
-  async function waitOrSkip(ms) { const t0 = Date.now(); while (!skip && Date.now() - t0 < ms) await wait(Math.min(120, ms)); }
+  // … and at once when the step was abandoned (a jump, [이전], 초기화: its token is no longer the current one)
+  async function waitOrSkip(ms, tok) { const t0 = Date.now(); while (!skip && (tok == null || tok === token) && Date.now() - t0 < ms) await wait(Math.min(120, ms)); }
   function send(kind, a, b) {
     if (kind === 'scene') { scene = a; Link.send('stage', { scene: a }); }
     else if (kind === 'act') Link.send('act', { name: a, args: b || {} });
@@ -93,8 +94,10 @@
   async function run(ops, tok) {
     for (const [kind, a, b] of ops) {
       if (tok != null && tok !== token) return;
-      if (kind === 'wait') await waitOrSkip(a);
-      else if (kind === 'ign') { if (!veh || (veh.ign === 'on') !== a) { send('act', 'ign'); await waitOrSkip(a ? 6500 : 4000); } }
+      if (kind === 'wait') await waitOrSkip(a, tok);
+      else if (kind === 'ign') { if (!veh || (veh.ign === 'on') !== a) { send('act', 'ign'); await waitOrSkip(a ? 6500 : 4000, tok); } }
+      // catching up to a step picked in the list: no hand on the head unit, the call simply comes in
+      else if (jumping && kind === 'hu' && a === 'press') send('cmd', 'inbound');
       else if (kind === 'reset') {
         Link.send('hush', {}); send('act', 'clear'); send('act', 'careReset'); send('cmd', 'noAnswer', { on: false });
         await wait(700);
@@ -232,38 +235,58 @@
    * situation finished at once), then the step plays. */
   async function jumpTo(i) {
     if (i < 0 || i >= sc.steps.length) return;
-    if (i === cur + 1 && !busy) return go(i);
+    if (i === cur + 1 && !busy && !advancing && !jumping) return go(i);
+    // whatever was going on is abandoned (its token is no longer current) …
     const tok = ++token;
-    busy = false; auto = false; waiting = ''; skip = false;
+    busy = false; auto = false; skip = false; advancing = false;
+    jumping = true;
     Link.send('hush', {});
+    Link.send('hu', { action: 'cancelReach' });
+    Link.send('dms-close', {});
     leaveEnd();
+    const mine = () => tok === token;
+    const play = () => { if (!mine()) return; jumping = false; skip = false; waiting = ''; go(i); };
     if (visited.has(i)) {
+      // … a step already played: the state it started from is put back, and it plays
+      cur = i - 1; waiting = `${i + 1}단계로 맞추는 중`; steps();
       Link.send('act', { name: 'restore', args: { k: cpKey(i) } });
-      cur = i - 1; steps();
-      await wait(700);
-      if (tok === token) go(i);
+      await wait(750);                              // (the car panel's state has come back here)
+      play();
       return;
     }
-    jumping = true;
-    for (let k = Math.max(0, cur + 1); k < i; k++) {
-      if (tok !== token) { jumping = false; return; }
+    // … a step further on: first a clean start — the step in hand may have been cut off half-way
+    // (pressed again while it ran), so the state it began from is put back and it is played
+    // through quickly too; then every step up to the one picked, each brought to its end
+    let k0 = 0;
+    if (cur >= 0 && visited.has(cur)) {
+      k0 = cur;
+      waiting = `${i + 1}단계로 빠르게 맞추는 중`; steps();
+      Link.send('act', { name: 'restore', args: { k: cpKey(cur) } });
+      await wait(750);
+      if (!mine()) return;
+    }
+    for (let k = k0; k < i; k++) {
+      if (!mine()) return;
       const s = sc.steps[k];
       cur = k; waiting = `${i + 1}단계로 빠르게 맞추는 중 · ${k + 1}/${sc.steps.length} ${s.t}`; steps();
       Link.send('act', { name: 'checkpoint', args: { k: cpKey(k) } }); visited.add(k);
       skip = true;                                  // the step's own pauses end at once
       await run(s.run, tok);
+      if (!mine()) return;
+      send('act', 'settle');
       if (s.until) {
         const t0 = Date.now();
-        while (tok === token && !UNTIL[s.until]() && Date.now() - t0 < (s.timeout || 15000)) {
+        while (mine() && !UNTIL[s.until]() && Date.now() - t0 < (s.timeout || 15000)) {
           if (FINISH[s.until] && Date.now() - t0 > 600) FINISH[s.until]();
           await wait(400);
         }
+        if (!mine()) return;
       }
       Link.send('hush', {});
-      await wait(300);
+      send('act', 'settleAll');                     // the car is where the step leaves it (up to speed, or stopped)
+      await wait(450);
     }
-    jumping = false; skip = false; waiting = '';
-    if (tok === token) go(i);
+    play();
   }
   let jumping = false;
   /* [다음] while a step plays: what it waits for is brought about at once (FINISH), waited for
@@ -372,8 +395,9 @@
     token++;
     busy = false; skip = false; auto = false; waiting = '';
     Link.send('hush', {});
-    advancing = false;
+    advancing = false; jumping = false;
     Link.send('hu', { action: 'cancelReach' });
+    Link.send('dms-close', {});
     leaveEnd();
     Link.send('act', { name: 'restore', args: { k: cpKey(cur) } });
     cur -= 1;

@@ -45,6 +45,8 @@
     if (d.action === 'show') show();
     if (d.action === 'press') press();
   });
+  // the demo went back to an earlier step: what was pressed or closed after it never happened
+  Link.on('restored', () => { pressed = null; reopen = {}; Object.keys(closed).forEach((k) => delete closed[k]); caption = null; lastKey = ''; render(true); });
   Link.send('hello', { screen: 'hu' });
   $('#hu').addEventListener('click', (e) => {
     if (e.target.closest('button.call')) press();

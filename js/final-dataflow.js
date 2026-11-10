@@ -45,10 +45,21 @@
   /* the message travelling now: each new one shown for at least 1.6 s, in order */
   const queue = [];
   let seen = 0, showT = 0, firstSnap = true;
+  let resync = false;
+  Link.on('restored', () => { resync = true; });
   function ingest() {
     const fl = (snap && snap.flows) || [];
-    if (fl.length && fl[fl.length - 1].id < seen) seen = 0;          // went back / reset
-    if (!fl.length) { seen = 0; queue.length = 0; idleMsg(); return; }
+    if (!fl.length) { seen = 0; queue.length = 0; resync = false; idleMsg(); return; }
+    // an earlier step was put back: the messages in the list were shown before — only the last
+    // one is put up again (quietly), nothing is replayed
+    if (resync || fl[fl.length - 1].id < seen) {
+      resync = false; queue.length = 0;
+      const last = fl[fl.length - 1];
+      seen = last.id;
+      if (last.type !== 'skip') queue.push(Object.assign({}, last, { quiet: true }));
+      firstSnap = false; showT = 0;
+      return;
+    }
     for (const f of fl) {
       if (f.id <= seen) continue;
       seen = f.id;
@@ -65,7 +76,7 @@
     while (f.burst && queue.length && queue[0].burst === f.burst) grp.push(queue.shift());
     showT = Date.now();
     // one soft tone per message (a burst sent at once is one); the detail board plays its own
-    if (!detailOn && window.FlowSfx) FlowSfx.send(f, f.deliver || f.burst ? E.TRAVEL : 1400);
+    if (!detailOn && window.FlowSfx && !f.quiet) FlowSfx.send(f, f.deliver || f.burst ? E.TRAVEL : 1400);
     const m = $('#msg');
     m.classList.remove('idle');
     const to = f.to === f.from ? f.to : f.to;

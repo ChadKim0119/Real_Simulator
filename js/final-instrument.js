@@ -128,7 +128,8 @@
   function linkNotes(d) {
     const fl = d.flows || [];
     if (fSeen < 0) { fSeen = fl.length ? fl[fl.length - 1].id : 0; return; }
-    if (fl.length && fl[fl.length - 1].id < fSeen) fSeen = 0;
+    // the list went back (an earlier step was put back): what is in it now was already shown
+    if (fl.length ? fl[fl.length - 1].id < fSeen : fSeen > 0) { fSeen = fl.length ? fl[fl.length - 1].id : 0; return; }
     for (const f of fl) {
       if (f.id <= fSeen) continue;
       fSeen = f.id;
@@ -136,6 +137,8 @@
       else if (f.to === 'car' && f.from !== 'car' && !/음성/.test(f.api)) linkQ.push({ t: `${WHO[f.from] || f.from} → 차량`, api: f.api, col: '#3ddc84' });
     }
   }
+  // back to an earlier step: notes of the abandoned timeline go
+  Link.on('restored', () => { fSeen = -1; linkQ = []; linkT = 0; $('#link').classList.remove('on'); });
   setInterval(() => {
     const el = $('#link');
     if (Date.now() < linkT) return;

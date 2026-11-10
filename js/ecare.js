@@ -231,16 +231,28 @@
 
     /** Back to a saved state: pending timers go, what was on its way is set going again
      *  (the rescue truck, the service center's early steps). */
-    loadState(json) {
+    loadState(json, shiftMs) {
       const v = JSON.parse(json);
       this.timers.forEach(clearTimeout);
       this.timers = [];
+      // times saved then are moved on by what has passed since (every clock reads as it did)
+      if (shiftMs > 0) {
+        const walk = (o) => {
+          if (!o || typeof o !== 'object') return;
+          for (const k of Object.keys(o)) {
+            const x = o[k];
+            if (typeof x === 'number') { if (x > 1.5e12 && x < 4e12) o[k] = x + shiftMs; } else walk(x);
+          }
+        };
+        walk(v);
+      }
       Object.assign(this, v);
       this.cases.forEach((c) => {
         if (c.call && (c.call.state === 'connected' || c.call.state === 'dialing')) { c.call.state = 'ended'; c.call.endedAt = Date.now(); }
         if (c.dcall && c.dcall.state !== 'ended') { c.dcall.state = 'ended'; c.dcall.endedAt = Date.now(); }
         // the truck on its way does not come back by itself after [이전]: the arrival step brings it
-        if (c.dms >= 0 && c.dms < 2 && !c.dmsManual && !c.dmsStop) this.dmsProgress(c, c.kind !== 'emergency');
+        // (an emergency case waits for the dealer's call step; only a Case B / C moves on by itself)
+        if (c.kind !== 'emergency' && c.dms >= 0 && c.dms < 2 && !c.dmsManual && !c.dmsStop) this.dmsProgress(c, true);
       });
       if (this.hooks.rescue) this.hooks.rescue(null);
       this.publish();
@@ -758,8 +770,10 @@
       if (!c.rescueShown) this.rescue(c);
       this.dispatchStep(c, 2, '긴급출동 도착(목적지도착) · 고객 차량 앞 정차 · 견인 준비');
       // the truck has pulled up: the car is switched off (engine and flashers) for the tow
-      this.after(12000, () => { if (this.hooks.tow) this.hooks.tow(c); });
-      this.after(20000, () => this.dispatchStep(c, 3, '긴급출동 출동완료 · 견인 후 서비스센터 이동'));
+      // (only while this is still the case at the roadside: the presenter may be steps ahead —
+      // towed in already, or driving again in the next act — by the time these come due)
+      this.after(12000, () => { if (!c.towing && !c.done && this.cases[0] === c && this.hooks.tow) this.hooks.tow(c); });
+      this.after(20000, () => { if (!c.done && this.cases[0] === c) this.dispatchStep(c, 3, '긴급출동 출동완료 · 견인 후 서비스센터 이동'); });
     }
 
     /* ---------------- the service center's follow-up (dealer → customer) ---------------- */
