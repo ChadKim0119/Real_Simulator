@@ -373,13 +373,12 @@
     st.cruise = false;
     audio.click();
     cam.outAt = null;
-    // start from the full view (as in the photo), then dolly into the cluster after 3 s
-    if (cam.z > 0.01 || cam.to > 0) {
-      camTo(0, 1.4);
-      cam.zoomAt = now() + 1.4 + 3;
-    } else {
-      cam.zoomAt = now() + 3;
-    }
+    // start from the full view (as in the photo); the view opens to the whole windshield while
+    // the car pulls away (wideDriveStart), then dollies into the cluster. Without the wide
+    // film: into the cluster after 3 s, as before
+    if (cam.z > 0.01 || cam.to > 0) camTo(0, 1.4);
+    if (wideDriveStart()) cam.zoomAt = null;
+    else cam.zoomAt = now() + (cam.z > 0.01 || cam.to > 0 ? 1.4 : 0) + 3;
     syncUI();
   }
 
@@ -824,10 +823,10 @@
   // looping for as long as the scene holds — light bar flashing, traffic passing in the other lanes
   // the arrival continues the pull-over shot (same light, same shoulder): the truck shows in the
   // mirror at ~1.5 s, passes the driver's window at ~2.5 s and stops in front at ~5.6 s
-  const RESCUE = { src: 'assets/rescue_arrive.mp4?v=5', srcC: 'assets/rescue_hold.mp4?v=5', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 4.9, switchAt: 5.8, playDelay: 1.6, hold: 12 };
+  const RESCUE = { src: 'assets/rescue_arrive.mp4?v=6', srcC: 'assets/rescue_hold.mp4?v=5', w: 2560, h: 1086, plate: { x: 494.1, y: 425.1, s: 0.7345 }, slowFrom: 4.9, switchAt: 5.8, playDelay: 1.6, hold: 12 };
   const rescueEl = document.createElement('div');
   rescueEl.id = 'rescue';
-  rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vc" muted playsinline preload="auto" loop></video><i class="bar"></i></div>';
+  rescueEl.innerHTML = '<div class="bg"></div><div class="frame"><video class="va" muted playsinline preload="auto"></video><video class="vc" muted playsinline preload="auto" loop></video><video class="vd" muted playsinline preload="auto" loop></video><i class="bar"></i></div>';
   $('#viewport').insertBefore(rescueEl, stage);
   // the caption sits over everything (the cabin is drawn over the film)
   const rCap = document.createElement('div');
@@ -835,14 +834,32 @@
   rCap.textContent = '긴급출동 차량 도착';
   document.body.appendChild(rCap);
   const capOn = (on) => rCap.classList.toggle('on', !!on);
-  const [rVid, rC] = rescueEl.querySelectorAll('video'), rFrame = rescueEl.querySelector('.frame'), rBg = rescueEl.querySelector('.bg');
+  const [rVid, rC, rD] = rescueEl.querySelectorAll('video'), rFrame = rescueEl.querySelector('.frame'), rBg = rescueEl.querySelector('.bg');
   rVid.src = RESCUE.src; rC.src = RESCUE.srcC;
-  const rAll = [rVid, rC];
+  /* The same wide shot while driving (drive_wide.mp4): the calm frame of the rescue film with
+   * the road moving — the lane dashes, the asphalt and the roadside flow by at the car's speed
+   * (the film is 69 km/h), the river, the far bank and the cars in the other lanes stay. It
+   * opens when the car pulls away and closes onto the cluster after a few seconds, or at once
+   * when something happens (a warning, braking, a camera hold). */
+  const WIDE = { src: 'assets/drive_wide.mp4?v=1', kmh: 69, widen: 2.6, hold: 5.5 };
+  rD.src = WIDE.src;
+  const rAll = [rVid, rC, rD];
   const rShow = (v) => { rAll.forEach((x) => { x.style.opacity = x === v ? 1 : 0; x.style.zIndex = x === v ? 2 : 1; }); };
   let rescue = null;      // { phase: pull | fade | widen | hold | narrow | out, t0, stopped }
+  function wideDriveStart() {
+    if (rescue || camHold !== 'auto' || rD.dataset.bad || rD.readyState < 2) return false;
+    if (director.live && director.live()) return false;        // a case is being worked: the cabin view stays as it is
+    rescue = { kind: 'drive', phase: 'pull', t0: now(), played: false, stopped: 0, onC: false };
+    rShow(rD);
+    try { rD.pause(); } catch (e) { /* */ }
+    rescueEl.classList.remove('stopped');
+    return true;                                // (no forced refocus: the view is already the whole cabin)
+  }
+  rD.addEventListener('error', () => { rD.dataset.bad = '1'; });
   function rescueStart() {
+    if (rescue && rescue.kind === 'drive') rescueStop(true);     // the driving shot gives way to the truck
     if (rescue) return;
-    rescue = { phase: 'pull', t0: now(), played: false, stopped: 0, onC: false };
+    rescue = { kind: 'rescue', phase: 'pull', t0: now(), played: false, stopped: 0, onC: false };
     rAll.forEach((v) => { try { v.pause(); v.currentTime = 0; v.playbackRate = 1; } catch (e) { /* not loaded yet */ } });
     rShow(rVid);
     focusPolicy(true);
@@ -851,7 +868,8 @@
   function rescueStop(now_) {
     if (!rescue) return;
     if (now_) { sirenStop(); rescue = null; extCanvas.style.opacity = ''; if (driveVid) { driveVid.style.opacity = ''; for (const n of Object.keys(extVids)) extVids[n].style.opacity = ''; } document.body.classList.remove('rescue'); rescueEl.classList.remove('on', 'stopped'); capOn(false); rAll.forEach((v) => { try { v.pause(); } catch (e) { /* */ } }); focusPolicy(true); return; }
-    if (rescue.phase !== 'narrow' && rescue.phase !== 'out') { rescue.phase = 'narrow'; rescue.t0 = now(); rescue.from = rescue.cur; capOn(false); }
+    if (rescue.phase === 'pull') { rescueStop(true); return; }            // nothing on screen yet
+    if (rescue.phase !== 'narrow' && rescue.phase !== 'out') { rescue.phase = 'narrow'; rescue.t0 = now(); rescue.from = rescue.cur || rescueAligned(); capOn(false); }
   }
   director.hooks.rescue = (c) => (c ? rescueStart() : rescueStop(true));
   // the clip's framing that lines up with the photo where it is now / that fills the view
@@ -990,10 +1008,17 @@
     }
     if (R.phase === 'fade') { v = rescueAligned(); op = smooth(0, 0.9, t); if (t >= 0.9) { R.phase = 'widen'; R.t0 = now(); R.from = v; } }
     else if (R.phase === 'widen' || R.phase === 'hold') {
-      const w = ease(clamp(t / 3.4, 0, 1));
+      const wd = R.kind === 'drive' ? WIDE.widen : 3.4;
+      const w = ease(clamp(t / wd, 0, 1));
       v = R.phase === 'hold' ? rescueWide() : rescueBlend(R.from, rescueWide(), w);
-      if (R.phase === 'widen' && !R.played && t >= RESCUE.playDelay) { R.played = true; rVid.play().catch(() => {}); }
-      if (R.phase === 'widen' && t >= 3.4) R.phase = 'hold';
+      if (R.kind !== 'drive' && R.phase === 'widen' && !R.played && t >= RESCUE.playDelay) { R.played = true; rVid.play().catch(() => {}); }
+      if (R.phase === 'widen' && t >= wd) { R.phase = 'hold'; R.heldAt = now(); }
+      // the driving shot: back to the cluster after a few seconds, or as soon as something happens
+      if (R.kind === 'drive') {
+        const moving = st.mode === 'accel' || st.mode === 'cruise';
+        const busy = !moving || camHold !== 'auto' || handHold || !!(director.live && director.live());
+        if (busy) { R.fast = true; rescueStop(false); } else if (R.phase === 'hold' && now() - R.heldAt > WIDE.hold) rescueStop(false);
+      }
       // the approach hands over to the stop on the same frame
       // the truck slows to a stop centred in front of the car; the parked loop takes over on that frame
       if (R.played && !R.onC) {
@@ -1013,12 +1038,29 @@
       // after the call (and a while on the truck) the view closes back onto the dashboard
       if (R.stopped && now() - R.stopped > RESCUE.hold && !onCall()) rescueStop(false);
     } else if (R.phase === 'narrow') {
-      const w = ease(clamp(t / 2.6, 0, 1));
+      const nd = R.fast ? 1.1 : R.kind === 'drive' ? 2.2 : 2.6;
+      const w = ease(clamp(t / nd, 0, 1));
       v = rescueBlend(R.from, rescueAligned(), w);
-      if (t >= 2.6) { R.phase = 'out'; R.t0 = now(); }
+      if (t >= nd) { R.phase = 'out'; R.t0 = now(); }
     } else if (R.phase === 'out') {
-      v = rescueAligned(); op = 1 - smooth(0, 0.8, t);
-      if (t >= 0.8) { rescueStop(true); return; }
+      const od = R.fast ? 0.45 : 0.8;
+      v = rescueAligned(); op = 1 - smooth(0, od, t);
+      if (t >= od) {
+        const drv = R.kind === 'drive';
+        rescueStop(true);
+        // the driving shot is over: on to the cluster, as the drive always did
+        if (drv && (st.mode === 'accel' || st.mode === 'cruise') && camHold === 'auto' && !(director.live && director.live())) cam.zoomAt = now() + 0.5;
+        return;
+      }
+    }
+    // the driving film runs at the car's speed (it stands while the car does)
+    if (R.kind === 'drive') {
+      const sp = st.speed;
+      if (sp < 1.5) { if (!rD.paused) rD.pause(); } else {
+        const r = clamp(sp / WIDE.kmh, 0.15, 2.4);
+        if (Math.abs(rD.playbackRate - r) > 0.02) rD.playbackRate = r;
+        if (rD.paused) rD.play().catch(() => {});
+      }
     }
     if (!v) return;
     R.cur = v;
@@ -1030,7 +1072,7 @@
     // a soft blurred copy fills the view where the clip does not reach (an upright or 4:3 screen)
     const wide = rescueWide();
     const kk = clamp((v.k - (R.from ? R.from.k : v.k)) / Math.max(1e-6, wide.k - (R.from ? R.from.k : v.k)), 0, 1);
-    rBg.style.opacity = (op * (R.phase === 'narrow' || R.phase === 'out' ? 1 - smooth(0, 2.6, t) : kk)).toFixed(3);
+    rBg.style.opacity = (op * (R.phase === 'narrow' || R.phase === 'out' ? 1 - smooth(0, R.fast ? 1.1 : 2.6, t) : kk)).toFixed(3);
   }
 
   let camHold = 'auto', seenCase = null, huFocus = 0, huEndAt = 0, hazLookUntil = 0;
