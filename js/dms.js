@@ -410,15 +410,19 @@
     cam.from = cam.cur; cam.to = kind; cam.rect = rect || null; cam.t0 = performance.now(); cam.dur = cam.from ? dur : 0;
   }
   let screenOnly = false;       // 화면만: the room fades, the monitor fills the view, focus still zooms
+  // 화면만 in a narrow, upright panel: the monitor fills the panel (its left-middle part) instead of
+  // sitting small between two black bands
+  const scrScale = (vw, vh) => ((vw / vh) < (SCR.w / SCR.h) * 0.62 ? Math.max(vw / SCR.w, vh / SCR.h) : Math.min(vw / SCR.w, vh / SCR.h));
+  const CAP_H = 76;             // the step caption over the top of the view
   function viewOf(kind, rect, vw, vh, s0, s1) {
     if (kind === 'office') return { s: s0, cx: IMG.w / 2, cy: IMG.h / 2 };
-    const sScr = Math.min(vw / SCR.w, vh / SCR.h);
-    if (kind === 'screen') return { s: sScr, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 };
+    const sScr = scrScale(vw, vh);
+    if (kind === 'screen') return { s: sScr, cx: SCR.x + SCR.w * (sScr * SCR.w > vw * 1.02 ? 0.4 : 0.5), cy: SCR.y + SCR.h / 2 };
     if (kind === 'focus' && rect && screenOnly) {
       const k = SCR.w / OW;
       const r = { x: SCR.x + rect.x * k, y: SCR.y + rect.y * k, w: rect.w * k, h: rect.h * k };
-      const s = clamp(Math.min(vw / (r.w * 1.1), vh / (r.h * 1.18)), sScr * 1.05, sScr * 3.6);
-      return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 };
+      const s = clamp(Math.min(vw / (r.w * 1.1), (vh - CAP_H) / (r.h * 1.1)), sScr * 1.05, sScr * 3.6);
+      return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 - CAP_H / 2 / s };
     }
     const mon = { s: s1, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 + 14 };
     if (kind !== 'focus' || !rect) return mon;
@@ -450,6 +454,12 @@
     let tx = vw / 2 - v.cx * v.s, ty = vh / 2 - v.cy * v.s;
     tx = clamp(tx, Math.min(vw - IMG.w * v.s, 0), Math.max(vw - IMG.w * v.s, 0));
     ty = clamp(ty, Math.min(vh - IMG.h * v.s, 0), Math.max(vh - IMG.h * v.s, 0));
+    // 화면만: the view never leaves the monitor (no black beside it)
+    if (screenOnly && (cam.to === 'screen' || cam.to === 'focus')) {
+      const x0 = SCR.x * v.s, x1 = (SCR.x + SCR.w) * v.s, y0 = SCR.y * v.s, y1 = (SCR.y + SCR.h) * v.s;
+      tx = x1 - x0 >= vw ? clamp(tx, vw - x1, -x0) : (vw - (x0 + x1)) / 2;
+      ty = y1 - y0 >= vh ? clamp(ty, vh - y1, -y0) : (vh - (y0 + y1)) / 2;
+    }
     const moving = cam.dur > 0;
     stageEl.style.willChange = moving ? 'transform' : 'auto';
     const tr = moving ? `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${v.s.toFixed(5)})` : `translate(${Math.round(tx)}px, ${Math.round(ty)}px) scale(${v.s.toFixed(5)})`;

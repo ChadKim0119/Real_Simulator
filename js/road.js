@@ -139,7 +139,7 @@
   const BLOCK = 72, STREET = 14, SETBACK = 11;
   const LANDMARKS = [
     { name: '강남 서비스센터', sub: 'SERVICE · DMS', band: '#2ee6cf' },
-    { name: 'e-Care 상담센터', sub: 'CONTACT CENTER', band: '#ff3b4a', tall: true },
+    { name: 'e-Care 고객지원실', sub: 'CONTACT CENTER', band: '#ff3b4a', tall: true },
     { name: '서초 서비스센터', sub: 'SERVICE · DMS', band: '#2ee6cf' },
     { name: 'VEP 데이터센터', sub: 'TSP · KOREA', band: '#59a8ff' },
   ];

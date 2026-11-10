@@ -177,7 +177,7 @@
 
   function callScreen(c, live) {
     const w = c.wng || { code: '', name: c.warn.title };
-    return `<div class="callscr ${live ? 'live' : ''}"><div class="who"><div class="av">e-Care</div><div><b>e-Care 상담센터</b><span data-calltime>${live ? '통화 중' : '연결 중…'}</span><em>차량 진단 정보 함께 전송 · ${esc(w.code)} ${esc(w.name)}</em></div></div>
+    return `<div class="callscr ${live ? 'live' : ''}"><div class="who"><div class="av">e-Care</div><div><b>e-Care 고객지원실</b><span data-calltime>${live ? '통화 중' : '연결 중…'}</span><em>차량 진단 정보 함께 전송 · ${esc(w.code)} ${esc(w.name)}</em></div></div>
       <div class="ctl"><div><i>🎤</i>음소거</div><div><i>⌨</i>키패드</div><div><i>🔊</i>스피커</div><div></div><div class="end"><i>${phoneSvg.replace('fill="#fff"', 'fill="#fff" style="transform:rotate(135deg);width:60px"')}</i>종료</div><div></div></div></div>`;
   }
 
@@ -188,9 +188,9 @@
     el.classList.toggle('on', !!k);
     if (k === phoneKey) return;
     phoneKey = k;
-    if (k === 'dialing') el.innerHTML = `<div class="ps"><small>휴대전화 수신</small><b>e-Care 상담센터</b><span>전화가 왔습니다</span><div class="btn2"><i class="no">✕</i><i class="yes">${phoneSvg.replace('<svg', '<svg width="60"')}</i></div></div>`;
-    else if (k === 'connected') el.innerHTML = `<div class="ps"><small>통화 중</small><b>e-Care 상담센터</b><span data-ptime>00:00</span></div>`;
-    else if (k === 'sms') el.innerHTML = `<div class="ps"><small>메시지</small><b>e-Care 상담센터</b><div class="sms">[e-Care] 고객님 차량에서 주행 불가 경고가 감지되어 3차례 연락드렸으나 연결되지 않았습니다. 안전한 곳에 정차 후 상담센터로 연락 주시기 바랍니다.</div></div>`;
+    if (k === 'dialing') el.innerHTML = `<div class="ps"><small>휴대전화 수신</small><b>e-Care 고객지원실</b><span>전화가 왔습니다</span><div class="btn2"><i class="no">✕</i><i class="yes">${phoneSvg.replace('<svg', '<svg width="60"')}</i></div></div>`;
+    else if (k === 'connected') el.innerHTML = `<div class="ps"><small>통화 중</small><b>e-Care 고객지원실</b><span data-ptime>00:00</span></div>`;
+    else if (k === 'sms') el.innerHTML = `<div class="ps"><small>메시지</small><b>e-Care 고객지원실</b><div class="sms">[e-Care] 고객님 차량에서 주행 불가 경고가 감지되어 3차례 연락드렸으나 연결되지 않았습니다. 안전한 곳에 정차 후 고객지원실로 연락 주시기 바랍니다.</div></div>`;
   }
 
   function tick() {

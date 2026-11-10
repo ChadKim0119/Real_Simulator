@@ -627,7 +627,7 @@
   }
   // while anyone talks on the phone (the e-Care agent or the dealer), the engine and road go quieter
   setInterval(() => audio.duck(onCall() || director.cases.some((c) => c.dcall && c.dcall.state === 'connected')), 250);
-  director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); setHazard(true); toast('고객 차량 갓길 정차 · 비상등 · e-Care 상담센터 발신'); } };
+  director.hooks.accept = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); setHazard(true); toast('고객 차량 갓길 정차 · 비상등 · e-Care 고객지원실 발신'); } };
   director.hooks.stop = () => { if (st.mode === 'accel' || st.mode === 'cruise') { stop(); setHazard(true); toast('고객 차량 갓길 정차 · 비상등'); } };
   // hazard lights: on when the call says the customer switched them on (director), or from
   // the control panel; both turn arrows on the cluster, the console button and the relay tick
@@ -1138,7 +1138,7 @@
     }
     if (name === 'inbound') {
       const r = director.command('inbound', {});
-      toast(r === 'busy' ? '상담원이 통화 중입니다. 통화가 끝난 뒤 다시 걸어 주세요.' : r === 'case' ? '고객 e-Care 인바운드 콜 · 상담센터 전화 수신 팝업' : '고객 일반 전화 · 상담센터 전화 수신 팝업 (경고 케이스 없음)');
+      toast(r === 'busy' ? '상담원이 통화 중입니다. 통화가 끝난 뒤 다시 걸어 주세요.' : r === 'case' ? '고객 e-Care 인바운드 콜 · 고객지원실 전화 수신 팝업' : '고객 일반 전화 · 고객지원실 전화 수신 팝업 (경고 케이스 없음)');
       return;
     }
     if (!director.live()) { toast('먼저 경고등(W)을 발생시켜 주십시오. 긴급 경고가 e-Care 상담 케이스로 등록됩니다.'); return; }

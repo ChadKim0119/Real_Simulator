@@ -418,6 +418,19 @@
     }
 
     guidance(ctx, st) {
+      // a warning popup takes the card's place: the card steps back while it is up (the road's
+      // name and speed limit under it stay)
+      let fade = 1;
+      if (st.popup) {
+        const age = performance.now() / 1000 - st.popup.t0;
+        const k = age < 0.25 ? age / 0.25 : age > st.popup.dur - 0.5 ? Math.max(0, (st.popup.dur - age) / 0.5) : 1;
+        fade = 1 - Math.max(0, Math.min(1, k));
+      }
+      if (fade > 0.01) { ctx.save(); ctx.globalAlpha *= fade; this.guidanceCard(ctx, st); ctx.restore(); }
+      this.roadInfo(ctx, st);
+    }
+
+    guidanceCard(ctx, st) {
       const j = Road.nextJunction(st.odoMeters);
       const x = 446, y = 236, w = 172, h = 56;
       const bend = Road.nextCorner(st.odoMeters, 350);
@@ -450,7 +463,6 @@
         }
         const adv = Math.max(30, Math.floor(Math.sqrt(2.3 * bend.R) * 3.6 / 10) * 10);
         this.text(ctx, `${bend.R < 200 ? '급커브' : '커브'} · 권장 ${adv} km/h`, x + 50, y + 44, 11, 'rgba(255,214,140,0.95)', { kr: true, align: 'left' });
-        this.roadInfo(ctx, st);
         return;
       }
       // manoeuvre arrow
@@ -481,7 +493,6 @@
       this.text(ctx, unit, x + 54 + ctx.measureText(d).width, y + 25, 11.5, 'rgba(220,230,245,0.85)', { align: 'left' });
       this.text(ctx, j.name, x + 50, y + 44, 11.5, 'rgba(215,226,242,0.9)', { kr: true, align: 'left' });
 
-      this.roadInfo(ctx, st);
     }
 
     roadInfo(ctx, st) {
@@ -1074,7 +1085,9 @@
       const line = `${m.title}  ·  ${m.artist}  ·  ${m.single}`;
       ctx.font = `600 11.5px ${FONT}`;
       const lw = ctx.measureText(line).width + 48;
-      const off = (t * 16) % lw;
+      // it rests at its start (the whole title readable) before each pass
+      const REST = 4, cyc = REST + lw / 16;
+      const off = Math.max(0, (t % cyc) - REST) * 16;
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
       ctx.fillStyle = '#ffffff';
@@ -1190,7 +1203,7 @@
       ctx.restore();
       const secs = c.state === 'connected' ? Math.floor((Date.now() - c.connectedAt) / 1000) : 0;
       const dur = `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
-      this.text(ctx, 'e-Care 상담센터', x + 40, y + 13, 12, '#ffffff', { kr: true, weight: 600, align: 'left' });
+      this.text(ctx, 'e-Care 고객지원실', x + 40, y + 13, 12, '#ffffff', { kr: true, weight: 600, align: 'left' });
       this.text(ctx, c.state === 'connected' ? `통화 중 · ${dur}` : '전화 수신 중…', x + 40, y + 26, 10.5, c.state === 'connected' ? '#7fe7a8' : '#ffd27a', { kr: true, align: 'left' });
     }
 
@@ -1208,7 +1221,7 @@
       ctx.translate(0, (1 - ease(age / 0.3)) * 8);
       ctx.beginPath();
       ctx.roundRect(x, y, w, h, 10);
-      ctx.fillStyle = 'rgba(6,9,16,0.9)';
+      ctx.fillStyle = 'rgba(6,9,16,0.97)';
       ctx.fill();
       ctx.strokeStyle = red ? 'rgba(255,70,55,0.75)' : 'rgba(255,180,40,0.75)';
       ctx.lineWidth = 1.2;

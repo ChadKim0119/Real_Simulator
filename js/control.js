@@ -153,7 +153,7 @@
   const DRIVE = { t: '주행 시작', cue: '“고객이 GX 550으로 주행 중입니다.” 가운데 화면은 차량에서 콜센터 · 딜러까지 연결된 시스템입니다.', run: [['act', 'drive']], pause: 5000 };
   const SCENARIOS = [
     {
-      id: 'in', n: '1', title: '긴급 경고 → 고객 전화', sub: '메인 · 고객이 HU로 상담센터에 전화', sets: true,
+      id: 'in', n: '1', title: '긴급 경고 → 고객 전화', sub: '메인 · 고객이 HU로 고객지원실에 전화', sets: true,
       steps: [PREP, DRIVE,
         { t: '긴급 경고 · HU 팝업', cue: '“주행불가 경고가 발생했습니다. TSP(VEP)가 필터 · 긴급(Case A) 판정을 마치고 CCW와 DMS로 보내며, 고객 문구는 VDP를 다시 거쳐 헤드유닛 팝업 ‘엔진오일 압력 시스템 이상 · 고객 지원실로 연결하시겠습니까?’와 앱 푸시로 전달됩니다.” 경고등은 고른 대화 세트에 맞춰 나옵니다.', run: [['warn', '@in']], until: 'hu', pause: 3000, timeout: 20000 },
         { t: '고객 HU [전화연결]', cue: '“고객이 화면의 전화연결 버튼을 누릅니다. 헤드유닛 콜이 고객지원실 상담원에게 바로 들어옵니다.”', run: [['hu', 'press']], until: 'inbound', pause: 2500 },
@@ -495,7 +495,7 @@
         + chunk('경고등 켜기', `<div class="lampset"><span class="kA">긴급</span>${lamps('A')}</div><div class="lampset"><span class="kB">경고</span>${lamps('B')}<span class="kC">알림</span>${lamps('C')}</div>`, 'WNG 등급')
         + chunk('고객 헤드유닛', b('data-hu="show"', '팝업 다시 띄우기') + b('data-hu="press"', '전화연결 누르기'))
         + chunk('정리', b('data-a="clear"', '경고등 모두 끄기'))],
-      call: ['상담센터', chunk('통화 진행', b('data-c="ack"', '① 상담원 받기') + b('data-a="accept"', '② 상담원 전화 걸기') + b('data-c="redial"', '③ 재연결') + b('data-c="hangup"', '④ 통화 종료'), '순서대로')
+      call: ['고객지원실', chunk('통화 진행', b('data-c="ack"', '① 상담원 받기') + b('data-a="accept"', '② 상담원 전화 걸기') + b('data-c="redial"', '③ 재연결') + b('data-c="hangup"', '④ 통화 종료'), '순서대로')
         + chunk('통화 후', b('data-a="dispatch"', '긴급출동') + b('data-c="arrive"', '출동 차량 도착') + b('data-a="complete"', '상담 완료 · 이관'))
         + chunk('시간 · 상황', b('data-a="sla25"', '25분 경과') + b('data-noans', '고객 미응답') + b('data-a="ccwNoise"', '콜센터 소음'))
         + chunk('서비스센터 (DMS)', b('data-dms="open"', 'DMS 상세 열기') + b('data-dms="close"', '닫기') + b('data-c="dmsAdvance"', '다음 단계 진행'), '예약 → 입고 → 정비 → 종결')

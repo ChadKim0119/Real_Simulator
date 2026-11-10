@@ -124,7 +124,7 @@
   Link.send('scn-hello', {});
   // messages to or from the car: a short note, one at a time
   let fSeen = -1, linkQ = [], linkT = 0;
-  const WHO = { vdp: '일본측 서버', cti: 'e-Care 상담', ccw: 'e-Care 상담원', wam: '업무 흐름 서버' };
+  const WHO = { vdp: '일본측 서버 · VDP', vep: '한국측 서버 · TSP', cti: 'e-Care 고객지원실', ccw: 'e-Care 고객지원실', wam: '업무 흐름 서버' };
   function linkNotes(d) {
     const fl = d.flows || [];
     if (fSeen < 0) { fSeen = fl.length ? fl[fl.length - 1].id : 0; return; }

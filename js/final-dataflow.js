@@ -15,8 +15,8 @@
   const $ = (s, el) => (el || document).querySelector(s);
   Scenes.mount($('#canvas'));
 
-  const NAME = { car: '고객 차량', phone: '고객 휴대폰', vdp: '일본측 서버 · VDP', vep: '경고 판정 · VEP', ccw: '고객지원실 · CCW', cti: '상담 전화 · CTI', rescue: '긴급출동', dms: '서비스센터 · DMS' };
-  const SHORT = { car: '차량', phone: '휴대폰', ccw: 'CCW', cti: 'CCW', dms: 'DMS', rescue: '긴급출동', vdp: 'VDP', vep: 'VEP' };
+  const NAME = { car: '고객 차량', phone: '고객 휴대폰', vdp: '일본측 서버 · VDP', vep: '한국측 서버 · TSP', ccw: '고객지원실 · CCW', cti: '상담 전화 · CTI', rescue: '긴급출동', dms: '서비스센터 · DMS' };
+  const SHORT = { car: '차량', phone: '휴대폰', ccw: 'CCW', cti: 'CCW', dms: 'DMS', rescue: '긴급출동', vdp: 'VDP', vep: 'TSP' };
   let snap = null;
 
   /* ---------------- simple: the journey ---------------- */

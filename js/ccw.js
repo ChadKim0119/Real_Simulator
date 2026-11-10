@@ -58,15 +58,20 @@
   // 화면만 (screen only): the room fades out and the monitor fills the view; the camera still
   // closes in on the part of the screen the scenario is about
   let screenOnly = false;
+  // 화면만 in a narrow, upright panel: the monitor fills the panel (its left-middle part) instead of
+  // sitting small between two black bands
+  const scrScale = (vw, vh) => ((vw / vh) < (SCR.w / SCR.h) * 0.62 ? Math.max(vw / SCR.w, vh / SCR.h) : Math.min(vw / SCR.w, vh / SCR.h));
+  const CAP_H = 76;             // the step caption over the top of the view
   function viewOf(kind, rect, vw, vh, s0, s1) {
     if (kind === 'office') return { s: s0, cx: IMG.w / 2, cy: IMG.h / 2 };
-    const sScr = Math.min(vw / SCR.w, vh / SCR.h);
-    if (kind === 'screen') return { s: sScr, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 };
+    const sScr = scrScale(vw, vh);
+    if (kind === 'screen') return { s: sScr, cx: SCR.x + SCR.w * (sScr * SCR.w > vw * 1.02 ? 0.4 : 0.5), cy: SCR.y + SCR.h / 2 };
     if (kind === 'focus' && rect && screenOnly) {
       const kx = SCR.w / 1920, ky = SCR.h / 960;
       const r = { x: SCR.x + rect.x * kx, y: SCR.y + rect.y * ky, w: rect.w * kx, h: rect.h * ky };
-      const s = clamp(Math.min(vw / (r.w * 1.1), vh / (r.h * 1.18)), sScr * 1.05, sScr * 3.2);
-      return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 };
+      // the part in question sits under the caption, not behind it
+      const s = clamp(Math.min(vw / (r.w * 1.1), (vh - CAP_H) / (r.h * 1.1)), sScr * 1.05, sScr * 3.2);
+      return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 - CAP_H / 2 / s };
     }
     const mon = { s: s1, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 + 18 };
     if (kind !== 'focus' || !rect) return mon;
@@ -104,6 +109,12 @@
     let tx = vw / 2 - cx * s, ty = vh / 2 - cy * s;
     tx = clamp(tx, Math.min(vw - IMG.w * s, 0), Math.max(vw - IMG.w * s, 0));
     ty = clamp(ty, Math.min(vh - IMG.h * s, 0), Math.max(vh - IMG.h * s, 0));
+    // 화면만: the room is not shown, so the view never leaves the monitor (no black beside it)
+    if (screenOnly && (cam.to === 'screen' || cam.to === 'focus')) {
+      const x0 = SCR.x * s, x1 = (SCR.x + SCR.w) * s, y0 = SCR.y * s, y1 = (SCR.y + SCR.h) * s;
+      tx = x1 - x0 >= vw ? clamp(tx, vw - x1, -x0) : (vw - (x0 + x1)) / 2;
+      ty = y1 - y0 >= vh ? clamp(ty, vh - y1, -y0) : (vh - (y0 + y1)) / 2;
+    }
     // a layer only while the camera moves: still, the browser draws the agent screen
     // again at the zoomed size (sharp text on the monitor)
     const moving = cam.dur > 0;
@@ -773,9 +784,56 @@
         g.strokeStyle = '#ffffff'; g.lineWidth = Math.max(2, 7 * m); g.stroke();
       }
     }
+    // 올림픽대로 runs along the south bank of the Han: the river on the driver's right, a strip of
+    // riverside green between, and 한남대교 crossing it where the address says it is
+    const edge = (lat) => { const a = []; for (let S = s0; S <= s1; S += 16) a.push(P(...Road.at(S, lat))); return a; };
+    const band = (l0, l1, fill) => { const A = edge(l0), B = edge(l1).reverse(); g.beginPath(); A.concat(B).forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]))); g.closePath(); g.fillStyle = fill; g.fill(); };
+    const RIV0 = 34, RIV1 = 760;
+    band(15, RIV0, '#cfe6c4');
+    band(RIV0, RIV1, '#b9d9f3');
+    band(RIV0, RIV0 + 5, '#a5cbec');
+    const kmTo = 0.2 + (sf % 1400) / 1400 * 0.9;                 // as the address reads: 한남대교 남단 n.n km
+    const Sb = sf + kmTo * 1000;
+    const b0 = P(...Road.at(Sb, 9)), b1 = P(...Road.at(Sb, RIV1));
+    g.beginPath(); g.moveTo(b0[0], b0[1]); g.lineTo(b1[0], b1[1]);
+    g.strokeStyle = '#cfc8ba'; g.lineWidth = Math.max(6, 16 * m); g.stroke();
+    g.strokeStyle = '#ffffff'; g.lineWidth = Math.max(4, 12 * m); g.stroke();
     const path = () => { g.beginPath(); for (let S = s0; S <= s1; S += 8) { const p = P(...Road.pos(S)); S === s0 ? g.moveTo(p[0], p[1]) : g.lineTo(p[0], p[1]); } };
     path(); g.strokeStyle = '#e2b066'; g.lineWidth = Math.max(6, 17 * m); g.stroke();
     path(); g.strokeStyle = '#f7d48c'; g.lineWidth = Math.max(4, 13 * m); g.stroke();
+    // names: the road, the river, the bridge (or which way it is when it is off the map)
+    const label = (txt, q, col, size, halo) => {
+      g.font = `${size >= 13 ? 700 : 600} ${size}px Pretendard, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.lineWidth = 3.5; g.strokeStyle = halo; g.strokeText(txt, q[0], q[1]); g.fillStyle = col; g.fillText(txt, q[0], q[1]);
+    };
+    const inView = (q, pad) => q[0] > pad && q[0] < W - pad && q[1] > pad && q[1] < H - pad;
+    const mid = (s + sf) / 2;
+    // labels keep clear of the pins, of the bridge and of each other
+    const taken = [P(ax, ay), P(bx, by)].map((q) => [q[0], q[1] - 30]);
+    taken.push(P(...Road.at(Sb, RIV0 + 120)));
+    const free = (q, r) => taken.every((t) => Math.hypot(t[0] - q[0], (t[1] - q[1]) * 1.25) > r);
+    let rq = null;
+    for (const dS of [0, 170, -170, 320, -320, 480, -480]) { const q = P(...Road.at(mid + dS, RIV0 + 330)); if (inView(q, 46) && free(q, 90)) { rq = q; break; } }
+    if (rq) { label('한강', rq, '#4f86b8', 15, 'rgba(185,217,243,0.9)'); taken.push(rq); }
+    for (const dS of [0, 150, -150, 280, -280, 420, -420]) { const q = P(...Road.at(mid + dS, -64)); if (inView(q, 30) && free(q, 50)) { label('올림픽대로', q, '#9a6a1c', 12, 'rgba(255,255,255,0.92)'); break; } }
+    const bq = P(...Road.at(Sb, RIV0 + 120));
+    if (inView(bq, 40)) label('한남대교', bq, '#6b6456', 12, 'rgba(255,255,255,0.92)');
+    else {
+      // towards the bridge, on the edge of the map
+      const here = P(...Road.pos(s)), dx = bq[0] - here[0], dy = bq[1] - here[1], L = Math.hypot(dx, dy) || 1;
+      const tEdge = Math.min(dx > 0 ? (W - 74 - here[0]) / dx : dx < 0 ? (74 - here[0]) / dx : 9, dy > 0 ? (H - 44 - here[1]) / dy : dy < 0 ? (40 - here[1]) / dy : 9);
+      const q = [here[0] + dx * tEdge, here[1] + dy * tEdge];
+      const txt = `한남대교 ${kmTo.toFixed(1)}km`;
+      g.font = '600 11.5px Pretendard, sans-serif';
+      const tw = g.measureText(txt).width + 30;
+      g.fillStyle = 'rgba(255,255,255,0.94)'; g.strokeStyle = '#cfc8ba'; g.lineWidth = 1;
+      g.beginPath(); g.roundRect(q[0] - tw / 2, q[1] - 11, tw, 22, 11); g.fill(); g.stroke();
+      g.fillStyle = '#6b6456'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(txt, q[0] - tw / 2 + 22, q[1] + 0.5);
+      // a small arrow pointing that way
+      const ang = Math.atan2(dy, dx), ax = q[0] - tw / 2 + 12, ay = q[1];
+      g.save(); g.translate(ax, ay); g.rotate(ang); g.beginPath(); g.moveTo(5, 0); g.lineTo(-4, -4); g.lineTo(-2, 0); g.lineTo(-4, 4); g.closePath(); g.fillStyle = '#8d8676'; g.fill(); g.restore();
+      void L;
+    }
     // dispatch vehicle on its way
     if (c.dispatch >= 1) {
       const lg = c.log.find((e) => e.text.startsWith('긴급출동 출동'));

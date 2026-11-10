@@ -282,7 +282,9 @@
       const group = open && wng.case !== 'A' ? open.group : uuid();
       const c = {
         id, level, kind: wng.case === 'A' ? 'emergency' : 'maintenance', wcase: wng.case, wng, group,
-        warn: { id: item.id, title: item.title, desc: item.desc, ...w },
+        // e-Care's name for it (WNG master name + 이상), the same on the HU popup, CCW, DMS and the
+        // data flow; the cluster keeps the car's own wording (item.title)
+        warn: { id: item.id, title: `${wng.name} 이상`, lamp: item.title, desc: item.desc, ...w },
         at: Date.now(), slaBase: Date.now(), contact: 0, dispatch: -1, dms: -1,
         agent: null, call: null, assign: null, inbound: null, retry: null, sms: false,
         sheet: null, memo: { title: '', text: '', transfer: true, dealer: DEALERS[0].name, name: CUSTOMER.name, phone: CUSTOMER.phone, request: '' },
