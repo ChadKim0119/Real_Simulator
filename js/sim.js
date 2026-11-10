@@ -17,6 +17,7 @@
   // never covered); hu_band_full.webp is the whole band, faded in when the camera closes in
   // and the wheel turns to a see-through ghost
   const BAND = { x: 1186, y: 280, k: 3.6, src: 'assets/hu_band.webp?v=3', full: 'assets/hu_band_full.webp?v=1' };
+  // both hands are cut out of the filmed footage at 2520x1068 with a baked contact shadow (README)
   // hand_call.webm (a woman's hand, cream knit sleeve; hand_call_m.webm is a man's): fingertip on the button at
   // this second; aspect of the view it was shot on; where the pad of the index finger is in the
   // clip at that moment (share of its width / height) — the layer is placed so it lands on the
@@ -723,12 +724,12 @@
    * the head-unit view: its frame is HU_VIEW's height, centred on HU_VIEW. */
   let handHold = false;
   function initHand() {
-    const HAND = { src: 'assets/hand_call.webm?v=2', contact: HAND_CONTACT, ar: HAND_AR };
+    const HAND = { src: 'assets/hand_call.webm?v=3', contact: HAND_CONTACT, ar: HAND_AR };
     // two drivers' hands, both filmed on the same head-unit view and touching at the same second:
     // a man's (dark sleeve) for a male customer's call, a woman's (cream knit) for a female one's;
     // tip: where the pad of the index finger is at the touch (share of the frame)
     const HANDS = {
-      m: { src: 'assets/hand_call_m.webm?v=2', tip: { x: 662 / 1680, y: 303 / 712 } },
+      m: { src: 'assets/hand_call_m.webm?v=3', tip: { x: 662 / 1680, y: 303 / 712 } },
       f: { src: HAND.src, tip: HAND_TIP },
     };
     // the customer's voice of the inbound set picked: the Case A recording and the auxiliary set are men
