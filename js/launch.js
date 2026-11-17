@@ -14,6 +14,9 @@
   const page = /final_instrument/.test(location.pathname) ? 'instrument' : /final_dataflow/.test(location.pathname) ? 'dataflow' : 'control';
   if (window.top !== window) return;                 // not inside an iframe
   const others = Object.keys(SCREENS).filter((k) => k !== page);
+  // a window opened by hand carries its screen's name too, so the buttons and keys of the
+  // other screens find it (where the browser lets them) instead of opening a second one
+  if (!/^rs-/.test(window.name)) { try { window.name = `rs-${page}`; } catch (e) { /* kept */ } }
 
   const css = `
   #launch { position: fixed; left: 10px; bottom: 10px; z-index: 2147483000; display: flex; gap: 6px; align-items: center;
@@ -116,5 +119,6 @@
   }
   function mark() { bar.querySelectorAll('[data-launch]').forEach((b) => { const w = wins[b.dataset.launch]; b.classList.toggle('open', !!(w && !w.closed)); }); }
   setInterval(mark, 2000);
+  window.Launch = { open, page };          // js/hotkeys.js: keys 1 · 2 · 3
   bar.addEventListener('click', (e) => { const b = e.target.closest('[data-launch]'); if (b) open(b.dataset.launch); });
 })();

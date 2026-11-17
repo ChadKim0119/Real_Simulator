@@ -29,7 +29,7 @@
       if (e.code !== 'KeyF' && !final) return;
       e.stopImmediatePropagation();
       e.preventDefault();
-      try { window.parent.dispatchEvent(new KeyboardEvent('keydown', { code: e.code, key: e.key, bubbles: true })); } catch (err) { /* gone */ }
+      try { window.parent.dispatchEvent(new KeyboardEvent('keydown', { code: e.code, key: e.key, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey, repeat: e.repeat, bubbles: true })); } catch (err) { /* gone */ }
     }, true);
   }
 

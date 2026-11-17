@@ -598,10 +598,37 @@
     else if ('noans' in d) send('cmd', 'noAnswer', { on: !(snap && snap.noAnswer) });
     else if ('reset' in d) resetAll();
   });
-  addEventListener('keydown', (e) => {
-    if (e.target.matches('input,textarea')) return;
-    if (e.code === 'ArrowRight' || e.code === 'ArrowDown' || e.code === 'Space' || e.code === 'PageDown') { e.preventDefault(); if (!advancing && !jumping) go(cur + 1); }
-    if (e.code === 'ArrowLeft' || e.code === 'ArrowUp' || e.code === 'PageUp') { e.preventDefault(); back(); }
+  /* Shortcut keys (js/hotkeys.js reads the keys on this panel and on the two Final
+   * screens, e.g. from an Ulanzi D200X): one named action each, the same as its button. */
+  const CAMS = ['auto', 'full', 'cluster', 'hu'];
+  function hot(name, arg) {
+    if (name === 'next') { if (!advancing && !jumping) go(cur + 1); }
+    else if (name === 'prev') back();
+    else if (name === 'auto') { auto = !auto; steps(); if (auto && !busy) go(cur + 1); }
+    else if (name === 'reset') resetAll();
+    else if (name === 'opening') { send('scene', scene !== 'opening' ? 'opening' : 'live'); manualState(); }
+    else if (name === 'scene') { send('scene', arg); manualState(); }
+    else if (name === 'cam') { camView = arg; Link.send('cam', { view: arg }); manualState(); }
+    else if (name === 'camStep') { camView = CAMS.at((CAMS.indexOf(camView) + arg + CAMS.length) % CAMS.length); Link.send('cam', { view: camView }); manualState(); note(`차량 시점: ${{ auto: '자동', full: '전체', cluster: '계기판', hu: 'HU' }[camView]}`); }
+    else if (name === 'ccwcam') { ccwCam = arg; ccwManual = arg !== 'auto'; localStorage.setItem('control-ccwcam-manual', ccwManual ? '1' : ''); localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: ccwCam }); manualState(); }
+    else if (name === 'hazard') send('act', 'hazard', { on: !(veh && veh.hazard) });
+    else if (name === 'df') { dfMode = dfMode === 'detail' ? 'simple' : 'detail'; Link.send('df-mode', { mode: dfMode }); manualState(); }
+    else if (name === 'talk') { talkMode = talkMode === 'open' ? 'close' : 'open'; Link.send('talk-panel', { open: talkMode === 'open' }); manualState(); }
+    else if (name === 'scenario') { const x = SCENARIOS.at(arg); if (x) { pick(x.id); note(`시나리오: ${x.title}`); } }
+  }
+  window.ControlHot = hot;
+  /* A key pressed on a Final screen of this computer (another computer's keys stay there).
+   * Two control panels open in this browser: only the one used last takes it. */
+  const ctlId = Math.random().toString(36).slice(2, 10);
+  const claim = () => { try { localStorage.setItem('control-owner', ctlId); } catch (e) { /* private mode */ } };
+  claim();
+  addEventListener('focus', claim);
+  addEventListener('pointerdown', claim, true);
+  Link.on('ctl-key', (d) => {
+    if (!d || d.dev !== (window.Hotkeys && window.Hotkeys.dev)) return;
+    let owner = ctlId;
+    try { owner = localStorage.getItem('control-owner') || ctlId; } catch (e) { /* private mode */ }
+    if (owner === ctlId) hot(d.name, d.arg);
   });
 
   scenarios();
