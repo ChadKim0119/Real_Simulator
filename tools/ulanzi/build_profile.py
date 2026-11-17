@@ -38,17 +38,18 @@ NAME = 'Real Simulator'
 NS = uuid.UUID('6f1d7c2e-6a43-4c55-9d0e-52c0a1e0d201')
 uid = lambda s: str(uuid.uuid5(NS, s))
 
-# (칸, 아이콘, 단축키)
+# (칸, 아이콘, 단축키) — 단축키 대신 '>' · '<'는 다음 · 이전 페이지.
+# 가운데 키(2_1)는 지금 페이지 번호를 보여 주고, 누르면 다른 페이지로 넘어간다.
+# 이전 · 다음 단계는 두 페이지 모두 같은 자리(맨 왼쪽 위 두 칸)에 둔다.
 PAGES = [
-    ('시연 진행', [
+    ('Page 1 · 시연 진행', [
         ('0_0', 'p1-01', '←'), ('1_0', 'p1-02', '→'), ('2_0', 'p1-03', 'A'), ('3_0', 'p1-04', 'O'), ('4_0', 'p1-05', '⇧ R'),
-        ('0_1', 'p1-06', '1'), ('1_1', 'p1-07', '2'), ('2_1', 'p1-08', '3'), ('3_1', 'p1-09', 'F'), ('4_1', 'p1-10', 'H'),
+        ('0_1', 'p1-06', '1'), ('1_1', 'p1-07', '2'), ('2_1', 'page-1', '>'), ('3_1', 'p1-08', '3'), ('4_1', 'p1-09', 'F'),
         ('0_2', 'p1-11', '4'), ('1_2', 'p1-13', '6'), ('2_2', 'p1-14', '7'),
     ]),
-    ('장면 · Q&A', [
-        ('0_0', 'p2-01', 'L'), ('1_0', 'p2-02', 'C'), ('2_0', 'p2-03', 'E'), ('3_0', 'p2-04', 'B'), ('4_0', 'p2-05', 'O'),
-        ('0_1', 'p2-06', 'D'), ('1_1', 'p2-07', 'T'), ('2_1', 'p2-08', '8'), ('3_1', 'p2-09', '9'), ('4_1', 'p2-10', '0'),
-        ('0_2', 'p2-11', '⇧ 1'), ('1_2', 'p2-12', '⇧ 2'), ('2_2', 'p2-13', '⇧ 3'),
+    ('Page 2 · 장면 · Q&A', [
+        ('0_0', 'p1-01', '←'), ('1_0', 'p1-02', '→'), ('2_0', 'p2-06', 'D'), ('3_0', 'p2-02', 'C'), ('4_0', 'p2-03', 'E'),
+        ('0_1', 'p2-11', '⇧ 1'), ('2_1', 'page-2', '<'), ('4_1', 'p2-04', 'B'),
     ]),
 ]
 # 노브 (칸, 왼쪽, 오른쪽, 누르기): 노브 1 = 차량 시점, 노브 3 = 단계 이동. 노브 2(볼륨)는 Ulanzi Studio에서 직접.
@@ -67,6 +68,19 @@ def key(pid, slot, img, hk):
         'Name': 'Hotkey',
         'Plugin': SYSTEM,
         # 아이콘에 글자가 들어 있어 제목은 비운다
+        'ViewParam': [{'Icon': img, 'IconRel': img, 'Text': ''}],
+    }
+
+
+def page_key(pid, slot, img, way):
+    nxt = way == '>'
+    return {
+        'Action': f"com.ulanzi.ulanzideck.page.{'next' if nxt else 'prev'}",
+        'ActionID': uid(f'{pid}/{slot}'),
+        'ActionParam': {},
+        'LinkedTitle': False,
+        'Name': 'Next page' if nxt else 'Previous page',
+        'Plugin': PAGES_PLUGIN,
         'ViewParam': [{'Icon': img, 'IconRel': img, 'Text': ''}],
     }
 
@@ -107,7 +121,7 @@ def build(device, out):
             for slot, icon, hk in keys:
                 img = f'Images/{icon}.png'
                 f(f'{base}/{img}', open(os.path.join(ICONS, f'{icon}.png'), 'rb').read())
-                pad[slot] = key(pid, slot, img, hk)
+                pad[slot] = page_key(pid, slot, img, hk) if hk in ('<', '>') else key(pid, slot, img, hk)
             # 아래 줄 버튼: 이전 · 다음 페이지
             pad['0_3'] = {'Action': 'com.ulanzi.ulanzideck.page.prev', 'ActionID': uid(f'{pid}/0_3'), 'ActionParam': {},
                           'LinkedTitle': True, 'Name': 'Previous page', 'Plugin': PAGES_PLUGIN, 'ViewParam': [{'IconRel': ''}]}
