@@ -56,18 +56,20 @@ D200X의 키는 5열 × 3행이고, 오른쪽 아래 한 칸은 2칸 너비의 �
 
 ## 프리셋 파일 (.ulanziDeckProfile)
 
-위 두 페이지를 담은 Ulanzi Studio 프로필 파일입니다. Ulanzi Studio의 프로필 가져오기로 불러옵니다.
+위 두 페이지와 노브 2개, 아래 버튼 2개(이전 · 다음 페이지)를 담은 Ulanzi Studio 프리셋입니다. Ulanzi Studio의 **Import Local Preset**으로 불러옵니다.
 
-| 파일 | 용도 |
-|---|---|
-| `tools/ulanzi/RealSimulator_D200X_mac.ulanziDeckProfile` | macOS용 Ulanzi Studio |
-| `tools/ulanzi/RealSimulator_D200X_win.ulanziDeckProfile` | Windows용 Ulanzi Studio |
-
-- 두 파일은 단축키를 적는 방식만 다릅니다: macOS는 `⇧ R`, Windows는 `Shift+R`.
-- 키 배치를 바꾸려면 `tools/ulanzi/build_profile.py`의 표를 고친 뒤 `python3 tools/ulanzi/build_profile.py`를 실행합니다.
-- 노브 3개는 파일에 넣지 않았습니다. 노브 동작의 저장 형식을 확인할 자료가 없어, 아래 노브 표대로 Ulanzi Studio에서 직접 지정합니다.
-- 파일 형식은 Ulanzi Studio 3.x(macOS)를 공개 분석한 자료를 따랐습니다. 실제 Ulanzi Studio 가져오기와 Windows 단축키 표기는 아직 확인하지 못했습니다.
-- 가져오기가 안 되거나 단축키가 비어 보이면, Ulanzi Studio에서 단축키 키 하나만 넣은 프로필을 내보내 그 파일을 기준으로 생성기를 맞추면 됩니다.
+- 형식은 Ulanzi Studio(macOS)가 내보낸 실물 프리셋을 기준으로 맞췄습니다.
+  - 파일 구조: `#Version: 2` 줄 뒤에 ZIP이 붙습니다.
+  - 키 · 노브 · 버튼 칸: 행 0~2가 LCD 키, 행 3이 아래 줄(`0_3` · `1_3` 버튼, `2_3`~`4_3` 노브)입니다.
+  - 단축키 표기: `⇧ R`, `→`
+- 프리셋에는 D200X 기기 UUID가 들어가므로 공개 저장소에는 파일을 올리지 않습니다. 생성기로 만듭니다.
+  ```
+  python3 tools/ulanzi/build_profile.py --device <기기 UUID> --out RealSimulator_D200X.ulanziDeckProfile
+  ```
+  기기 UUID는 Ulanzi Studio에서 내보낸 아무 프리셋의 `manifest.json` → `Device.UUID`에 있습니다.
+- 키 배치를 바꾸려면 `tools/ulanzi/build_profile.py`의 `PAGES` · `KNOBS` 표를 고칩니다.
+- 넓은 키(`3_2`)는 배경 모드로 둡니다. 시계로 바꾸려면 Ulanzi Studio에서 지정합니다.
+- 노브 2(볼륨)는 Ulanzi Studio에서 직접 지정합니다.
 
 **노브 · 버튼**
 
