@@ -44,16 +44,17 @@ uid = lambda s: str(uuid.uuid5(NS, s))
 PAGES = [
     ('Page 1 · 시연 진행', [
         ('0_0', 'p1-07', '2'), ('1_0', 'p1-08', '3'), ('2_0', 'p1-06', '1'), ('3_0', 'p1-03', 'A'), ('4_0', 'p1-05', '⇧ R'),
-        ('0_1', 'p1-04', 'O'), ('1_1', 'p2-01', 'L'), ('2_1', 'page-1', '>'), ('3_1', 'p2-02', 'C'), ('4_1', 'p2-04', 'B'),
-        ('0_2', 'p1-11', '4'), ('1_2', 'p1-12', '5'), ('2_2', 'p1-01', '←'), ('3_2', 'p1-02w', '→'),
+        ('0_1', 'p1-04', 'O'), ('1_1', 'p2-02', 'C'), ('2_1', 'page-1', '>'), ('3_1', 'p1-11', '4'), ('4_1', 'p1-12', '5'),
+        ('0_2', 'p1-01', '←'), ('1_2', 'p1-02', '→'), ('3_2', 'wide-logo', 'BG'),
     ]),
     ('Page 2 · 장면 · Q&A', [
-        ('0_0', 'x-06', 'D'), ('1_0', 'p2-08', '8'), ('2_0', 'p2-09', '9'), ('3_0', 'p2-14', '⇧ /'), ('4_0', 'p1-05', '⇧ R'),
-        ('0_1', 'p2-06', 'D'), ('1_1', 'p2-10', '0'), ('2_1', 'page-2', '<'), ('3_1', 'p2-12', '⇧ 2'), ('4_1', 'x-03', '⇧ 4'),
-        ('0_2', 'p2-07', 'T'), ('1_2', 'p2-13', '⇧ 3'), ('2_2', 'p1-01', '←'), ('3_2', 'p1-02w', '→'),
+        ('0_0', 'x-06', 'D'), ('1_0', 'p2-08', '8'), ('2_0', 'p2-09', '9'), ('3_0', 'p2-10', '0'), ('4_0', 'p1-05', '⇧ R'),
+        ('0_1', 'p2-14', '⇧ /'), ('1_1', 'p2-13', '⇧ 3'), ('2_1', 'page-2', '<'), ('3_1', 'p2-12', '⇧ 2'), ('4_1', 'x-03', '⇧ 4'),
+        ('0_2', 'p1-01', '←'), ('1_2', 'p1-02', '→'), ('2_2', 'p2-07', 'T'), ('3_2', 'wide-logo', 'BG'),
     ]),
 ]
-# 넓은 키(3_2)는 '다음'(392×196 아이콘). 노브 3개는 사운드 크기: Ulanzi Studio의 볼륨 동작을 직접 끌어다 놓는다
+# 'BG': 넓은 키(3_2)의 배경 이미지(392×196). 로고처럼 공개 저장소에 두지 않을 이미지는 icons/local/에 둔다.
+# 노브 3개는 사운드 크기: Ulanzi Studio의 볼륨 동작을 직접 끌어다 놓는다
 # (볼륨 동작의 내부 ID를 모르므로 파일에는 비워 둔다). 노브에 단축키를 넣으려면 (칸, 왼쪽, 오른쪽, 누르기)로 적는다.
 KNOBS = []
 
@@ -122,8 +123,15 @@ def build(device, out):
             pad = {}
             for slot, icon, hk in keys:
                 img = f'Images/{icon}.png'
-                f(f'{base}/{img}', open(os.path.join(ICONS, f'{icon}.png'), 'rb').read())
-                pad[slot] = page_key(pid, slot, img, hk) if hk in ('<', '>') else key(pid, slot, img, hk)
+                src = os.path.join(ICONS, f'{icon}.png')
+                if not os.path.exists(src): src = os.path.join(ICONS, 'local', f'{icon}.png')
+                f(f'{base}/{img}', open(src, 'rb').read())
+                if hk == 'BG':                         # the wide panel's background image
+                    pad[slot] = {'Action': 'com.ulanzi.ulanzideck.smallwindow.window', 'ActionID': uid(f'{pid}/{slot}'),
+                                 'ActionParam': {'SmallViewMode': 100}, 'LinkedTitle': True, 'Name': 'Background setting',
+                                 'Plugin': {}, 'ViewParam': [{'Icon': img, 'IconRel': img}]}
+                else:
+                    pad[slot] = page_key(pid, slot, img, hk) if hk in ('<', '>') else key(pid, slot, img, hk)
             # 아래 줄 버튼: 이전 · 다음 페이지
             pad['0_3'] = {'Action': 'com.ulanzi.ulanzideck.page.prev', 'ActionID': uid(f'{pid}/0_3'), 'ActionParam': {},
                           'LinkedTitle': True, 'Name': 'Previous page', 'Plugin': PAGES_PLUGIN, 'ViewParam': [{'IconRel': ''}]}
