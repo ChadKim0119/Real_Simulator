@@ -43,17 +43,19 @@ uid = lambda s: str(uuid.uuid5(NS, s))
 # 이전 · 다음 단계는 두 페이지 모두 같은 자리(맨 왼쪽 위 두 칸)에 둔다.
 PAGES = [
     ('Page 1 · 시연 진행', [
-        ('0_0', 'p1-01', '←'), ('1_0', 'p1-02', '→'), ('2_0', 'p1-03', 'A'), ('3_0', 'p1-04', 'O'), ('4_0', 'p1-05', '⇧ R'),
-        ('0_1', 'p1-06', '1'), ('1_1', 'p1-07', '2'), ('2_1', 'page-1', '>'), ('3_1', 'p1-08', '3'), ('4_1', 'p1-09', 'F'),
-        ('0_2', 'p1-11', '4'), ('1_2', 'p1-13', '6'), ('2_2', 'p1-14', '7'),
+        ('0_0', 'p1-07', '2'), ('1_0', 'p1-08', '3'), ('2_0', 'p1-06', '1'), ('3_0', 'p1-03', 'A'), ('4_0', 'p1-05', '⇧ R'),
+        ('0_1', 'p1-04', 'O'), ('1_1', 'p2-01', 'L'), ('2_1', 'page-1', '>'), ('3_1', 'p2-02', 'C'), ('4_1', 'p2-04', 'B'),
+        ('0_2', 'p1-11', '4'), ('1_2', 'p1-12', '5'), ('2_2', 'p1-01', '←'), ('3_2', 'p1-02w', '→'),
     ]),
     ('Page 2 · 장면 · Q&A', [
-        ('0_0', 'p1-01', '←'), ('1_0', 'p1-02', '→'), ('2_0', 'p2-06', 'D'), ('3_0', 'p2-02', 'C'), ('4_0', 'p2-03', 'E'),
-        ('0_1', 'p2-11', '⇧ 1'), ('2_1', 'page-2', '<'), ('4_1', 'p2-04', 'B'),
+        ('0_0', 'x-06', 'D'), ('1_0', 'p2-08', '8'), ('2_0', 'p2-09', '9'), ('3_0', 'p2-14', '⇧ /'), ('4_0', 'p1-05', '⇧ R'),
+        ('0_1', 'p2-06', 'D'), ('1_1', 'p2-10', '0'), ('2_1', 'page-2', '<'), ('3_1', 'p2-12', '⇧ 2'), ('4_1', 'x-03', '⇧ 4'),
+        ('0_2', 'p2-07', 'T'), ('1_2', 'p2-13', '⇧ 3'), ('2_2', 'p1-01', '←'), ('3_2', 'p1-02w', '→'),
     ]),
 ]
-# 노브 (칸, 왼쪽, 오른쪽, 누르기): 노브 1 = 차량 시점, 노브 3 = 단계 이동. 노브 2(볼륨)는 Ulanzi Studio에서 직접.
-KNOBS = [('2_3', '[', ']', '4'), ('4_3', '←', '→', 'A')]
+# 넓은 키(3_2)는 '다음'(392×196 아이콘). 노브 3개는 사운드 크기: Ulanzi Studio의 볼륨 동작을 직접 끌어다 놓는다
+# (볼륨 동작의 내부 ID를 모르므로 파일에는 비워 둔다). 노브에 단축키를 넣으려면 (칸, 왼쪽, 오른쪽, 누르기)로 적는다.
+KNOBS = []
 
 SYSTEM = {'Name': 'System', 'UUID': 'com.ulanzi.deck.system', 'Version': '1.0'}
 PAGES_PLUGIN = {'Name': 'Pages', 'UUID': 'com.ulanzi.deck.page', 'Version': '1.0'}
@@ -127,8 +129,8 @@ def build(device, out):
                           'LinkedTitle': True, 'Name': 'Previous page', 'Plugin': PAGES_PLUGIN, 'ViewParam': [{'IconRel': ''}]}
             pad['1_3'] = {'Action': 'com.ulanzi.ulanzideck.page.next', 'ActionID': uid(f'{pid}/1_3'), 'ActionParam': {},
                           'LinkedTitle': True, 'Name': 'Next page', 'Plugin': PAGES_PLUGIN, 'ViewParam': [{'IconRel': ''}]}
-            # 2칸 너비 창: 견본과 같은 배경 모드 (Ulanzi Studio에서 시계로 바꿀 수 있다)
-            pad['3_2'] = {'Action': 'com.ulanzi.ulanzideck.smallwindow.window', 'ActionID': uid(f'{pid}/3_2'),
+            # 2칸 너비 창: 키를 넣지 않았으면 견본과 같은 배경 모드 (Ulanzi Studio에서 시계로 바꿀 수 있다)
+            if '3_2' not in pad: pad['3_2'] = {'Action': 'com.ulanzi.ulanzideck.smallwindow.window', 'ActionID': uid(f'{pid}/3_2'),
                           'ActionParam': {'SmallViewMode': 100}, 'LinkedTitle': True, 'Name': 'Background setting',
                           'Plugin': {}, 'ViewParam': [{'Icon': ''}]}
             enc = {slot: knob(pid, slot, l, r, p) for slot, l, r, p in KNOBS}
