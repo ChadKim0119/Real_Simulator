@@ -425,7 +425,7 @@
     camView = 'auto'; Link.send('cam', { view: 'auto' });
     ccwManual = false; localStorage.removeItem('control-ccwcam-manual');
     ccwCam = 'auto'; localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: 'auto' });
-    steps(); manualState();
+    talkKey = ''; steps(); manualState();
     const tok = token;
     setTimeout(() => { if (tok === token) note('초기화 완료 · 모든 화면이 오프닝에서 대기합니다'); }, 1600);
   }
@@ -512,13 +512,17 @@
     const key = `${sc.id}|${cur}`;
     if (key === talkKey) return;
     talkKey = key;
-    const k = TalkScript.get(s || sc.steps[0]);
-    const n = s ? TalkScript.get(next) : null;
-    const head = s ? `${cur + 1}/${sc.steps.length} · ${s.t}` : `시작 전 · 첫 단계 ${sc.steps[0].t}`;
+    // before the first step every screen waits on the opening (also right after 초기화):
+    // the presenter reads the opening line first, whatever scenario is picked
+    const k = TalkScript.get(s || { t: '오프닝' });
+    const nxt = s ? next : (sc.steps[0].t === '오프닝' ? sc.steps[1] : sc.steps[0]);
+    const n = nxt ? TalkScript.get(nxt) : null;
+    const first = (t) => { const m = String(t || '').match(/^.*?[.?!](?=\s|$)/); return m ? m[0] : t; };
+    const head = s ? `${cur + 1}/${sc.steps.length} · ${s.t}` : '시작 전 · 오프닝';
     el.innerHTML = `<h2>발표 스크립트 <small>${esc(head)}</small></h2>`
-      + (k ? `<p class="pt">${esc(k.point)}</p><p class="say">${esc(k.say)}</p><p class="look"><b>가리킬 곳</b>${esc(k.look)}</p>`
+      + (k ? `<p class="pt">${esc(k.point)}</p>${k.say ? `<p class="say">${esc(k.say)}</p>` : ''}<p class="look"><b>가리킬 곳</b>${esc(k.look)}</p>`
         : `<p class="say">${esc(s ? s.cue : '')}</p>`)
-      + (next && s ? `<p class="nx"><b>다음 · ${esc(next.t)}</b>${esc(n ? n.point : '')}</p>` : '');
+      + (nxt ? `<p class="nx"><b>다음 · ${esc(nxt.t)}</b>${esc(n ? first(n.point) : '')}</p>` : '');
   }
 
   /* ---------------- status ---------------- */
