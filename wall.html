@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <title>시연 화면 · e-Care</title>
+  <link rel="icon" type="image/svg+xml" href="assets/icons/wall.svg">
+  <link rel="apple-touch-icon" href="assets/icons/wall-180.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/wall.css">
+  <link rel="stylesheet" href="css/follow.css">
+</head>
+<body>
+  <div id="canvas"><div id="panels"></div><div id="scene"></div><div id="fin" aria-live="polite"></div></div>
+  <div id="notice"></div>
+  <div id="modes"></div>
+  <div id="rotate">시연 화면은 가로로 넓은 화면입니다 · 휴대폰을 가로로 돌려 주세요</div>
+  <div id="bar">
+    <b>e-Care 시연 화면</b>
+    <button data-mode>화면 모드</button><button data-edit>배치 편집</button><button data-reset>기본 배치</button><button data-labels>라벨</button><button data-fs>전체화면</button>
+    <span id="hint"></span>
+  </div>
+  <script src="assets/vendor/gsap/gsap.min.js"></script>
+  <script src="assets/vendor/gsap/MotionPathPlugin.min.js"></script>
+  <script src="assets/vendor/gsap/DrawSVGPlugin.min.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/link.js"></script>
+  <script src="js/ecare.js"></script>
+  <script src="js/follow.js"></script>
+  <script src="js/walldef.js"></script>
+  <script src="js/wall.js"></script>
+</body>
+</html>

@@ -1,0 +1,237 @@
+/* Head unit (MM) of the customer's car.
+ * Home is the music screen; on a warning the e-Care popup from the WNG
+ * master texts with [전화연결], which places the MM inbound call to the call
+ * center; then the call and service center status (no dispatch details). For outbound calls the
+ * customer's phone slides in. The control panel presses the button
+ * (Link 'hu' {action:'press'}).
+ *
+ *   hu.html              the head unit in its frame with captions (1920x1080)
+ *   hu.html?embed=1      the screen alone (1920x622, the 14-inch display's picture
+ *                        area), composited into the car
+ *                        interior by index.html
+ *   hu.html?overlay=1    only the customer's phone, over the car interior */
+(function () {
+  'use strict';
+
+  const E = window.ECare;
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const pad = (n) => String(n).padStart(2, '0');
+  const root = $('#root');
+  const q = new URLSearchParams(location.search);
+  const MODE = q.has('embed') ? 'embed' : q.has('overlay') ? 'overlay' : 'full';
+  document.body.classList.add(MODE);
+  const [BW, BH] = MODE === 'embed' ? [1920, 622] : [1920, 1080];
+
+  function fit() {
+    const k = Math.min(innerWidth / BW, innerHeight / BH);
+    root.style.transform = `translate(${(innerWidth - BW * k) / 2}px, ${(innerHeight - BH * k) / 2}px) scale(${k})`;
+  }
+  addEventListener('resize', fit);
+  fit();
+
+  let snap = null, veh = null;
+  let pressed = null;            // case id whose [전화연결] was pressed
+    let reopen = {};               // case id -> popup reopened by the remote
+  const closed = {};             // case id -> the driver closed the popup ([닫기]); it stays until then
+  let caption = null;
+  Link.on('ecare', (d) => { snap = E.gate(d, 'car'); render(); });   // only what has reached this screen
+  Link.on('veh', (d) => { veh = d; });
+  // the dealer's follow-up call goes to the customer's phone, not the car
+  Link.on('say', (d) => { if (d.dealer) return; caption = { who: d.line.who, text: d.line.text, until: Date.now() + (d.line.dur || 4) * 1000 + 2500 }; });
+  const show = () => { const c = current(); if (c) { closed[c.id] = false; reopen[c.id] = Date.now(); render(true); } };
+  Link.on('hu', (d) => {
+    if (MODE === 'overlay') return;           // the screen instance handles the press
+    if (d.action === 'show') show();
+    if (d.action === 'press') press();
+  });
+  // the demo went back to an earlier step: what was pressed or closed after it never happened
+  Link.on('restored', () => { pressed = null; reopen = {}; Object.keys(closed).forEach((k) => delete closed[k]); caption = null; lastKey = ''; render(true); });
+  Link.send('hello', { screen: 'hu' });
+  $('#hu').addEventListener('click', (e) => {
+    if (e.target.closest('button.call')) press();
+    else if (e.target.closest('.pop button')) { const c = current(); if (c) { closed[c.id] = true; reopen[c.id] = 0; render(true); } }
+    else if (e.target.closest('.mini')) show();
+  });
+
+  const current = () => snap && (snap.cases.find((c) => c.id === snap.active) || snap.cases[0]);
+  const phoneSvg = '<svg viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 006.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 013 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>';
+
+  function press() {
+    const c = current();
+    if (!c || c.wcase !== 'A' || c.contact > 0 || c.inbound) return;
+    reopen[c.id] = Date.now();
+    pressed = c.id;
+    render(true);
+    const b = $('.pop button.call');
+    if (b) b.classList.add('press');
+    // the MM call goes out through CTI to the call center
+    setTimeout(() => Link.send('cmd', { name: 'inbound', args: {} }), 650);
+  }
+
+  function state() {
+    const c = current();
+    const g = snap && snap.general;
+    if (!c) return { v: 'home' };
+    const call = c.call;
+    if (c.inbound && !call) return { v: 'calling', c };
+    if (call && call.dir === 'in' && call.state === 'connected') return { v: 'incall', c };
+    if (call && call.dir === 'out' && (call.state === 'dialing' || call.state === 'connected')) return { v: 'home', c, phone: call.state, out: true };
+    if (c.sms && !(c.sheet && c.sheet.saved && Date.now() - c.sheet.saved > 15000)) return { v: 'home', c, phone: 'sms' };
+    const open = c.contact === 0 && !c.inbound;
+    if ((open && c.kind === 'emergency') || (c.wcase !== 'A' && !closed[c.id])) {
+      // the e-Care popup stays on the screen until the driver closes it; then a small reminder
+      return { v: !closed[c.id] || pressed === c.id ? 'pop' : 'mini', c };
+    }
+    return { v: 'home', c, g };
+  }
+
+  let lastKey = '';
+  function render(force) {
+    if (!snap) return;
+    const s = state();
+    const c = s.c;
+    const key = JSON.stringify([s.v, s.phone, c && [c.id, c.contact, c.dms, c.call && c.call.state, c.sheet && !!c.sheet.saved], pressed]);
+    if (!force && key === lastKey) return;
+    lastKey = key;
+    const hu = $('#hu');
+    // a popup already on screen is redrawn in place, without its entrance again
+    const popShown = s.v === 'pop' && !!hu.querySelector('.pop');
+    const alert = c && c.contact === 0 && c.kind === 'emergency';
+    const bar = `<div class="bar"><span class="num" data-clock></span><span>18°C</span><span>LTE ▮▮▮</span><span class="ecare ${alert ? 'alert' : ''}"><i></i>e-Care</span></div>`;
+    let body = home(c);
+    if (s.v === 'pop') body += popShown ? popup(c).replace('class="pop ', 'class="pop still ') : popup(c);
+    if (s.v === 'mini') body += `<div class="mini"><i></i>${esc(c.wng ? c.wng.name : c.warn.title)} 경고 · e-Care 연결 가능</div>`;
+    if (s.v === 'calling') body = callScreen(c, false);
+    if (s.v === 'incall') body = callScreen(c, true);
+    hu.innerHTML = MODE === 'overlay' ? '' : bar + body;
+    hu.classList.toggle('dim', !!s.phone);
+    hu.querySelectorAll('canvas[data-ic]').forEach((cv) => {
+      const g = cv.getContext('2d');
+      cv.width = cv.height = 220;
+      SimIcons.drawIcon(g, cv.dataset.ic, 110, 110, 150, cv.dataset.col, cv.dataset.col);
+    });
+    phone(s);
+    tick();
+  }
+
+  /* home: the music screen (side rail, sky, track title, playing waveform)
+   * with the e-Care state as a glass card over it */
+  const RAIL = [
+    ['home', '<path d="M12 3 3 10.5V21h6.5v-6h5v6H21V10.5z"/>'],
+    ['nav', '<path d="M21 3 3 10.6l7.6 2.8L13.4 21z"/>'],
+    ['music', '<path d="M9 17.5A2.5 2.5 0 1 1 6.5 15H9V5l11-2v12a2.5 2.5 0 1 1-2.5-2.5H20V7.4L11 9v8.5z"/>'],
+    ['phone', '<path d="M6.6 10.8a15.1 15.1 0 006.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 013 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>'],
+    ['apps', '<path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/>'],
+    ['set', '<path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.4-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4L10.7 6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.4 2.5-1a7.4 7.4 0 0 0 1.7 1l.3 2.7h4l.3-2.7a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/>'],
+  ];
+  const WAVE = 64;
+  function home(c) {
+    let st = '';
+    // the head unit shows only what the customer is told: no dispatch details and no
+    // internal workflow states (상담 완료, 이관 완료, DMS status)
+    if (c && c.wcase === 'A' && c.contact > 0) {
+      st = '';
+    } else if (c && c.wcase !== 'A' && c.dms >= 0) {
+      st = `<div class="card st"><small>e-Care · 서비스센터</small><b>${esc(c.dealer)}</b><span>서비스센터에서 연락드립니다</span></div>`;
+    } else if (c && c.contact === 0) {
+      st = `<div class="card warn"><small>차량 경고</small><b>${esc(c.wng ? c.wng.name : c.warn.title)}</b><span>${c.wcase === 'A' ? '긴급 · 주행 불가 · 고객 지원실 연결 가능' : c.wcase === 'C' ? '알림 · 정비 안내' : '경고 · 점검 필요'}</span></div>`;
+    }
+    return `<div class="scr music">
+      <nav class="rail">${RAIL.map(([k, d]) => `<i class="${k === 'nav' ? 'on' : ''}"><svg viewBox="0 0 24 24">${d}</svg></i>`).join('')}</nav>
+      <div class="sky"><div class="ttl">essential;</div><div class="wave">${'<b></b>'.repeat(WAVE)}</div><div class="np">NEON · A2O LITE</div></div>
+      ${st ? `<div class="cards">${st}</div>` : ''}</div>`;
+  }
+  // the playing waveform: a bright cluster of bars travels along a dotted line
+  let waveT0 = performance.now();
+  function wave(now) {
+    const bars = document.querySelectorAll('.wave b');
+    if (bars.length) {
+      const head = ((now - waveT0) / 1000 / 90) % 1 * WAVE;            // a 90 s track
+      bars.forEach((b, i) => {
+        const d = i - head;
+        const near = Math.exp(-(d * d) / 18);
+        const beat = 0.55 + 0.45 * Math.abs(Math.sin(now / 170 + i * 1.7) * Math.sin(now / 410 + i * 0.6));
+        const h = 10 + near * 46 * beat;
+        b.style.height = `${h.toFixed(1)}px`;
+        b.style.opacity = i < head ? 1 : 0.75;
+      });
+    }
+    requestAnimationFrame(wave);
+  }
+  requestAnimationFrame(wave);
+
+  /* the e-Care popup of the head unit (the car's own design): the lamp and e-Care on top,
+   * the warning as the title, the WNG master's multimedia text (v8.2) a sentence a line,
+   * then [닫기] · [전화 연결] — the driver's hand (hand_call.webm) lands on [전화 연결] */
+  function popup(c) {
+    const w = c.wng || { name: c.warn.title, case: 'A' };
+    const A = w.case === 'A';
+    const lines = A
+      ? [`${w.name} 이상이 감지되었습니다.`, '즉시 안전한 장소에 정차하시기 바랍니다.', '차량을 계속 운전하면 위험할 수 있습니다.', '고객 지원실로 연결하시겠습니까?']
+      : [`${w.name} 이상이 감지되었습니다.`, '가까운 서비스센터에서 점검을 받아주시기 바랍니다.', '지정된 서비스센터로 연결하시겠습니까?'];
+    const col = A ? '#ff4757' : '#ffb02e';
+    return `<div class="pop ${A ? '' : 'b'}"><div class="eh"><canvas data-ic="${c.warn.id}" data-col="${col}"></canvas><span>e-Care</span></div>
+      <b class="ttl">${esc(w.name)} 이상</b>
+      <p>${lines.map(esc).join('<br>')}</p>
+      <div class="btns"><button class="x">닫기</button><button class="call">${phoneSvg.replace('fill="#fff"', 'fill="#1b1f27"')}${A ? '전화 연결' : '서비스센터 연결'}</button></div></div>`;
+  }
+
+  function callScreen(c, live) {
+    const w = c.wng || { code: '', name: c.warn.title };
+    return `<div class="callscr ${live ? 'live' : ''}"><div class="who"><div class="av">e-Care</div><div><b>e-Care 고객지원실</b><span data-calltime>${live ? '통화 중' : '연결 중…'}</span><em>차량 진단 정보 함께 전송 · ${esc(w.code)} ${esc(w.name)}</em></div></div>
+      <div class="ctl"><div><i>🎤</i>음소거</div><div><i>⌨</i>키패드</div><div><i>🔊</i>스피커</div><div></div><div class="end"><i>${phoneSvg.replace('fill="#fff"', 'fill="#fff" style="transform:rotate(135deg);width:60px"')}</i>종료</div><div></div></div></div>`;
+  }
+
+  /* the customer's phone, as a real one looks: a status bar, the caller in a circle, the name on
+   * one line, and the call's own buttons (거절 · 응답 while it rings; mute, keypad, speaker … and
+   * the red end button once connected) */
+  const I = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const IC = {
+    msg: I('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
+    alarm: I('<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.2 1.6M5 4.5 3 6.5M19 4.5l2 2"/>'),
+    mute: I('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M4 4l16 16"/>'),
+    pad: '<svg viewBox="0 0 24 24" fill="#fff">' + [4, 12, 20].flatMap((y) => [4, 12, 20].map((x) => `<circle cx="${x}" cy="${y}" r="2.1"/>`)).join('') + '</svg>',
+    spk: I('<path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
+    add: I('<path d="M12 5v14M5 12h14"/>'),
+    video: I('<rect x="3" y="7" width="12.5" height="10" rx="2.2"/><path d="m15.5 11 5-3v8l-5-3"/>'),
+    who: I('<circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>'),
+  };
+  const bar = () => `<div class="sb"><b data-clock></b><span><i class="sig"><u></u><u></u><u></u><u></u></i>5G<i class="bat"><u></u></i></span></div>`;
+  const caller = (sub) => `<div class="cid"><div class="pav">e</div><b>e-Care 고객지원실</b><small>${sub}</small></div>`;
+  const endIc = phoneSvg.replace('<svg', '<svg style="transform:rotate(135deg)"');
+  let phoneKey = '';
+  function phone(s) {
+    const el = $('#phone');
+    const k = s.phone || '';
+    el.classList.toggle('on', !!k);
+    if (k === phoneKey) return;
+    phoneKey = k;
+    if (k === 'dialing') el.innerHTML = `<div class="ps ring">${bar()}${caller('휴대전화 · 수신 전화')}
+      <div class="qa"><div><i>${IC.alarm}</i>나중에 알림</div><div><i>${IC.msg}</i>메시지</div></div>
+      <div class="btn2"><div><i class="no">${endIc}</i>거절</div><div><i class="yes">${phoneSvg}</i>응답</div></div></div>`;
+    else if (k === 'connected') el.innerHTML = `<div class="ps live">${bar()}${caller('<span data-ptime>00:00</span>')}
+      <div class="grid">${[['mute', '소리 끔'], ['pad', '키패드'], ['spk', '스피커'], ['add', '통화 추가'], ['video', '영상 통화'], ['who', '연락처']].map(([i, t]) => `<div><i>${IC[i]}</i>${t}</div>`).join('')}</div>
+      <div class="end"><i>${endIc}</i></div></div>`;
+    else if (k === 'sms') el.innerHTML = `<div class="ps msg">${bar()}<div class="mh"><div class="pav">e</div><b>e-Care 고객지원실</b><small>문자 메시지 · 지금</small></div>
+      <div class="sms">[e-Care] 고객님 차량에서 주행 불가 경고가 감지되어 3차례 연락드렸으나 연결되지 않았습니다. 안전한 곳에 정차 후 고객지원실로 연락 주시기 바랍니다.</div></div>`;
+  }
+
+  function tick() {
+    const t = new Date();
+    document.querySelectorAll('[data-clock]').forEach((e) => { e.textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}`; });
+    if (veh) document.querySelectorAll('[data-speed]').forEach((e) => { e.textContent = `${Math.round(veh.speed)} km/h`; });
+    const c = current();
+    const call = c && c.call;
+    const ct = $('[data-calltime]');
+    if (ct && call && call.connectedAt) ct.textContent = `통화 중 ${E.mmss(Date.now() - call.connectedAt)}`;
+    const pt = $('[data-ptime]');
+    if (pt && call && call.connectedAt) pt.textContent = E.mmss(Date.now() - call.connectedAt);
+    const cap = $('#cap');
+    if (caption && Date.now() < caption.until) {
+      cap.innerHTML = `<small class="${caption.who === 'agent' ? '' : 'c'}">${caption.who === 'agent' ? 'e-Care 상담원' : `${E.CUSTOMER.name} 고객`}</small><p>${esc(caption.text)}</p>`;
+      cap.classList.add('on');
+    } else cap.classList.remove('on');
+  }
+  setInterval(() => { tick(); render(); }, 300);
+})();

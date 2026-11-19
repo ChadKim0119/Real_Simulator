@@ -162,9 +162,14 @@ good_e = xs_ok & (e > 40) & (e < 110)
 e = np.interp(np.arange(W), np.where(good_e)[0], e[good_e])
 e = cv2.GaussianBlur(e.reshape(1, -1), (0, 0), sigmaX=4, sigmaY=0).ravel()
 glass |= (yy < e[None, :] - 1) & (xx >= 248)
-# A-pillar edge: the pillar's inner face runs from x 245 at the top to 236 at the lip
-pillar = smooth_poly([(0, 0), (247, 0), (240, 75), (0, 75)]) > 0.5
-glass &= ~pillar | (xx > 247)
+# A-pillar: the windshield starts at the outer edge of the black seal, traced on
+# the photo; the lit grey pillar trim left of it stays part of the plate
+# measured: right edge of the dark seal along rows, its top along columns
+seal = [(378, 0), (381, 18), (385, 36), (389, 42), (394, 48), (400, 54), (406, 60), (412, 66),
+        (420, 72), (430, 79), (440, 84), (450, 87), (470, 88), (500, 87), (520, 86)]
+pillar = smooth_poly([(0, 0)] + seal + [(520, 200), (0, 200)]) > 0.5
+corner = (xx < 520) & (yy < 120)
+glass = np.where(corner, ~pillar, glass)            # the traced seal decides in this corner
 # side glass left of the pillar: bright landscape pixels
 side = (xx < 245) & (yy < 215) & (lum > 92)
 side = nd.binary_opening(side, iterations=2)
@@ -175,14 +180,38 @@ if n:
     side = np.isin(lab, [i + 1 for i, s in enumerate(sizes) if s > 600])
 glass |= side
 
-# cluster glass, minus the column boss and the stalk ends in front of it
-screen = smooth_poly([(587, 200), (595, 190), (1025, 190), (1033, 200), (1035, 358), (585, 358)])
-boss = smooth_poly([(721, 362), (723, 347), (731, 340), (760, 336.5), (870, 336.5), (896, 340), (904, 347), (906, 362)])
-stalk_l = smooth_poly([(540, 344), (590, 344), (597, 362), (540, 362)])
-stalk_r = smooth_poly([(1037, 344), (1080, 344), (1080, 362), (1036, 362)])
+# cluster glass, measured on the photo: the lit display runs x 586.5..1039,
+# y 190.5..357 with small rounded corners. The hole is 1 px larger so none of
+# the photographed display's blue edge survives; the column boss and the stalk
+# ends in front of it stay.
+SCREEN = (585.5, 189.5, 1040, 358)
+sx0, sy0, sx1, sy1 = SCREEN
+rr = 7
+screen_pts = []
+for (cx_, cy_, a0) in ((sx1 - rr, sy0 + rr, -90), (sx1 - rr, sy1 - rr, 0), (sx0 + rr, sy1 - rr, 90), (sx0 + rr, sy0 + rr, 180)):
+    for t in np.linspace(0, 90, 10):
+        ang = np.deg2rad(a0 + t)
+        screen_pts.append((cx_ + rr * np.cos(ang), cy_ + rr * np.sin(ang)))
+screen = smooth_poly(screen_pts)
+# outlines traced on the photo at 9x: the column cover's shoulders and the curved stalk tips
+boss = smooth_poly([(720, 362), (721.5, 355), (724.5, 348), (729.5, 344), (737, 340.5), (750, 338.5), (760, 338), (870, 338),
+                    (882, 339), (890, 341.5), (897, 345.5), (902, 351), (905, 358), (906, 362)])
+stalk_l = smooth_poly([(540, 341), (560, 341), (575, 343), (585, 346), (592, 350), (597, 355), (601, 362), (604, 372), (540, 372)])
+stalk_r = smooth_poly([(1085, 341), (1062, 343), (1048, 347), (1040, 351), (1034, 356), (1028, 362), (1022, 372), (1085, 372)])
 screen_hole = np.clip(screen - boss - stalk_l - stalk_r, 0, 1)
+
+# the display lit everything around it blue (bezel lip, top of the boss, stalk
+# ends): take that tint out so the surroundings read as the switched-off cabin
+near = cv2.dilate((screen > 0.5).astype(np.uint8), np.ones((15, 15), np.uint8)) > 0
+b_, g_, r_ = [bg[..., i].astype(np.int16) for i in range(3)]
+tint = near & (b_ - r_ > 6)
+grey = cv2.cvtColor(cv2.cvtColor(bg, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR).astype(np.float32)
+neutral = (grey * np.array([1.0, 1.0, 1.04]) * 0.8)
+k = np.clip((b_ - r_ - 6) / 20.0, 0, 1)[..., None] * tint[..., None]
+bg = (bg * (1 - k) + neutral * k).astype(np.uint8)
 
 a_plate = 1 - np.maximum(feather(glass, 0.9), screen_hole)
 plate = np.dstack([cv2.cvtColor(bg, cv2.COLOR_BGR2RGB), (np.clip(a_plate, 0, 1) * 255).astype(np.uint8)])
 Image.fromarray(plate).save('assets/gx2_plate.webp', quality=90, method=6)
-print('ok', geo['tex'], 'glass px', int(glass.sum()))
+geo_screen = {'x': sx0, 'y': sy0, 'w': sx1 - sx0, 'h': sy1 - sy0}
+print('ok', geo['tex'], 'glass px', int(glass.sum()), 'screen', geo_screen)

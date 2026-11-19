@@ -1,0 +1,1282 @@
+/* e-Care call center (CCW) screen, after the Global South Call Center Web GUI
+ * (11.1.1.x popups, 11.2.1.1 e-Care 고객 응대, 11.3.1.x 상담 메모). Renders the
+ * director's snapshots and sends the agent's actions back. Views: office
+ * (photo with the live monitor), monitor, transcript (?view=transcript). */
+(function () {
+  'use strict';
+
+  const E = window.ECare;
+  const $ = (s, r) => (r || document).querySelector(s);
+  const params = new URLSearchParams(location.search);
+  const VIEW = params.get('view') || 'office';
+  const IMG = { w: 1344, h: 752 }, SCR = { x: 425, y: 265, w: 489, h: 245 };
+  const A = 'assets/ccw/';
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  let snap = null;          // latest e-Care snapshot from the director
+  let veh = null;           // latest vehicle state
+  let lastVeh = 0;
+  let soundOn = false;
+  let renderedKey = '';
+  let histTab = 'warn';
+  let onlyOpen = true;
+  let locFlash = 0;         // "현재 위치 새로고침" pressed
+
+  // the agent screen is shown either alone ('app', flat) or on the monitor of the office
+  // photo ('office', with a camera from the room to the monitor). The control panel can
+  // switch it (Link 'ccw-cam'), unless the page was opened locked (?cam=lock, agent.html)
+  let mode = VIEW === 'app' ? 'app' : VIEW === 'transcript' ? 'transcript' : 'office';
+  const camLocked = params.get('cam') === 'lock' || VIEW === 'transcript';
+  const setBodyClass = () => { ['view-transcript', 'view-app', 'view-office'].forEach((c) => document.body.classList.toggle(c, c === `view-${mode}`)); };
+  setBodyClass();
+  // ?bare=1: the conversation alone, no tabs or background (embedded in Final_Instrument's side panel)
+  if (params.get('bare')) document.body.classList.add('bare');
+  // tab icon and title of the screen shown (call center, agent screen, conversation)
+  function tabIdentity() {
+    const [icon, title] = mode === 'transcript' ? ['talk', '상담 대화 · e-Care'] : mode === 'app' ? ['ccw', 'CCW · 상담원 화면'] : ['ccw', 'CCW · 고객지원실'];
+    document.title = title;
+    const l = document.querySelector('link[rel="icon"]');
+    if (l) l.href = `assets/icons/${icon}.svg`;
+    const t = document.querySelector('link[rel="apple-touch-icon"]');
+    if (t) t.href = `assets/icons/${icon}-180.png`;
+  }
+  tabIdentity();
+
+  /* ---------------- camera: office photo → monitor → a part of the screen ----------------
+   * Three framings: the room ('office'), the agent's monitor ('monitor') and, in
+   * the auto mode, the part of the agent screen the scenario is about ('focus':
+   * a rectangle of the 1920x960 screen). A move eases from wherever it is. */
+  const stage = $('#stage');
+  const cam = { to: VIEW === 'monitor' ? 'monitor' : 'office', rect: null, from: null, cur: null, t0: 0, dur: 0 };
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const sameRect = (a, b) => (!a && !b) || (a && b && Math.abs(a.x - b.x) < 24 && Math.abs(a.y - b.y) < 24 && Math.abs(a.w - b.w) < 24 && Math.abs(a.h - b.h) < 24);
+  function camTo(kind, dur, rect) {
+    if (kind === cam.to && sameRect(rect, cam.rect)) return;
+    cam.from = cam.cur; cam.to = kind; cam.rect = rect || null; cam.t0 = performance.now(); cam.dur = cam.from ? dur : 0;
+  }
+  // 화면만 (screen only): the room fades out and the monitor fills the view; the camera still
+  // closes in on the part of the screen the scenario is about
+  let screenOnly = false;
+  // 화면만 in a narrow, upright panel: the monitor fills the panel (its left-middle part) instead of
+  // sitting small between two black bands
+  const scrScale = (vw, vh) => ((vw / vh) < (SCR.w / SCR.h) * 0.62 ? Math.max(vw / SCR.w, vh / SCR.h) : Math.min(vw / SCR.w, vh / SCR.h));
+  const CAP_H = 76;             // the step caption over the top of the view
+  function viewOf(kind, rect, vw, vh, s0, s1) {
+    if (kind === 'office') return { s: s0, cx: IMG.w / 2, cy: IMG.h / 2 };
+    const sScr = scrScale(vw, vh);
+    if (kind === 'screen') return { s: sScr, cx: SCR.x + SCR.w * (sScr * SCR.w > vw * 1.02 ? 0.4 : 0.5), cy: SCR.y + SCR.h / 2 };
+    if (kind === 'focus' && rect && screenOnly) {
+      const kx = SCR.w / 1920, ky = SCR.h / 960;
+      const r = { x: SCR.x + rect.x * kx, y: SCR.y + rect.y * ky, w: rect.w * kx, h: rect.h * ky };
+      // the part in question sits under the caption, not behind it
+      const s = clamp(Math.min(vw / (r.w * 1.1), (vh - CAP_H) / (r.h * 1.1)), sScr * 1.05, sScr * 3.2);
+      return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 - CAP_H / 2 / s };
+    }
+    const mon = { s: s1, cx: SCR.x + SCR.w / 2, cy: SCR.y + SCR.h / 2 + 18 };
+    if (kind !== 'focus' || !rect) return mon;
+    // the rectangle (screen px) on the photo, filling about 80% of the view
+    const kx = SCR.w / 1920, ky = SCR.h / 960;
+    const r = { x: SCR.x + rect.x * kx, y: SCR.y + rect.y * ky, w: rect.w * kx, h: rect.h * ky };
+    const s = clamp(Math.min(vw / (r.w * 1.12), vh / (r.h * 1.2)), s1 * 1.15, s1 * 4.2);
+    return { s, cx: r.x + r.w / 2, cy: r.y + r.h / 2 };
+  }
+  function placeStage() {
+    if (mode === 'app') {
+      // the agent screen alone, filling the display (a dedicated TV)
+      const k = Math.min(innerWidth / 1920, innerHeight / 960);
+      app.style.transform = `translate(${((innerWidth - 1920 * k) / 2).toFixed(1)}px, ${((innerHeight - 960 * k) / 2).toFixed(1)}px) scale(${k.toFixed(5)})`;
+      return;
+    }
+    const vw = innerWidth, vh = innerHeight;
+    // an upright screen (phone): the room fits the width (a blurred copy fills above
+    // and below) and the monitor zooms to the width; otherwise the photo covers the view
+    const tall = vw / vh < 1;
+    const s0 = tall ? vw / IMG.w * 1.12 : Math.max(vw / IMG.w, vh / IMG.h);
+    // the monitor fills most of the view but the desk, the other screens and the office stay in frame
+    const s1 = Math.max(s0, Math.min(vw / SCR.w, vh / SCR.h) * (tall ? 0.97 : 0.74));
+    document.body.classList.toggle('tall', tall);
+    const target = viewOf(cam.to, cam.rect, vw, vh, s0, s1);
+    let v = target;
+    if (cam.dur > 0 && cam.from) {
+      const p = clamp((performance.now() - cam.t0) / cam.dur, 0, 1), e = ease(p);
+      const A = cam.from;
+      v = { s: Math.exp(Math.log(A.s) + (Math.log(target.s) - Math.log(A.s)) * e), cx: A.cx + (target.cx - A.cx) * e, cy: A.cy + (target.cy - A.cy) * e };
+      if (p >= 1) cam.dur = 0;
+    }
+    cam.cur = v;
+    const { s, cx, cy } = v;
+    let tx = vw / 2 - cx * s, ty = vh / 2 - cy * s;
+    tx = clamp(tx, Math.min(vw - IMG.w * s, 0), Math.max(vw - IMG.w * s, 0));
+    ty = clamp(ty, Math.min(vh - IMG.h * s, 0), Math.max(vh - IMG.h * s, 0));
+    // 화면만: the room is not shown, so the view never leaves the monitor (no black beside it)
+    if (screenOnly && (cam.to === 'screen' || cam.to === 'focus')) {
+      const x0 = SCR.x * s, x1 = (SCR.x + SCR.w) * s, y0 = SCR.y * s, y1 = (SCR.y + SCR.h) * s;
+      tx = x1 - x0 >= vw ? clamp(tx, vw - x1, -x0) : (vw - (x0 + x1)) / 2;
+      ty = y1 - y0 >= vh ? clamp(ty, vh - y1, -y0) : (vh - (y0 + y1)) / 2;
+    }
+    // a layer only while the camera moves: still, the browser draws the agent screen
+    // again at the zoomed size (sharp text on the monitor)
+    const moving = cam.dur > 0;
+    if (stage.dataset.moving !== String(moving)) { stage.dataset.moving = String(moving); stage.style.willChange = moving ? 'transform' : 'auto'; }
+    const tr = moving ? `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${s.toFixed(5)})` : `translate(${Math.round(tx)}px, ${Math.round(ty)}px) scale(${s.toFixed(5)})`;
+    if (stage.style.transform !== tr) stage.style.transform = tr;
+    $('#viewBtn').textContent = cam.to !== 'office' ? '사무실 보기' : '상담원 화면';
+  }
+
+  /* ---------------- link ---------------- */
+  Link.on('ecare', (d) => { snap = E.gate(d, 'ccw'); render(); });   // only what has reached this screen
+  Link.on('veh', (d) => { veh = d; lastVeh = Date.now(); });
+  Link.on('ccw-open-case', () => { if (VIEW !== 'transcript' && cam.to === 'office' && camHold === 'auto') camTo('monitor', 2600); render(true); });
+  // the control panel went back a step or reset: stop the voice, and stay quiet for
+  // the rest of that call (a new call, line 0, speaks again)
+  let hushed = null;
+  Link.on('hush', () => {
+    Object.values(audios).forEach((a) => { try { a.pause(); a.currentTime = 0; } catch (e) { /* not loaded */ } });
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    hushed = true;
+  });
+  // who speaks the call: the call-center screen, or the conversation panel with ?voice=1
+  // (Final_Instrument); ?mute=1 keeps a call-center screen quiet (Final_Dataflow)
+  const VOICE = VIEW === 'transcript' ? params.has('voice') : !params.has('mute');
+  Link.on('say', (d) => {
+    if (!VOICE) return;
+    if (hushed && d.index > 0) return;
+    hushed = null;
+    speak(d.line);
+  });
+  Link.on('ccw-noise', (d) => setNoise(d.on == null ? !noise.on : d.on));
+  // the end of the demo (scene "end"): the call-center room goes quiet too
+  let sceneQuiet = false;
+  Link.on('stage', (d) => { if (d && d.scene) { sceneQuiet = d.scene === 'end'; noise.level(); } });
+  Link.on('@transport', () => conn());
+  Link.send('hello', { screen: VIEW === 'transcript' ? 'transcript' : 'ccw' });
+  const cmd = (name, args) => Link.send('cmd', { name, args: args || {} });
+  // what the agent knows of the service center: the transfer, then only the reservation it sends
+  // (the dealer talks to the customer directly; no other status comes back)
+  // (the service center reports to TSP; the agent sees its stage by looking it up)
+  const svcOf = (c) => (c.dms >= 1 ? `${E.DMS[c.dms]} (조회)` : c.kind === 'emergency' ? '이관 완료' : E.DMS[c.dms]);
+  // the rescue status the agent has heard (the dispatch reports only while she is on the call)
+  const dispOf = (c) => (c.dispSeen != null ? Math.min(c.dispatch, c.dispSeen) : c.dispatch);
+
+  function conn() {
+    const ok = Date.now() - lastVeh < 2500;
+    $('#conn').textContent = ok ? `● 차량 연결됨 · ${Link.online ? '인터넷' : Link.relay ? 'LAN' : '이 PC'}` : '○ 차량 시뮬레이터 연결 대기';
+    $('#conn').title = Link.label();
+    $('#conn').style.color = ok ? '#7fe7a8' : '#ffb46b';
+  }
+
+  /* ---------------- sound: call lines, alerts, ringback ---------------- */
+  const audios = {};
+  let actx = null;
+  function ac() {
+    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; } }
+    if (actx && actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  // the recordings are quiet (about -29 dB): they are played through a voice bus that lifts
+  // them about 8 dB, with a limiter so the loud syllables never clip (the files stay as they are)
+  let vbus = null;
+  function louder(a) {
+    if (a.dataset.bus) return;
+    const c = ac();
+    if (!c || c.state !== 'running') return;   // not unlocked yet: it plays straight out as before
+    try {
+      if (!vbus) {
+        vbus = c.createGain(); vbus.gain.value = 2.5;
+        const lim = c.createDynamicsCompressor();
+        lim.threshold.value = -6; lim.knee.value = 4; lim.ratio.value = 12; lim.attack.value = 0.003; lim.release.value = 0.15;
+        vbus.connect(lim).connect(c.destination);
+      }
+      c.createMediaElementSource(a).connect(vbus);
+      a.dataset.bus = '1';
+    } catch (e) { /* plays at its own level */ }
+  }
+  function speak(line) {
+    if (!soundOn || line.quiet) return;            // quiet: a caption only (the dealer call)
+    if (line.audio) {
+      VoiceSet.url(line.audio).then((u) => {
+        if (!u) return;
+        const a = audios[u] || (audios[u] = new Audio(u));
+        louder(a);
+        a.currentTime = 0;
+        a.play().catch(() => {});
+      });
+      return;
+    }
+    // inbound lines have no recording: the browser's Korean voice reads them
+    if (!window.speechSynthesis) return;
+    const u = new SpeechSynthesisUtterance(line.text);
+    u.lang = 'ko-KR';
+    u.rate = 1.04;
+    u.pitch = line.who === 'agent' ? 1.15 : 0.85;
+    const v = speechSynthesis.getVoices().filter((x) => /ko/i.test(x.lang));
+    if (v.length) u.voice = v[line.who === 'agent' ? 0 : v.length - 1];
+    speechSynthesis.speak(u);
+  }
+  function tone(freqs, dur, vol, at) {
+    const c = ac();
+    if (!c || !soundOn) return;
+    const t = (at || c.currentTime) + 0.01;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.015);
+    g.gain.setValueAtTime(vol, t + dur - 0.03);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    g.connect(c.destination);
+    freqs.forEach((f) => { const o = c.createOscillator(); o.type = 'sine'; o.frequency.value = f; o.connect(g); o.start(t); o.stop(t + dur + 0.02); });
+  }
+  const sfx = {
+    popup() { const c = ac(); if (!c) return; [880, 1175, 1568].forEach((f, i) => tone([f], 0.16, 0.12, c.currentTime + i * 0.13)); },
+    alarm() { const c = ac(); if (!c) return; for (let i = 0; i < 3; i++) tone([1250], 0.12, 0.14, c.currentTime + i * 0.18); },
+    ring() { const c = ac(); if (!c) return; for (let i = 0; i < 10; i++) tone([1320, 1660], 0.045, 0.08, c.currentTime + i * 0.05); },
+    ringback() { tone([440, 480], 1.0, 0.05); },
+    save() { const c = ac(); if (!c) return; tone([660], 0.12, 0.1, c.currentTime); tone([990], 0.2, 0.1, c.currentTime + 0.12); },
+  };
+
+  function unlock() {
+    if (soundOn) return;
+    soundOn = true;
+    $('#sound').classList.add('on');
+    ac();
+    const lines = snap && snap.scripts ? [].concat(...Object.values(snap.scripts)) : E.CALL_OUT.concat(E.CALL_IN);
+    lines.forEach((l) => { if (l.audio && !l.audio.startsWith('idb:') && !audios[l.audio]) { const a = audios[l.audio] = new Audio(l.audio); a.preload = 'auto'; } });
+    if (noise.on && VIEW !== 'transcript') noise.start();
+  }
+  if (params.has('stage')) { document.body.classList.add('stage'); setTimeout(unlock, 300); }
+  document.addEventListener('pointerdown', unlock);
+  document.addEventListener('keydown', unlock);
+  $('#sound').addEventListener('click', unlock);
+
+  /* ---------------- call center ambience (generated, no recordings) ------
+   * Room tone and ventilation, a murmur of distant agents on calls (voiced
+   * sources through moving formant filters, turn-taking), keyboards in
+   * bursts and the odd phone ringing across the floor, all through a room
+   * reverb. */
+  const noise = {
+    on: (() => { try { return localStorage.getItem('ccw-noise') !== 'off'; } catch (e) { return true; } })(),
+    started: false,
+    start() {
+      const c = ac();
+      if (!c || this.started) { this.level(); return; }
+      this.started = true;
+      const out = this.out = c.createGain();
+      out.gain.value = 0;
+      out.connect(c.destination);
+      const sr = c.sampleRate;
+      const buf = (sec, fill) => { const b = c.createBuffer(2, sr * sec, sr); for (let ch = 0; ch < 2; ch++) fill(b.getChannelData(ch)); return b; };
+      const white = buf(3, (d) => { for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; });
+      const brown = buf(5, (d) => { let l = 0; for (let i = 0; i < d.length; i++) { l = (l + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = l * 3.2; } });
+      const verb = c.createConvolver();
+      verb.buffer = buf(2.2, (d) => { for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3.2) * 0.55; });
+      const wet = c.createGain(); wet.gain.value = 0.9;
+      verb.connect(wet); wet.connect(out);
+      const src = (b) => { const s = c.createBufferSource(); s.buffer = b; s.loop = true; s.loopStart = Math.random(); s.start(0, Math.random() * 2); return s; };
+      // room tone / HVAC
+      const hv = src(brown), hvl = c.createBiquadFilter(), hvg = c.createGain();
+      hvl.type = 'lowpass'; hvl.frequency.value = 420; hvg.gain.value = 0.16;
+      hv.connect(hvl); hvl.connect(hvg); hvg.connect(out);
+      const air = src(white), airf = c.createBiquadFilter(), airg = c.createGain();
+      airf.type = 'bandpass'; airf.frequency.value = 900; airf.Q.value = 0.4; airg.gain.value = 0.012;
+      air.connect(airf); airf.connect(airg); airg.connect(out);
+      // distant voices
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2300;
+      const voices = c.createGain(); voices.gain.value = 0.55;
+      lp.connect(voices); voices.connect(verb); voices.connect(out);
+      this.voices = [];
+      for (let i = 0; i < 7; i++) {
+        const male = Math.random() < 0.5;
+        const f0 = male ? 105 + Math.random() * 30 : 190 + Math.random() * 45;
+        const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f0;
+        const vib = c.createOscillator(), vibg = c.createGain(); vib.frequency.value = 3 + Math.random() * 2; vibg.gain.value = f0 * 0.04;
+        vib.connect(vibg); vibg.connect(o.frequency); vib.start();
+        const og = c.createGain(); og.gain.value = 0.06;
+        const n = src(white), ng = c.createGain(); ng.gain.value = 0.05;
+        const f1 = c.createBiquadFilter(), f2 = c.createBiquadFilter();
+        f1.type = f2.type = 'bandpass'; f1.Q.value = 5; f2.Q.value = 7;
+        f1.frequency.value = 600; f2.frequency.value = 1500;
+        const env = c.createGain(); env.gain.value = 0;
+        const pan = c.createStereoPanner ? c.createStereoPanner() : c.createGain();
+        if (pan.pan) pan.pan.value = Math.random() * 1.6 - 0.8;
+        const dist = c.createGain(); dist.gain.value = 0.35 + Math.random() * 0.65;
+        o.connect(og); og.connect(f1); og.connect(f2); n.connect(ng); ng.connect(f1); ng.connect(f2);
+        f1.connect(env); f2.connect(env); env.connect(pan); pan.connect(dist); dist.connect(lp);
+        o.start();
+        this.voices.push({ o, f0, f1, f2, env, next: c.currentTime + Math.random() * 4, talk: Math.random() < 0.5 });
+      }
+      this.timer = setInterval(() => this.schedule(), 400);
+      this.level();
+    },
+    schedule() {
+      const c = actx;
+      if (!c || c.state !== 'running') return;
+      const now = c.currentTime;
+      for (const v of this.voices) {
+        if (v.next > now + 1.2) continue;
+        let t = Math.max(v.next, now + 0.05);
+        if (!v.talk) { v.talk = true; v.next = t + 0.6 + Math.random() * 2.8; continue; }
+        // a phrase: 5-16 syllables, pitch falling toward the end
+        const n = 5 + Math.floor(Math.random() * 12);
+        for (let k = 0; k < n; k++) {
+          const d = 0.09 + Math.random() * 0.17;
+          const a = (0.35 + Math.random() * 0.65) * (k === n - 1 ? 0.6 : 1);
+          v.env.gain.setTargetAtTime(a, t, 0.018);
+          v.env.gain.setTargetAtTime(0.04, t + d, 0.03);
+          const vowel = [[300, 2300], [400, 2000], [550, 1700], [700, 1200], [500, 900], [350, 800]][Math.floor(Math.random() * 6)];
+          v.f1.frequency.setTargetAtTime(vowel[0] * (v.f0 > 150 ? 1.15 : 1), t, 0.02);
+          v.f2.frequency.setTargetAtTime(vowel[1] * (v.f0 > 150 ? 1.12 : 1), t, 0.02);
+          v.o.frequency.setTargetAtTime(v.f0 * (1.08 - 0.16 * k / n + (Math.random() - 0.5) * 0.06), t, 0.05);
+          t += d + Math.random() * 0.05;
+        }
+        v.env.gain.setTargetAtTime(0, t, 0.05);
+        v.next = t + 0.25 + Math.random() * (Math.random() < 0.3 ? 4 : 1.2);
+        v.talk = Math.random() < 0.7;
+      }
+      // keyboards
+      if (Math.random() < 0.16) {
+        let t = now + Math.random() * 0.3;
+        const keys = 4 + Math.floor(Math.random() * 22);
+        const g0 = 0.02 + Math.random() * 0.05;
+        const p = Math.random() * 1.6 - 0.8;
+        for (let k = 0; k < keys; k++) { this.click(t, g0 * (0.6 + Math.random() * 0.6), p); t += 0.07 + Math.random() * 0.14; }
+      }
+      // a phone across the floor, now and then
+      if (Math.random() < 0.012) {
+        for (let r = 0; r < 2; r++) for (let i = 0; i < 16; i++) {
+          const t = now + 0.2 + r * 2.4 + i * 0.05;
+          const o = c.createOscillator(), g = c.createGain();
+          o.frequency.value = i % 2 ? 1180 : 940;
+          g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.006, t + 0.01); g.gain.linearRampToValueAtTime(0.0001, t + 0.048);
+          o.connect(g); g.connect(this.out); o.start(t); o.stop(t + 0.06);
+        }
+      }
+    },
+    click(t, gain, pan) {
+      const c = actx;
+      const b = c.createBuffer(1, Math.floor(c.sampleRate * 0.02), c.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 6);
+      const s = c.createBufferSource(); s.buffer = b;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2500 + Math.random() * 2500; f.Q.value = 1.4;
+      const g = c.createGain(); g.gain.value = gain;
+      const p = c.createStereoPanner ? c.createStereoPanner() : c.createGain();
+      if (p.pan) p.pan.value = pan;
+      s.connect(f); f.connect(g); g.connect(p); p.connect(this.out);
+      s.start(t);
+    },
+    level() {
+      if (!this.out || !actx) return;
+      this.out.gain.setTargetAtTime(this.on && soundOn && !sceneQuiet ? 0.62 : 0, actx.currentTime, sceneQuiet ? 0.2 : 0.6);
+    },
+  };
+  function setNoise(on) {
+    noise.on = on;
+    try { localStorage.setItem('ccw-noise', on ? 'on' : 'off'); } catch (e) { /* private mode */ }
+    if (on && soundOn) noise.start();
+    noise.level();
+    noiseUi();
+  }
+  function noiseUi() {
+    const b = $('#noiseBtn');
+    b.textContent = noise.on ? '주변 소음 끄기' : '주변 소음 켜기';
+    b.classList.toggle('off', !noise.on);
+  }
+
+  /* ---------------- helpers ---------------- */
+  const active = () => snap && snap.cases.find((c) => c.id === snap.active);
+  const agentOf = (c) => snap && c && snap.agents.find((a) => a.id === c.agent);
+  const me = () => (snap ? snap.agents[0] : { name: '김상담', state: '대기' });
+  // the car is on Olympic-daero by the Hannam bridge (what the agent confirms on the call)
+  function place(s) {
+    const [x, y] = Road.pos(s);
+    const km = (0.2 + (s % 1400) / 1400 * 0.9).toFixed(1);
+    const lat = (37.5205 + y / 111000).toFixed(6), lng = (127.0105 + x / 88200).toFixed(8);
+    return { addr: `서울특별시 서초구 잠원동 올림픽대로 하행 · 한남대교 남단 ${km}km 부근`, xy: `(X : ${lat}, Y : ${lng})` };
+  }
+  const drvOk = (c) => c.kind !== 'emergency';
+  const shortStamp = (t) => E.stamp(t);
+
+  /* ---------------- markup ---------------- */
+  const LNB = [['가입 정보', 'join', false], ['상담 정보', 'consult'], ['서비스 가입 관리', 'service'], ['Service Log', 'log'], ['고객 응대', 'cs'], ['공지 사항', 'notice'], ['E-Call', 'ecall']];
+  const linkSvg = '<svg viewBox="0 0 20 20" fill="none" stroke="#212121" stroke-width="1.5" stroke-linecap="round"><path d="M8.5 11.5l3-3"/><path d="M9.6 5.6l1.6-1.6a3.4 3.4 0 014.8 4.8l-1.6 1.6"/><path d="M10.4 14.4l-1.6 1.6a3.4 3.4 0 01-4.8-4.8l1.6-1.6"/></svg>';
+  const searchSvg = '<svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#212121" stroke-width="1.6"><circle cx="9.5" cy="9.5" r="7"/><path d="M14.6 14.6l5.4 5.4" stroke-linecap="round"/></svg>';
+
+  function gnb(c, onCase) {
+    const st = c && onCase ? (agentOf(c) || me()).state : me().state;
+    const f = (onCase && c) || (snap && snap.general && snap.general.state !== 'ringing');
+    const fld = (w, label, val) => `<div class="fld ${w} ${f ? 'on' : ''}"><span>${f ? esc(val) : label}</span><i></i></div>`;
+    const stIcon = `<img src="${A}ic_message.svg" alt="">`;
+    const cti = (on) => `<button class="cti">${on ? `<img src="${A}ic_disconnect.svg" alt="">CTI 연결 해제` : `${linkSvg}CTI 연결`}</button>`;
+    let right;
+    if (st === '발신중') right = `<span class="state">${stIcon}발신중</span><button class="bt" data-cmd="hangup">전화 끊기</button>${cti(true)}`;
+    else if (st === '상담중') right = `<span class="state">${stIcon}상담중</span><button class="bt" data-cmd="hangup">전화 끊기</button><button class="bt ${c && c.call && c.call.hold ? 'on' : ''}" data-cmd="hold">보류</button>${cti(true)}`;
+    else if (st === '후처리중') right = `<span class="state">${stIcon}후처리중</span>${cti(!!(c && c.retry && !c.retry.done))}`;
+    else if (st === '상담대기') right = `<span class="state wait">${stIcon}상담 대기</span>${cti(true)}`;
+    else right = `<button class="bt">전화 걸기</button>${cti(false)}`;
+    return `<div class="brand"><img src="${A}toyota_logo.png" alt="TOYOTA"></div>
+      <div class="gnb"><div class="fields">${fld('', '고객명', E.CUSTOMER.name)}${fld('w160', '휴대전화번호', E.CUSTOMER.phone)}${fld('w130', '차량번호', E.VEHICLE.plate)}${fld('', '차대번호', E.VEHICLE.vin)}
+        <span class="ico">${f ? `<img src="${A}ic_refresh.svg" alt="" width="24">` : searchSvg}</span></div>
+        <div class="right">${right}<span class="div"></span><span class="prof"><img src="${A}ic_profile.svg" alt=""><b>+</b></span></div></div>`;
+  }
+
+  function band(c) {
+    if (!c || !c.retry) return '<div class="band"></div>';
+    if (c.sms) return `<div class="band on"><span class="sms"><svg width="22" height="16" viewBox="0 0 22 16" fill="none" stroke="#2f6b1f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l5 5L20 2"/><path d="M8 8l2 2"/></svg>SMS 자동 발송 완료</span><span class="cnt"><svg width="30" height="30" viewBox="0 0 30 30"><path d="M8 5c-2 1-3 3-2 6 2 6 7 11 13 13 3 1 5 0 6-2l-4-4-3 2c-3-1-6-4-7-7l2-3z" fill="#111"/><path d="M4 26L26 4" stroke="#111" stroke-width="2.2"/></svg>재시도 횟수 ${c.retry.count}/${E.RETRIES} — 재연결 불가</span></div>`;
+    if (c.retry.done) return '<div class="band"></div>';
+    return `<div class="band on"><span class="wait">남은 대기 시간<b data-wait>01:00</b></span><button class="re" data-cmd="redial" data-re>전화 재연결</button><span class="cnt">재시도 횟수 ${c.retry.count}/${E.RETRIES}</span></div>`;
+  }
+
+  function lnb(onCase) {
+    return `<nav class="lnb">${LNB.map(([n, k, ar]) => `<div class="it"><img src="${A}lnb_${k}.svg" alt="">${n}${ar === false ? '' : `<img class="ar" src="${A}arrow_white.svg" alt="">`}</div>`).join('')}
+      <div class="grp"><div class="it"><img src="${A}lnb_ecare.svg" alt="">e-Care<img class="ar up" src="${A}arrow_white.svg" alt=""></div>
+      <div class="sub ${onCase ? 'on' : 'dim'}">e-Care 고객 응대</div><div class="sub ${onCase ? 'dim' : 'on'}">e-Care 상담 이력</div></div></nav>`;
+  }
+
+  function vcard(c) {
+    const st = c && c.dms >= 0 ? svcOf(c) : '-';
+    return `<div class="box vcard"><div class="r1"><small>차량 정보</small><span class="plate">${E.VEHICLE.plate}</span><span class="model">${E.VEHICLE.model} / ${E.VEHICLE.year}</span><span class="tg">${E.VEHICLE.brand}</span><span class="vin">VIN: ${E.VEHICLE.vin}</span></div>
+      <div class="r2"><span>고객명:<b>${E.CUSTOMER.name}</b></span><span>휴대전화번호:<b>${E.CUSTOMER.phone}</b></span><span>선호 센터:<b>${E.DEALERS[0].name}</b></span><span class="sep">|</span><span>처리 센터:<b>${esc(c && c.dealer ? c.dealer : '-')}</b></span>
+      <span>상태: ${st === '-' ? '<b>-</b>' : `<span class="tg" style="margin-left:6px"><img src="${A}ic_wrench.svg" alt="" width="12">${st}</span>`}</span><button class="chipbt"><img src="${A}ic_refresh_s.svg" alt="" width="11">상태 새로고침</button></div></div>`;
+  }
+
+  function locCard(c) {
+    const first = place(c.loc.odo);
+    const last = place(veh ? veh.odoMeters : c.loc.odo);
+    const canDisp = c.dispatch < 0 && c.contact >= 1;
+    const dk = dispOf(c);
+    const steps = c.dispatch >= 0 ? `<span class="dsteps">${E.DISPATCH.map((n, i) => `<i class="${i < dk ? 'done' : i === dk ? 'on' : ''}">${n}</i>`).join('')}</span>` : '';
+    return `<div class="box loc"><div class="hd"><img src="${A}ic_car.svg" alt="">고객 차량 위치 정보<span class="disp">${steps}<button class="bt-red" data-cmd="dispatch" ${canDisp ? '' : 'disabled'}>${c.dispatch >= 0 ? '출동 요청됨' : '긴급 출동'}</button></span></div>
+      <table><tr><td class="k red">최초 고장 발생 위치</td><td class="v">${first.addr}<br>${first.xy}</td><td class="b"></td></tr>
+      <tr><td class="k grn">마지막 수신 위치<img src="${A}ic_help.svg" alt=""></td><td class="v" data-lastloc>${last.addr}<br>${last.xy}</td><td class="b"><button class="bt-line" data-refresh><img src="${A}ic_refresh.svg" alt="">현재 위치 새로고침</button></td></tr></table></div>`;
+  }
+
+  function wpanel(c) {
+    const cs = snap.cases;
+    const red = cs.filter((x) => !drvOk(x)).length;
+    const first = cs.length ? cs[cs.length - 1].at : c.at;
+    return `<div class="wpanel"><div class="hd"><h3>차량 경고 정보 <em>실시간</em></h3><p>경고 최초 발생 일시: ${shortStamp(first)}</p>
+      <div class="cnt"><b>총 ${cs.length}건</b><span>주행 불가 ${red}</span><span>주행 가능 ${cs.length - red}</span></div></div>
+      <div class="wlist">${cs.slice(0, 3).map((x, i) => `<div class="witem ${i === 0 ? 'top' : ''}">
+        <div class="h"><span class="ic">${x.warn.id === 'engine' ? `<img src="${A}ic_engine.png" alt="">` : x.warn.id === 'oillevel' ? `<img src="${A}ic_drop.svg" alt="">` : `<canvas data-wicon="${x.warn.id}" width="56" height="56"></canvas>`}</span>
+          <div><b>${esc(x.warn.title)}</b>${i === 0 ? '<span class="new">NEW</span>' : ''}</div><span class="drv ${drvOk(x) ? 'ok' : ''}">${E.CASE[x.wcase] ? `${E.CASE[x.wcase].label} · ` : ''}${drvOk(x) ? '주행 가능' : '주행 불가'}</span></div>
+        <dl><dt>발생일시</dt><dd>${shortStamp(x.at)}</dd><dt>상담 안내</dt><dd>${esc(x.warn.act)}</dd></dl>
+        <div class="mid-t"><span>MID 메시지 · 고객 안내 문구</span><img src="${A}${i === 0 ? 'chev_up' : 'chev_down'}.svg" alt=""></div>
+        ${i === 0 ? `<div class="midbox"><small>MID 메시지</small><p>${esc(x.warn.mid)}</p><small>고객 안내 문구</small><p style="margin:0">${esc(x.warn.desc)}</p></div>` : ''}</div>`).join('')}</div></div>`;
+  }
+
+  const OLD_WARN = [['2025-11-11 10:54:24', '긴급', '에어백 시스템', '강남 서비스센터', '종결'], ['2024-12-12 10:54:24', '경고', '워셔액 부족', '강남 서비스센터', '종결']];
+  const OLD_CONSULT = [['2025-11-11 11:02:10', '인바운드 콜', `긴급상담건_${E.CUSTOMER.name}_20251111`, '이서준', '이관 완료', '강남 서비스센터'], ['2024-12-12 11:20:41', '아웃바운드 콜', `정비안내_${E.CUSTOMER.name}_20241212`, '박지민', '상담 완료', '-']];
+  function hist() {
+    const cs = snap.cases;
+    let body;
+    if (histTab === 'warn') {
+      const rows = cs.map((x, i) => [cs.length - i + 2, shortStamp(x.at), E.CASE[x.wcase] ? E.CASE[x.wcase].label : (x.kind === 'emergency' ? '긴급' : '경고'), x.warn.title, x.dealer || '-', x.dms >= 0 ? svcOf(x) : '-', x.kind === 'emergency' && x.contact < 3])
+        .concat(OLD_WARN.map((r, i) => [2 - i, ...r, false])).slice(0, 3);
+      body = `<thead><tr><th style="width:86px">No.</th><th style="width:196px">이벤트 발생 일시</th><th style="width:106px">경고 등급</th><th>경고등명</th><th style="width:238px">처리 센터</th><th style="width:238px">서비스센터 처리 상태</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr class="${r[6] ? 'hot' : ''}"><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="l">${esc(r[3])}</td><td>${esc(r[4])}</td><td>${r[5]}</td></tr>`).join('')}</tbody>`;
+    } else {
+      const rows = (snap.consults || []).map((x, i) => [snap.consults.length - i + 2, shortStamp(x.at), x.type, x.title, x.agent, x.result, x.dealer]).concat(OLD_CONSULT.map((r, i) => [2 - i, ...r])).slice(0, 3);
+      body = `<thead><tr><th style="width:86px">No.</th><th style="width:196px">상담 일시</th><th style="width:130px">전화 타입</th><th>상담 제목</th><th style="width:120px">상담원</th><th style="width:140px">처리 결과</th><th style="width:200px">처리 센터</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="l">${esc(r[3])}</td><td>${esc(r[4])}</td><td>${r[5]}</td><td>${esc(r[6])}</td></tr>`).join('')}</tbody>`;
+    }
+    return `<div class="box hist"><div class="hd"><span class="tab ${histTab === 'warn' ? 'on' : ''}" data-tab="warn">경고등 이력</span><span class="tab ${histTab === 'consult' ? 'on' : ''}" data-tab="consult">상담 이력</span><button class="more">전체보기</button></div><table class="grid">${body}</table></div>`;
+  }
+
+  function sheet(c) {
+    if (!c.sheet || c.sheet.saved) return '';
+    const m = c.memo;
+    const open = c.sheet.open;
+    let inner;
+    if (c.sheet.step === 1) {
+      inner = `<div class="s1"><label>상담 제목<i>*</i></label><input data-in="title" maxlength="100" value="${esc(m.title)}" placeholder="제목 입력">
+        <div class="side"><div>서비스 센터로 상담 메모 전달<span class="req">*</span></div><div class="tog ${m.transfer ? '' : 'off'}" data-toggle><span>${m.transfer ? 'ON' : 'OFF'}</span><i></i></div><div class="lb">전화타입</div><span class="ro">${esc(m.callType)}</span></div>
+        <label>상담 내용<i>*</i></label><textarea data-in="text" maxlength="1000" placeholder="상담 내용을 입력하세요.">${esc(m.text)}</textarea></div>
+        <div class="foot"><button class="bt-dark" data-step="${m.transfer ? 2 : 3}">다음</button></div>`;
+    } else if (c.sheet.step === 2) {
+      const list = E.DEALERS.filter((d) => !onlyOpen || d.open === '영업중' || d.name === m.dealer);
+      inner = `<div class="s2"><h4>서비스센터 선택</h4><p>마지막 수신 위치: ${place(veh ? veh.odoMeters : c.loc.odo).addr}</p>
+        <div class="srch">${searchSvg}<span class="q">서비스 센터명/주소/전화번호 검색</span><span class="only ${onlyOpen ? '' : 'off'}" data-only>업무중만 보기<i>✓</i></span></div>
+        <table class="grid"><thead><tr><th style="width:82px">No.</th><th>서비스 센터명</th><th style="width:104px">브랜드</th><th style="width:104px">영업상태</th><th style="width:116px">거리(km)</th><th>주소</th><th style="width:196px">대표전화</th><th style="width:196px">운영 시간</th></tr></thead>
+        <tbody>${list.map((d) => `<tr class="${d.name === m.dealer ? 'picked' : ''}" data-dealer="${esc(d.name)}"><td><span class="radio ${d.name === m.dealer ? 'on' : ''}"></span></td><td>${d.pref ? '[고객 선호] ' : ''}${esc(d.name)}</td><td>${d.brand}</td><td>${d.open}</td><td>${d.km}</td><td>${d.addr}</td><td>${d.tel}</td><td>${d.hours}</td></tr>`).join('')}</tbody></table>
+        <div class="foot"><button class="bt-white" data-step="1">이전</button><button class="bt-dark" data-step="3">다음</button></div></div>`;
+    } else {
+      const d = E.DEALERS.find((x) => x.name === m.dealer) || E.DEALERS[0];
+      inner = `<h4>상담내역 확인하기</h4><div class="s3">
+        <dl><dt>고객명</dt><dd>${E.CUSTOMER.name}</dd><dt>고객 연락처</dt><dd>${E.CUSTOMER.phone}</dd><dt>상담 고객명</dt><dd class="box2">${esc(m.name)}</dd><dt>상담 고객 연락처</dt><dd class="box2">${esc(m.phone)}</dd><dt>차대번호 (VIN)</dt><dd>${E.VEHICLE.vin}</dd><dt>경고 발생 시각</dt><dd>${shortStamp(c.at)}</dd></dl>
+        <div class="c2">경고 유형<div class="types">${snap.cases.filter((x) => x.kind === 'emergency').slice(0, 2).map((x, i) => `#${i + 1} <a>${esc(x.warn.title)}</a> 주행 불가`).join('&nbsp;&nbsp;&nbsp;')}</div>상담 내용<div class="txt">${esc(m.text)}</div></div>
+        <div class="c3">${m.transfer ? `<h5>선택 서비스 센터</h5><dl><dt>선택 센터</dt><dd>${esc(d.name)}${d.pref ? '' : '<span class="badge-r">고객 선호 센터 불일치</span>'}</dd><dt>주소</dt><dd>${d.addr.replace('서울특별시 ', '')} (${d.km}km)</dd><dt>대표번호</dt><dd>${d.tel}</dd><dt>영업시간</dt><dd>${d.hours}</dd></dl>
+          <div class="note">서비스 센터 요청 사항 (센터 변경 사유 포함)</div><textarea data-in="request">${esc(m.request)}</textarea>` : '<h5>서비스 센터 전달 OFF</h5><p style="color:#58595b;font-size:15px">상담 메모는 운영 DB에만 저장되며 서비스 센터로 전달되지 않습니다.</p>'}</div></div>
+        <div class="foot"><button class="bt-white" data-step="${m.transfer ? 2 : 1}">이전</button><button class="bt-dark" data-save>저장</button></div>`;
+    }
+    return `<div class="sheet ${open ? '' : 'closed'}"><button class="tabh" data-sheet>상담정보<img class="${open ? '' : 'dn'}" src="${A}arrow_white.svg" alt="" style="transform:rotate(${open ? 180 : 0}deg)"></button><div class="in">${inner}</div></div>`;
+  }
+
+  function casePage(c) {
+    return `<div class="ptitle"><h2>e-Care 고객 응대</h2><span class="crumb">e-Care <svg width="8" height="10" viewBox="0 0 8 10"><path d="M2 1l4 4-4 4" stroke="#212121" fill="none"/></svg> e-Care 고객 응대</span></div>
+      ${vcard(c)}
+      <div class="mid"><div class="left">${locCard(c)}<div class="map"><canvas data-map></canvas><img class="zoom" src="${A}map_zoom.svg" alt=""><span class="gps">GPS 환경에 따라 실제 위치와 차이가 있을 수 있습니다</span></div></div>${wpanel(c)}</div>
+      ${hist()}${sheet(c)}${c.sheet && c.sheet.saved && Date.now() - c.sheet.saved < 5000 ? `<div class="toast"><i>✓</i>상담 메모 저장 및 DMS 전송 완료${c.dealer ? ` · ${esc(c.dealer)}` : ''}</div>` : ''}`;
+  }
+
+  // 11.4.1.1 e-Care 상담 이력: the agent's first screen
+  const PAST = [
+    ['2026-10-28 15:29:53', '2026-10-28 16:02', '긴급상담건', '이관 완료', '엔진 점화 이상', '김민수', '김상담', '김상담', 'JTHDL41BP8A000012', '58나2391', '종결', 'ES 300h', '렉서스'],
+    ['2026-10-28 15:21:00', '2026-10-28 15:44', '긴급상담건', '이관 완료', '냉각수 온도 이상', '이영희', '이서준', '이서준', 'JTMW1RFV0LD521847', '12다7710', '정비완료', 'RAV4', '토요타'],
+    ['2026-10-28 14:18:28', '-', '긴급상담건', '상담 완료', '브레이크 시스템', '박지훈', '김상담', '김상담', 'JTJGARBZ5M2190334', '301라4428', '-', 'NX 350h', '렉서스'],
+    ['2026-10-28 11:05:52', '2026-10-28 11:40', '정비안내건', '이관 완료', '엔진 오일 레벨', '최수진', '박지민', '박지민', 'JTDKARFU3L3109826', '67마1205', '입고', 'Prius', '토요타'],
+    ['2026-10-27 18:20:03', '2026-10-27 18:51', '긴급상담건', '이관 완료', '에어백 시스템', '정우성', '이서준', '김상담', 'JTJHY7AX6H4235561', '24바9912', '종결', 'LX 600', '렉서스'],
+    ['2026-10-27 16:42:19', '-', '긴급상담건', '상담 완료', '충전 시스템', '한지민', '김상담', '김상담', 'JTEBU5JR1K5711093', '88사3104', '-', 'Land Cruiser', '토요타'],
+    ['2026-10-27 10:09:53', '2026-10-27 10:33', '긴급상담건', '이관 완료', '엔진 점화 이상', '오세훈', '박지민', '박지민', 'JTMABAFV5PD130482', '15아6672', '종결', 'Crown', '토요타'],
+    ['2026-10-26 17:55:31', '2026-10-26 18:20', '정비안내건', '이관 완료', 'ABS', '윤아름', '이서준', '이서준', 'JTJBAMCA2J2071548', '73자8820', '고객인도', 'RX 500h', '렉서스'],
+  ];
+  const callIco = '<svg width="13" height="13" viewBox="0 0 24 24" style="margin-left:5px;vertical-align:-2px"><path d="M6.6 10.8a15.1 15.1 0 006.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 013 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" fill="#212121"/><path d="M15 3h6v6M21 3l-6 6" stroke="#212121" stroke-width="2" fill="none"/></svg>';
+  function homePage() {
+    const cs = snap ? snap.cases.filter((c) => c.kind === 'emergency') : [];
+    const ks = snap ? snap.consults.filter((k) => !k.general || true) : [];
+    const live = cs.filter((c) => !(snap.consults || []).some((k) => k.id === c.id)).map((c) => ({
+      at: E.stamp(c.at), upd: c.log.length ? E.stamp(c.log[c.log.length - 1].t).slice(0, 16) : '-', title: '긴급상담건', st: E.CONTACT[c.contact], warn: c.warn.title,
+      cust: E.CUSTOMER.name, agent: agentOf(c) ? agentOf(c).name : '-', last: agentOf(c) ? agentOf(c).name : '-', vin: E.VEHICLE.vin, plate: E.VEHICLE.plate,
+      svc: c.dms >= 0 ? svcOf(c) : '-', model: E.VEHICLE.model, brand: E.VEHICLE.brand, go: c.contact === 0 ? 'start' : 'open', id: c.id, c }));
+    const done = ks.map((k) => ({ at: E.stamp(k.at), upd: k.updated ? E.stamp(k.updated).slice(0, 16) : '-', title: k.general ? '일반문의' : '긴급상담건', st: k.result, warn: k.warn || '-',
+      cust: E.CUSTOMER.name, agent: k.agent, last: k.memos && k.memos.length ? k.memos[k.memos.length - 1].agent : k.agent, vin: E.VEHICLE.vin, plate: E.VEHICLE.plate,
+      svc: (() => { const c = snap.cases.find((x) => x.id === k.id); return c && c.dms >= 0 ? svcOf(c) : '-'; })(), model: E.VEHICLE.model, brand: E.VEHICLE.brand, go: 'detail', id: k.id }));
+    const past = PAST.map((r, i) => ({ at: r[0], upd: r[1], title: r[2], st: r[3], warn: r[4], cust: r[5], agent: r[6], last: r[7], vin: r[8], plate: r[9], svc: r[10], model: r[11], brand: r[12], go: 'detail', id: `P${i}` }));
+    const rows = live.concat(done, past).slice(0, 10);
+    const total = 368 + live.length + done.length;
+    const sel = (label, val, w, ico) => `<div class="sel" style="width:${w}px">${ico ? '<svg width="15" height="15" viewBox="0 0 16 16" style="margin-right:8px"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5" fill="none" stroke="#212121" stroke-width="1.3"/><path d="M1.5 6h13M5 1v3M11 1v3" stroke="#212121" stroke-width="1.3"/><path d="M4 8.5h2M7 8.5h2M10 8.5h2M4 11h2M7 11h2" stroke="#212121"/></svg>' : ''}${val}<i></i></div>`;
+    const today = E.ymd(Date.now()), from = E.ymd(Date.now() - 90 * 864e5);
+    return `<div class="ptitle"><h2>고객 상담 이력</h2><span class="crumb">e-Care <svg width="8" height="10" viewBox="0 0 8 10"><path d="M2 1l4 4-4 4" stroke="#212121" fill="none"/></svg> e-Care 상담 이력</span></div>
+      <div class="box filt">
+        <div class="frow"><div class="f"><label>&nbsp;</label>${sel('', '최초 상담 일자', 280)}</div><div class="f"><label>&nbsp;</label>${sel('', from, 280, true)}</div><div class="f"><label>&nbsp;</label>${sel('', today, 280, true)}</div>
+          <div class="f"><label>브랜드</label>${sel('', '전체', 170)}</div><div class="f"><label>고객명</label><span class="inp" style="width:200px"></span></div><div class="f"><label>제목</label><span class="inp" style="width:200px"></span></div></div>
+        <div class="frow"><div class="f"><label>차대번호</label><span class="inp" style="width:200px"></span></div><div class="f"><label>차량 번호</label><span class="inp" style="width:200px"></span></div><div class="f"><label>경고등명</label><span class="inp" style="width:200px"></span></div><div class="f"><label>담당자</label><span class="inp" style="width:200px"></span></div>
+          <label class="chk"><i>✓</i>내 상담건만 보기</label><span class="fbtns"><button class="rf"><img src="${A}ic_refresh.svg" alt="" width="24"></button><button class="q">조회</button></span></div>
+      </div>
+      <div class="cnt-l">조회 결과 총 <b>${total}</b> 건</div>
+      <div class="lst"><table class="grid list"><thead><tr><th style="width:64px">No.</th><th style="width:196px">최초 상담일시</th><th style="width:150px">최종 업데이트</th><th style="width:112px">제목</th><th style="width:124px">바로가기</th><th style="width:88px">상담 상태</th><th>경고등명</th><th style="width:78px">고객명</th><th style="width:84px">담당자</th><th style="width:84px">최종 메모<br>작성자</th><th style="width:172px">차대번호/ 차량 번호</th><th style="width:96px">서비스센터<br>처리 상태</th><th style="width:96px">차량 모델</th><th style="width:66px">브랜드</th></tr></thead>
+      <tbody>${rows.map((r, i) => `<tr class="${r.go === 'start' ? 'hot' : ''}"><td>${total - i}</td><td>${r.at}${callIco}</td><td>${r.upd}</td><td class="l">${r.title}</td>
+        <td>${r.go === 'start' ? `<button class="go-cs" data-cmd="accept">고객 상담 진행</button>` : r.go === 'open' ? `<span class="tx-live">진행 중</span>` : `<a class="det" data-detail="${r.id}">상세보기</a>`}</td>
+        <td>${r.go === 'start' ? `<b class="slat">${r.st}</b><small class="slat" data-sla="${r.id}"></small>` : r.st}</td><td class="l">${esc(r.warn)}</td><td>${r.cust}</td><td>${r.agent}</td><td>${r.last}</td><td class="vin">${r.vin}<br>${r.plate}</td><td>${r.svc}</td><td>${r.model}</td><td>${r.brand}</td></tr>`).join('')}</tbody></table>
+      <div class="pager"><span>‹</span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>›</span></div></div>`;
+  }
+
+  // 상담이력 상세 (opened from 상세보기, or after a general call to add a memo)
+  let detailId = null;
+  function detail() {
+    const g = snap && snap.general;
+    const id = g && g.state === 'ended' ? g.consult || 'GENERAL' : detailId;
+    if (!id) return '';
+    const k = snap.consults.find((x) => x.id === id);
+    const past = /^P\d+$/.test(id);
+    const k0 = snap.consults.find((x) => x.id === id);
+    const p = past ? PAST[+id.slice(1)] : k0 ? null : [E.stamp(g ? g.at : Date.now()), '-', '일반문의', '상담 완료', '-', E.CUSTOMER.name, me().name, me().name, E.VEHICLE.vin, E.VEHICLE.plate, '-', E.VEHICLE.model, E.VEHICLE.brand];
+    const c = k && snap.cases.find((x) => x.id === k.id);
+    const d = c && c.dealer ? E.DEALERS.find((x) => x.name === c.dealer) : E.DEALERS[0];
+    const name = p ? p[5] : E.CUSTOMER.name;
+    const warn = k ? k.warn : p ? p[4] : '-';
+    const memo = k ? k.memo : past ? `${p[4]} 경고 관련 상담. 고객 안전 확인 후 서비스센터 입고 안내 완료.` : '고객 일반 문의 (진행 중인 경고 케이스 없음).';
+    const memos = (k && k.memos) || [];
+    const fromGeneral = g && g.state === 'ended';
+    return `<div class="ov"><div class="dlg2"><div class="dh"><b>상담이력 상세</b><button class="x" data-close>✕</button></div>
+      <div class="sum"><div><small>경고 발생</small><b>${p ? '경고 발생' : '긴급 경고 발생'}</b><em>${k ? E.stamp(k.at) : p[0]}</em></div><div><small>상담</small><b>${k ? `${k.agent}(${k.type === '인바운드 콜' ? '인바운드' : '아웃바운드'})` : `${p[6]}(아웃바운드)`}</b><em>${k ? E.stamp(k.updated || k.at) : p[0]}</em></div>
+        <div><small>상담 정보 처리</small><b>${(k && k.dealer !== '-') || (p && p[10] !== '-') ? 'DMS 전송' : '상담 완료'}</b><em>${k ? E.stamp(k.updated || k.at) : p[1]}</em></div><div><small>서비스센터 처리</small><b class="bl">${c && c.dms >= 0 ? svcOf(c) : p ? p[10] : '-'}</b><em>${k ? E.ymd(Date.now()) : p[0].slice(0, 10)}</em></div></div>
+      <h5>상담 기록</h5>
+      <div class="rec"><div class="ci"><h6>고객 정보</h6><dl><dt>고객명</dt><dd class="fx">${name}</dd><dt>고객 연락처</dt><dd class="fx">${past ? '010-****-' + (4100 + +id.slice(1) * 37) : E.CUSTOMER.phone}<button class="callb">전화걸기</button></dd><dt>차대번호(VIN)</dt><dd class="fx">${p ? p[8] : E.VEHICLE.vin}</dd><dt>경고 발생 시각</dt><dd class="fx">${k ? E.stamp(k.at) : p[0]}</dd></dl></div>
+        <div class="sc"><h6>서비스 센터</h6><dl><dt>선호 센터</dt><dd>${E.DEALERS[0].name}</dd><dt>상담 시 안내 센터</dt><dd>${d.name}${d.pref ? '' : '<span class="badge-r">고객 선호 센터 불일치</span>'}</dd><dt>주소</dt><dd>${d.addr.replace('서울특별시 ', '')} (${d.km}km)</dd><dt>대표번호</dt><dd>${d.tel}</dd></dl>
+          <h6 style="margin-top:14px">경고 유형 / 주행 가능 여부</h6><div class="wt">${warn && warn !== '-' ? `#1 <a>${esc(warn)}</a> 주행 불가` : '경고 없음 · 일반 문의'}</div></div></div>
+      <div class="lb2">상담 제목</div><div class="fx w">${k ? esc(k.title) : p[2]}</div>
+      <div class="lb2">상담 내용</div><div class="fx w tall">${esc(memo)}</div>
+      ${memos.length ? `<div class="lb2">추가 메모 이력</div>${memos.map((m) => `<div class="fx w">${E.stamp(m.t).slice(0, 16)} · ${esc(m.agent)} · ${esc(m.text)}</div>`).join('')}` : ''}
+      <div class="am"><h6>추가 메모</h6><textarea data-addmemo maxlength="1000" placeholder="추가 메모를 입력하세요">${fromGeneral ? esc(g.memo) : ''}</textarea><button class="bt-dark" data-addmemo-btn>등록</button></div>
+      <div class="df"><button class="bt-white" data-close>닫기</button><button class="bt-dark" data-close-save>저장</button></div></div></div>`;
+  }
+
+  function popup(c) {
+    const g = snap && snap.general;
+    if (g && g.state === 'ringing') {
+      return `<div class="ov"><div class="pop"><div class="txt"><div class="ttl"><img class="ring" src="${A}ic_siren.svg" alt="">전화가 왔습니다.</div>
+        <div class="cen">발신 번호: <b>${E.CUSTOMER.phone}</b><br>고객명 : <b>${E.CUSTOMER.name}</b> (가입 고객)</div></div><button class="go" data-cmd="answerGeneral">전화 받기</button></div></div>`;
+    }
+    if (!c || c.contact > 0) return '';
+    const cust = `<div class="cust">고객명 : ${E.CUSTOMER.name}<br>연락처 : ${E.CUSTOMER.phone}<br>차량번호: ${E.VEHICLE.plate}</div>`;
+    if (c.inbound && !c.call) {
+      return `<div class="ov"><div class="pop"><div class="txt"><div class="ttl"><img class="ring" src="${A}ic_siren.svg" alt="">전화가 왔습니다.</div>
+        <div class="cen">경고등명: <b>${esc(c.warn.sys)}</b><br>운전 가능 여부: <b>주행 불가</b><br>고객명 : <b>${E.CUSTOMER.name}</b><br>차량번호: <b>${E.VEHICLE.plate}</b></div></div>
+        <button class="go" data-cmd="ack">확인</button></div></div>`;
+    }
+    if (c.assign && !c.assign.done) {
+      return `<div class="ov"><div class="pop"><div class="txt"><div class="ttl"><img class="ring" src="${A}ic_siren.svg" alt="">고객 차량에서 경고 발생</div>
+        <div class="timer" data-timer><div class="l"><span data-tl>잔여 시간</span><em>콜 대기 중</em></div><b data-cd>05:00</b></div>
+        <div class="info">경고등명: <b>${esc(c.warn.sys)}</b><br>운전 가능 여부: <b>주행 불가</b><br>최초 감지: <b>${shortStamp(c.at).slice(0, 16)}</b></div>${cust}</div>
+        <button class="go" data-cmd="accept">전화 걸기</button></div></div>`;
+    }
+    return '';
+  }
+
+  /* ---------------- render ---------------- */
+  const app = $('#app');
+  let lastPopup = '';
+  function onCasePage(c) { return !!(c && (c.call || c.sheet || c.sms || (c.retry && !c.retry.done))); }
+
+  function render(force) {
+    if (VIEW === 'transcript') return renderTranscript();
+    if (!snap) return;
+    const c = active();
+    const onCase = onCasePage(c);
+    const gen = snap.general;
+    const pk = gen && gen.state === 'ringing' ? 'in' : c ? (c.inbound && !c.call ? 'in' : c.assign && !c.assign.done && c.contact === 0 ? 'warn' : '') : '';
+    if (pk && pk !== lastPopup) { pk === 'in' ? sfx.ring() : sfx.popup(); }
+    lastPopup = pk;
+    const key = JSON.stringify([onCase, histTab, onlyOpen, pk, c && [c.id, c.contact, c.dispatch, c.dms, c.dealer, c.assign && c.assign.at, c.call && [c.call.state, c.call.hold, c.call.attempts], c.retry, c.sms, c.sheet, c.memo, c.log.length],
+      snap.cases.length, snap.agents.map((a) => a.state), (snap.consults || []).map((k) => (k.memos || []).length), gen && [gen.state, gen.lines.length], detailId]);
+    if (!force && key === renderedKey) return;
+    // keep the agent's typing: no re-render while an input in the app has focus
+    const f = document.activeElement;
+    if (!force && f && app.contains(f) && f.matches('input,textarea')) return;
+    renderedKey = key;
+    app.innerHTML = `<div class="ccw">${gnb(c, onCase)}${band(onCase ? c : null)}${lnb(onCase)}<main class="page">${onCase ? casePage(c) : homePage()}</main></div>${popup(c)}${onCase ? '' : detail()}`;
+    app.querySelectorAll('[data-wicon]').forEach((cv) => {
+      const g = cv.getContext('2d');
+      SimIcons.drawIcon(g, cv.dataset.wicon, 28, 28, 40, '#3f322e', null);
+    });
+    if (c && c.sheet && c.sheet.saved && Date.now() - c.sheet.saved < 5000) { setTimeout(() => render(true), 5100 - (Date.now() - c.sheet.saved)); }
+    tick();
+  }
+
+  app.addEventListener('click', (e) => {
+    const c = active();
+    const t = e.target.closest('[data-cmd],[data-tab],[data-step],[data-save],[data-sheet],[data-toggle],[data-dealer],[data-only],[data-refresh],[data-detail],[data-close],[data-close-save],[data-addmemo-btn]');
+    if (!t) return;
+    unlock();
+    if (t.dataset.detail) { detailId = t.dataset.detail; render(true); return; }
+    if (t.hasAttribute('data-addmemo-btn') || t.hasAttribute('data-close-save') || t.hasAttribute('data-close')) {
+      const ta = $('[data-addmemo]', app);
+      const text = ta && !t.hasAttribute('data-close') ? ta.value.trim() : '';
+      const g = snap.general;
+      if (g && g.state === 'ended') cmd('closeGeneral', { text });
+      else if (text && detailId) cmd('consultMemo', { consult: detailId, text });
+      if (text) sfx.save();
+      if (!t.hasAttribute('data-addmemo-btn') || (g && g.state === 'ended')) detailId = null;
+      if (ta && t.hasAttribute('data-addmemo-btn')) ta.value = '';
+      render(true);
+      return;
+    }
+    const id = c && c.id;
+    if (t.dataset.cmd) {
+      if (t.disabled) return;
+      if (t.dataset.cmd === 'redial' && !t.classList.contains('go')) return;
+      cmd(t.dataset.cmd, { id });
+    }
+    if (t.dataset.tab) { histTab = t.dataset.tab; render(true); }
+    if (t.dataset.step) {
+      const n = +t.dataset.step;
+      if (n > c.sheet.step && c.sheet.step === 1 && (!c.memo.title.trim() || !c.memo.text.trim())) return;
+      flushMemo();
+      cmd('sheet', { id, step: n });
+    }
+    if (t.dataset.save != null && t.hasAttribute('data-save')) { flushMemo(); cmd('save', { id }); sfx.save(); }
+    if (t.hasAttribute('data-sheet')) cmd('sheet', { id, open: !c.sheet.open });
+    if (t.hasAttribute('data-toggle')) cmd('memo', { id, memo: { transfer: !c.memo.transfer } });
+    if (t.dataset.dealer) cmd('memo', { id, memo: { dealer: t.dataset.dealer } });
+    if (t.hasAttribute('data-only')) { onlyOpen = !onlyOpen; render(true); }
+    if (t.hasAttribute('data-refresh')) locFlash = Date.now();
+  });
+  let memoBuf = {}, memoT = 0;
+  function flushMemo() {
+    const c = active();
+    if (!c || !Object.keys(memoBuf).length) return;
+    cmd('memo', { id: c.id, memo: memoBuf });
+    memoBuf = {};
+  }
+  app.addEventListener('input', (e) => {
+    const k = e.target.dataset && e.target.dataset.in;
+    if (!k) return;
+    memoBuf[k] = e.target.value;
+    clearTimeout(memoT);
+    memoT = setTimeout(flushMemo, 250);
+  });
+  app.addEventListener('focusout', () => setTimeout(() => { flushMemo(); render(); }, 0));
+
+  /* ---------------- live values (4x a second) ---------------- */
+  let hotBeep = 0;
+  function tick() {
+    const c = active();
+    if (c && snap) {
+      const cd = $('[data-cd]', app);
+      if (cd && c.assign) {
+        const left = c.assign.until - Date.now();
+        const over = left <= 0;
+        cd.textContent = over ? `+${E.mmss(-left)}` : E.mmss(left);
+        $('[data-tl]', app).textContent = over ? '초과 시간' : '잔여 시간';
+        const hot = left < 60000;
+        $('[data-timer]', app).classList.toggle('hot', hot);
+        if (hot && Date.now() - hotBeep > 2000) { hotBeep = Date.now(); sfx.alarm(); }
+      }
+      if (c.inbound && !c.call && Date.now() - hotBeep > 3000) { hotBeep = Date.now(); sfx.ring(); }
+    }
+    if (snap && snap.general && snap.general.state === 'ringing' && Date.now() - hotBeep > 3000) { hotBeep = Date.now(); sfx.ring(); }
+    if (c && snap) {
+      if (c.call && c.call.state === 'dialing' && Date.now() - (tick.rb || 0) > 3000) { tick.rb = Date.now(); sfx.ringback(); }
+      const w = $('[data-wait]', app);
+      if (w && c.retry) {
+        const dialing = c.call && c.call.state === 'dialing';
+        const left = dialing ? E.RETRY_WAIT : c.retry.until - Date.now();
+        w.textContent = E.mmss(left);
+        w.classList.toggle('zero', !dialing && left <= 0);
+        $('[data-re]', app).classList.toggle('go', !dialing && left <= 0);
+      }
+    }
+    const ll = $('[data-lastloc]', app);
+    if (ll && veh) {
+      const p = place(veh.odoMeters);
+      const html = `${p.addr}<br>${p.xy}`;
+      if (ll.innerHTML !== html) ll.innerHTML = html;
+      ll.style.background = Date.now() - locFlash < 600 ? '#eef8f1' : '';
+    }
+    if (snap) app.querySelectorAll('[data-sla]').forEach((el) => {
+      const x = snap.cases.find((y) => y.id === el.dataset.sla);
+      if (x) { const l = E.SLA - (Date.now() - x.slaBase); el.textContent = l >= 0 ? E.mmss(l) : `+${E.mmss(-l)}`; }
+    });
+    conn();
+  }
+  setInterval(tick, 250);
+
+  /* ---------------- live map (GUI map tone, top-down) ---------------- */
+  let mapT = 0;
+  const pinR = new Image(); pinR.src = `${A}pin_red.svg`;
+  const pinG = new Image(); pinG.src = `${A}pin_green.svg`;
+  function drawMap(t) {
+    const cv = $('[data-map]', app);
+    const c = active();
+    if (!cv || !c) return;
+    const r = cv.getBoundingClientRect();
+    const W = cv.offsetWidth, H = cv.offsetHeight;
+    const k = clamp((r.width / W || 1) * (window.devicePixelRatio || 1), 0.4, 2.5);   // the app is scaled; draw at screen resolution
+    if (cv.width !== Math.round(W * k)) { cv.width = Math.round(W * k); cv.height = Math.round(H * k); }
+    const g = cv.getContext('2d');
+    g.setTransform(k, 0, 0, k, 0, 0);
+    g.fillStyle = '#f1efe9';
+    g.fillRect(0, 0, W, H);
+    const s = veh ? veh.odoMeters : c.loc.odo;
+    const sf = c.loc.odo;
+    const [ax, ay] = Road.pos(sf), [bx, by] = Road.pos(s);
+    const cx = (ax + bx) / 2, cy = (ay + by) / 2;
+    const m = clamp(Math.min((W - 160) / (Math.abs(bx - ax) + 1), (H - 90) / (Math.abs(by - ay) + 1)), 0.22, 1.1);
+    const P = (X, Y) => [W / 2 + (X - cx) * m, H / 2 + 14 - (Y - cy) * m];
+    const span = Math.max(W, H) / m;
+    const s0 = Math.min(s, sf) - span * 0.7, s1 = Math.max(s, sf) + span * 0.7;
+    grid(g, P, cx, cy, W, H, m);
+    for (const b of Road.city(s0, s1)) {
+      const pts = [Road.at(b.S0, b.l0), Road.at(b.S1, b.l0), Road.at(b.S1, b.l1), Road.at(b.S0, b.l1)].map(([X, Y]) => P(X, Y));
+      g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath();
+      g.fillStyle = b.kind === 'park' ? '#cfe6c4' : b.lm ? '#e3e1ea' : '#e9e4db';
+      g.fill();
+      g.strokeStyle = b.kind === 'park' ? '#b5d6a6' : '#d8d1c5';
+      g.lineWidth = 1;
+      g.stroke();
+    }
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const S of Road.streets(s0, s1)) {
+      for (const side of [-1, 1]) {
+        const a = P(...Road.at(S, side * 8)), b = P(...Road.at(S, side * 140));
+        g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]);
+        g.strokeStyle = '#ddd6ca'; g.lineWidth = Math.max(3, 9 * m); g.stroke();
+        g.strokeStyle = '#ffffff'; g.lineWidth = Math.max(2, 7 * m); g.stroke();
+      }
+    }
+    // 올림픽대로 runs along the south bank of the Han: the river on the driver's right, a strip of
+    // riverside green between, and 한남대교 crossing it where the address says it is
+    const edge = (lat) => { const a = []; for (let S = s0; S <= s1; S += 16) a.push(P(...Road.at(S, lat))); return a; };
+    const band = (l0, l1, fill) => { const A = edge(l0), B = edge(l1).reverse(); g.beginPath(); A.concat(B).forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]))); g.closePath(); g.fillStyle = fill; g.fill(); };
+    const RIV0 = 34, RIV1 = 760;
+    band(15, RIV0, '#cfe6c4');
+    band(RIV0, RIV1, '#b9d9f3');
+    band(RIV0, RIV0 + 5, '#a5cbec');
+    const kmTo = 0.2 + (sf % 1400) / 1400 * 0.9;                 // as the address reads: 한남대교 남단 n.n km
+    const Sb = sf + kmTo * 1000;
+    const b0 = P(...Road.at(Sb, 9)), b1 = P(...Road.at(Sb, RIV1));
+    g.beginPath(); g.moveTo(b0[0], b0[1]); g.lineTo(b1[0], b1[1]);
+    g.strokeStyle = '#cfc8ba'; g.lineWidth = Math.max(6, 16 * m); g.stroke();
+    g.strokeStyle = '#ffffff'; g.lineWidth = Math.max(4, 12 * m); g.stroke();
+    const path = () => { g.beginPath(); for (let S = s0; S <= s1; S += 8) { const p = P(...Road.pos(S)); S === s0 ? g.moveTo(p[0], p[1]) : g.lineTo(p[0], p[1]); } };
+    path(); g.strokeStyle = '#e2b066'; g.lineWidth = Math.max(6, 17 * m); g.stroke();
+    path(); g.strokeStyle = '#f7d48c'; g.lineWidth = Math.max(4, 13 * m); g.stroke();
+    // names: the road, the river, the bridge (or which way it is when it is off the map)
+    const label = (txt, q, col, size, halo) => {
+      g.font = `${size >= 13 ? 700 : 600} ${size}px Pretendard, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.lineWidth = 3.5; g.strokeStyle = halo; g.strokeText(txt, q[0], q[1]); g.fillStyle = col; g.fillText(txt, q[0], q[1]);
+    };
+    const inView = (q, pad) => q[0] > pad && q[0] < W - pad && q[1] > pad && q[1] < H - pad;
+    const mid = (s + sf) / 2;
+    // labels keep clear of the pins, of the bridge and of each other
+    const taken = [P(ax, ay), P(bx, by)].map((q) => [q[0], q[1] - 30]);
+    taken.push(P(...Road.at(Sb, RIV0 + 120)));
+    const free = (q, r) => taken.every((t) => Math.hypot(t[0] - q[0], (t[1] - q[1]) * 1.25) > r);
+    let rq = null;
+    for (const dS of [0, 170, -170, 320, -320, 480, -480]) { const q = P(...Road.at(mid + dS, RIV0 + 330)); if (inView(q, 46) && free(q, 90)) { rq = q; break; } }
+    if (rq) { label('한강', rq, '#4f86b8', 15, 'rgba(185,217,243,0.9)'); taken.push(rq); }
+    for (const dS of [0, 150, -150, 280, -280, 420, -420]) { const q = P(...Road.at(mid + dS, -64)); if (inView(q, 30) && free(q, 50)) { label('올림픽대로', q, '#9a6a1c', 12, 'rgba(255,255,255,0.92)'); break; } }
+    const bq = P(...Road.at(Sb, RIV0 + 120));
+    if (inView(bq, 40)) label('한남대교', bq, '#6b6456', 12, 'rgba(255,255,255,0.92)');
+    else {
+      // towards the bridge, on the edge of the map
+      const here = P(...Road.pos(s)), dx = bq[0] - here[0], dy = bq[1] - here[1], L = Math.hypot(dx, dy) || 1;
+      const tEdge = Math.min(dx > 0 ? (W - 74 - here[0]) / dx : dx < 0 ? (74 - here[0]) / dx : 9, dy > 0 ? (H - 44 - here[1]) / dy : dy < 0 ? (40 - here[1]) / dy : 9);
+      const q = [here[0] + dx * tEdge, here[1] + dy * tEdge];
+      const txt = `한남대교 ${kmTo.toFixed(1)}km`;
+      g.font = '600 11.5px Pretendard, sans-serif';
+      const tw = g.measureText(txt).width + 30;
+      g.fillStyle = 'rgba(255,255,255,0.94)'; g.strokeStyle = '#cfc8ba'; g.lineWidth = 1;
+      g.beginPath(); g.roundRect(q[0] - tw / 2, q[1] - 11, tw, 22, 11); g.fill(); g.stroke();
+      g.fillStyle = '#6b6456'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(txt, q[0] - tw / 2 + 22, q[1] + 0.5);
+      // a small arrow pointing that way
+      const ang = Math.atan2(dy, dx), ax = q[0] - tw / 2 + 12, ay = q[1];
+      g.save(); g.translate(ax, ay); g.rotate(ang); g.beginPath(); g.moveTo(5, 0); g.lineTo(-4, -4); g.lineTo(-2, 0); g.lineTo(-4, 4); g.closePath(); g.fillStyle = '#8d8676'; g.fill(); g.restore();
+      void L;
+    }
+    // dispatch vehicle on its way
+    if (c.dispatch >= 1) {
+      const lg = c.log.find((e) => e.text.startsWith('긴급출동 출동'));
+      const p = c.dispatch >= 2 ? 1 : clamp((Date.now() - (lg ? lg.t : Date.now())) / 12000, 0, 1);
+      const q = P(...Road.at(s - 600 * (1 - p) - 12, -3));
+      g.fillStyle = '#ff7a00'; g.beginPath(); g.arc(q[0], q[1], 10, 0, Math.PI * 2); g.fill();
+      g.lineWidth = 2.5; g.strokeStyle = '#fff'; g.stroke();
+      g.fillStyle = '#fff'; g.font = '700 10px Pretendard, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('출동', q[0], q[1] + 0.5);
+    }
+    const pin = (img, X, Y, label, col, pulse) => {
+      const [px, py] = P(X, Y);
+      if (pulse) {
+        const f = (t / 1000) % 1.6 / 1.6;
+        g.beginPath(); g.arc(px, py, 6 + f * 26, 0, Math.PI * 2);
+        g.fillStyle = `rgba(0,123,84,${0.3 * (1 - f)})`; g.fill();
+      }
+      if (img.complete && img.naturalWidth) g.drawImage(img, px - 10, py - 25, 20, 25);
+      g.font = '500 12px Pretendard, sans-serif';
+      const tw = g.measureText(label).width + 12;
+      g.fillStyle = col;
+      g.beginPath(); g.roundRect(px - tw / 2, py - 47, tw, 19, 4); g.fill();
+      g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, px, py - 37);
+    };
+    const near = Math.hypot((bx - ax) * m, (by - ay) * m) < 34;
+    pin(pinR, ax + (near ? -26 / m : 0), ay, '최초 고장', '#c0392b', false);
+    pin(pinG, bx, by, '마지막 수신', '#007b54', true);
+    g.fillStyle = '#58595b'; g.font = '500 11px Pretendard, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    const bar = 100 * m;
+    g.fillRect(W - 40 - bar, H - 34, bar, 2.5); g.fillText('100 m', W - 40 - bar, H - 40);
+  }
+
+  // the town around the route: a street grid of blocks, parks and places
+  const hash = (i, j) => { const x = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return x - Math.floor(x); };
+  const POI = ['GS25', 'CU', '스타벅스', 'KB국민은행', '하나은행', '역삼동주민센터', '세븐일레븐', '올리브영', '신한은행', '역삼초등학교', '아트빌딩', '한화갤러리아', '주차장', '파리바게뜨', '이디야커피', '강남구보건소'];
+  function grid(g, P, cx, cy, W, H, m) {
+    const ang = 0.49, ca = Math.cos(ang), sa = Math.sin(ang);
+    const C = 52, R = (Math.hypot(W, H) / 2) / m + C;
+    const u0 = cx * ca + cy * sa, v0 = -cx * sa + cy * ca;
+    const toW = (u, v) => [u * ca - v * sa, u * sa + v * ca];
+    const labels = [];
+    for (let i = Math.floor((u0 - R) / C); i <= Math.ceil((u0 + R) / C); i++) {
+      for (let j = Math.floor((v0 - R) / C); j <= Math.ceil((v0 + R) / C); j++) {
+        const h = hash(i, j);
+        if (h < 0.05) continue;
+        const park = h > 0.93;
+        const inset = park ? 4 : 7;
+        const u = i * C + inset, v = j * C + inset, w = C - inset * 2;
+        const pts = [toW(u, v), toW(u + w, v), toW(u + w, v + w), toW(u, v + w)].map(([X, Y]) => P(X, Y));
+        g.beginPath(); pts.forEach((p, k) => (k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath();
+        g.fillStyle = park ? '#d7ebcc' : '#ece8e0'; g.fill();
+        g.strokeStyle = park ? '#c3dfb4' : '#dfd9ce'; g.lineWidth = 1; g.stroke();
+        if (!park && h > 0.25) {
+          // buildings inside the block
+          const n = h > 0.6 ? 2 : 1;
+          for (let k = 0; k < n; k++) {
+            const bw = w * (n === 1 ? 0.62 : 0.4), bu = u + w * (n === 1 ? 0.19 : 0.06 + k * 0.5), bv = v + w * (0.14 + 0.1 * hash(j, i + k));
+            const q = [toW(bu, bv), toW(bu + bw, bv), toW(bu + bw, bv + bw * 0.9), toW(bu, bv + bw * 0.9)].map(([X, Y]) => P(X, Y));
+            g.beginPath(); q.forEach((p, z) => (z ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath();
+            g.fillStyle = '#e3ddd3'; g.fill(); g.strokeStyle = '#d3ccc0'; g.stroke();
+          }
+        }
+        if (h > 0.82 && h < 0.93 && m > 0.4) labels.push([toW(u + w / 2, v + w / 2), POI[Math.floor(hash(j, i) * POI.length)]]);
+      }
+    }
+    g.font = '500 10px Pretendard, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const [[X, Y], name] of labels) {
+      const [px, py] = P(X, Y);
+      g.fillStyle = '#ff8a3d'; g.beginPath(); g.arc(px, py - 8, 3.2, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#7a7164'; g.fillText(name, px, py + 4);
+    }
+  }
+
+  /* ---------------- transcript screen (상담 대화) ----------------
+   * Live conversation with edit / delete per line, and the call scripts the
+   * next calls will use. Everything goes through the director, so every
+   * screen (CCW, other tablets) shows the same edits. */
+  let trKey = '', trTab = 'live', trSys = true, trSel = -1, trEdit = -1, trSeen = new Set(), trConv = '';
+  const tr = $('#transcript');
+  function convo() {
+    const g = snap && snap.general;
+    if (g) return { general: true, lines: g.lines, title: `일반 전화 · ${E.CUSTOMER.name} 고객`, call: g, log: [] };
+    // the newest case: a new scenario (a new warning) starts a fresh conversation
+    if (!snap || !snap.cases) return null;   // before the director's first state
+    const c = snap.cases[0];                 // the newest case (new cases go in front)
+    if (!c) return null;
+    // the service center's follow-up call takes over the panel once it starts
+    if (c.dcall) return { general: false, dealer: true, id: c.id + ':dealer', lines: c.dcall.lines, title: `서비스센터 후속 통화 · ${E.CUSTOMER.name} 고객`, call: c.dcall, log: c.log, c };
+    return { general: false, id: c.id, lines: c.call ? c.call.lines : [], title: `${c.warn.title} · ${E.CUSTOMER.name} 고객`, call: c.call, log: c.log, c };
+  }
+  function renderTranscript(force) {
+    if (!snap) return;
+    const v = convo();
+    const key = JSON.stringify([trTab, trSys, trSel, trEdit, vsVer, v && [v.title, v.lines, v.call && v.call.state, v.log.length], v && v.c && [v.c.contact, v.c.dispatch, v.c.dms], trTab === 'script' && [snap.scripts, snap.pick]]);
+    if (!force && key === trKey) return;
+    const f = document.activeElement;
+    if (!force && f && tr.contains(f) && f.matches('textarea')) return;
+    trKey = key;
+    // only the two views: the live conversation and the scripts (no customer, case or call data)
+    const head = `<header class="trh"><nav class="trtabs"><button data-trtab="live" class="${trTab === 'live' ? 'on' : ''}">실시간 대화</button><button data-trtab="script" class="${trTab === 'script' ? 'on' : ''}">대화 스크립트</button></nav></header>`;
+    // the live conversation grows: new lines are added at the bottom of the list as it is,
+    // never by rebuilding it (a rebuilt list jumps to the top and scrolls back down)
+    if (!force && trTab === 'live' && v && trSel < 0 && trEdit < 0 && liveAppend(v)) return;
+    let body;
+    if (trTab === 'script') body = scriptsView();
+    else if (!v || !v.lines.some((l) => !l.deleted)) body = `<div class="tr-empty">통화가 시작되면 대화가 여기에 실시간으로 표시됩니다.</div>`;
+    else body = liveView(v);
+    const prev = $('.tr-list', tr);
+    const keep = prev && (trSel >= 0 || trEdit >= 0) ? prev.scrollTop : null;
+    if (trTab !== 'live' || !v) trLive = null;
+    tr.innerHTML = head + body;
+    const list = $('.tr-list', tr);
+    // jump there at once (the list scrolls smoothly, which would run down from the top)
+    if (list) { list.style.scrollBehavior = 'auto'; list.scrollTop = keep != null ? keep : list.scrollHeight; list.style.scrollBehavior = ''; }
+    drawVs();
+    tickTranscript();
+  }
+  // what the live list shows now: the conversation, its voices and each line's text
+  let trLive = null;
+  const liveSig = (v) => {
+    const conv = v.general ? `G${v.call.at}` : v.id;
+    const male = v.lines.some((l) => /ecare_[ma]_/.test(l.audio || ''));
+    return { conv, male, rows: v.lines.map((l, i) => (l.deleted ? null : `${i}|${l.who}|${l.text}`)).filter(Boolean) };
+  };
+  function liveAppend(v) {
+    const list = $('.tr-list', tr);
+    const now = liveSig(v);
+    const was = trLive;
+    if (!list || !was || was.conv !== now.conv || was.male !== now.male || now.rows.length < was.rows.length) return false;
+    if (was.rows.some((r, j) => r !== now.rows[j])) return false;
+    if (now.rows.length > was.rows.length) {
+      const fresh = now.rows.slice(was.rows.length).map((r) => +r.split('|')[0]);
+      const atEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+      list.insertAdjacentHTML('beforeend', fresh.map((i) => bubble(v.lines[i], i, now.male, true)).join(''));
+      if (atEnd) list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    }
+    trLive = now;
+    tickTranscript();
+    return true;
+  }
+  function bubble(l, i, male, isNew) {
+    const who = l.who === 'agent' ? 'e-Care 상담원' : l.who === 'dealer' ? '서비스센터 · 이정비 어드바이저' : `${E.CUSTOMER.name} 고객`;
+    const av = `<img class="av" src="assets/avatar_${l.who === 'agent' ? 'agent' : l.who === 'dealer' ? 'dealer' : male ? 'customer_m' : 'customer'}.webp" alt="">`;
+    if (i === trEdit) return `<div class="tb ${l.who} editing"><span class="who">${who}</span><textarea data-edit="${i}" rows="3">${esc(l.text)}</textarea><div class="acts on"><button data-save-line="${i}" class="pri">저장</button><button data-cancel>취소</button></div></div>`;
+    return `<div class="tb ${l.who === 'dealer' ? 'agent dealer' : l.who} ${i === trSel ? 'picked' : ''}${isNew ? ' new' : ''}" data-line="${i}"><span class="who">${av}${who}</span><div class="msg">${esc(l.text)}</div>
+        <div class="acts"><button data-edit-line="${i}">✎ 편집</button><button data-del-line="${i}" class="del">삭제</button></div></div>`;
+  }
+  function liveView(v) {
+    const conv = v.general ? `G${v.call.at}` : v.id;
+    if (conv !== trConv) { trConv = conv; trSeen = new Set(); }
+    const fresh = (k) => { if (trSeen.has(k)) return false; trSeen.add(k); return true; };
+    const items = v.lines.map((l, i) => ({ t: l.t, l, i })).filter((x) => !x.l.deleted);
+    // the second inbound set is a male customer
+    const male = v.lines.some((l) => /ecare_[ma]_/.test(l.audio || ''));
+    trLive = liveSig(v);
+    return `<div class="tr-wrap solo"><div class="tr-list">${items.map(({ l, i }) => bubble(l, i, male, fresh('l' + i))).join('')}</div></div>`;
+  }
+  // which conversation set each call type plays (only types with several sets)
+  function pickBar() {
+    const pick = snap.pick || {};
+    return Object.keys(E.SCRIPT_SETS).filter((k) => E.SCRIPT_SETS[k].keys.length > 1).map((kind) => `<div class="pickbar"><b>대화 상황 · ${E.SCRIPT_SETS[kind].label}</b>
+      ${E.SCRIPT_SETS[kind].keys.map((k) => `<button data-pick="${kind}:${k}" class="${pick[kind] === k ? 'on' : ''}">${esc(E.SCRIPT_NAMES[k])}<small>${(snap.scripts[k] || []).length}줄 · ${Math.round((snap.scripts[k] || []).reduce((t, l) => t + (l.dur || 0) + 0.7, 0))}초</small></button>`).join('')}
+      <span>다음 통화부터 적용 · 리모컨에서도 선택 가능</span></div>`).join('');
+  }
+  function scriptsView() {
+    const sc = snap.scripts || {};
+    const where = Link.relay ? '릴레이 서버에 저장 · 모든 화면에서 재생' : '이 브라우저에 저장 · 같은 브라우저의 콜센터 화면에서 재생 (여러 PC는 릴레이로 실행)';
+    return `<div class="tr-scripts"><p class="hint">다음 통화부터 아래 대사가 사용됩니다. 음성 파일이 있는 대사는 녹음으로, 없는 대사는 음성 합성(TTS)으로 재생됩니다. 대사를 고치면 그 줄의 녹음은 해제됩니다. <button data-sreset>기본 대사 · 음성으로 초기화</button></p>
+      ${pickBar()}
+      ${Object.keys(E.SCRIPT_NAMES).map((k) => {
+        const list = sc[k] || [];
+        const n = (who) => list.filter((l) => !who || l.who === who).length;
+        const kind = Object.keys(E.SCRIPT_SETS).find((x) => E.SCRIPT_SETS[x].keys.includes(k));
+        const multi = E.SCRIPT_SETS[kind].keys.length > 1;
+        const used = (snap.pick || {})[kind] === k;
+        return `<section class="${multi && used ? 'inuse' : ''}"><h3>${E.SCRIPT_NAMES[k]}${multi ? (used ? '<span class="inuse">● 사용 중</span>' : `<button class="usebtn" data-pick="${kind}:${k}">이 세트 사용</button>`) : ''}</h3>
+        <div class="vset"><b>음성 세트</b><span>MP3 · WAV · M4A — 한 파일을 대사 사이 쉬는 구간에서 자동으로 나눕니다</span>
+          <div class="vslots"><label class="vslot agent">상담원 음성<small>상담원 대사 ${n('agent')}줄 이어서</small><input type="file" accept="audio/*" data-vslot="${k}:agent" hidden></label>
+          <label class="vslot customer">고객 음성<small>고객 대사 ${n('customer')}줄 이어서</small><input type="file" accept="audio/*" data-vslot="${k}:customer" hidden></label>
+          <label class="vslot all">대화 전체<small>두 목소리 ${n()}줄 한 파일</small><input type="file" accept="audio/*" data-vslot="${k}:all" hidden></label></div>
+          <small class="where">${where}</small></div>
+        ${vs && vs.key === k ? vsView(list) : ''}
+        ${list.map((l, i) => `<div class="srow">
+        <button class="who ${l.who}" data-swho="${k}:${i}">${l.who === 'agent' ? '상담원' : '고객'}</button><textarea data-stext="${k}:${i}" rows="2">${esc(l.text)}</textarea>
+        <span class="aud">${l.audio ? `<button data-splay="${k}:${i}" title="${esc(l.audio)}">▶ ${l.dur.toFixed(1)}초</button>` : 'TTS'}<label>파일<input type="file" accept="audio/*" data-sfile="${k}:${i}" hidden></label></span><button class="del" data-sdel="${k}:${i}">삭제</button></div>`).join('')}
+        <div class="sadd"><button data-sadd="${k}:agent">+ 상담원 대사</button><button data-sadd="${k}:customer">+ 고객 대사</button></div></section>`;
+      }).join('')}</div>`;
+  }
+
+  /* voice set being cut: { key, slot, name, a (decoded), cuts (s), idxs (script lines) } */
+  let vs = null, vsVer = 0, vsDrag = -1;
+  const VS_COL = ['#5aa2ff', '#ffb02e', '#3fd0c9', '#ff6b81', '#a98bff', '#8ff0b3', '#f7d774', '#ff9a5a'];
+  const SLOT = { agent: '상담원 음성', customer: '고객 음성', all: '대화 전체' };
+  function vsView(list) {
+    const segs = VoiceSet.segments(vs.a, vs.cuts);
+    const short = segs.length < vs.idxs.length;
+    return `<div class="vwork"><div class="vh"><b>${SLOT[vs.slot]} · ${esc(vs.name)}</b><span class="${short ? 'bad' : 'ok'}">${segs.length} / ${vs.idxs.length} 구간</span></div>
+      <canvas class="vwave" data-vwave></canvas>
+      <p class="hint">${short ? `<b>구간이 대사 수보다 적습니다.</b> 파형에서 대사가 바뀌는 곳을 눌러 경계를 추가하세요. ` : ''}노란 경계선을 끌어 옮길 수 있고, ▶로 각 구간을 들어볼 수 있습니다.</p>
+      <ol class="vsegs">${vs.idxs.map((idx, j) => { const l = list[idx], sg = segs[j]; return `<li style="--c:${VS_COL[j % VS_COL.length]}">${sg ? `<button data-vplay="${j}">▶</button>` : '<button disabled>—</button>'}<em>${l.who === 'agent' ? '상담원' : '고객'}</em><span>${esc(l.text)}</span><small>${sg ? `${(sg.end - sg.start).toFixed(1)}초` : '없음'}</small></li>`; }).join('')}</ol>
+      <div class="vbtn"><button data-vapply class="pri" ${vs.busy ? 'disabled' : ''}>${vs.busy ? '저장 중…' : `대사 ${Math.min(segs.length, vs.idxs.length)}줄에 적용`}</button><button data-vauto>자동으로 다시 나누기</button><button data-vcancel>취소</button></div></div>`;
+  }
+  function drawVs() {
+    const cv = $('[data-vwave]', tr);
+    if (!cv || !vs) return;
+    VoiceSet.draw(cv, vs.a, vs.cuts, VoiceSet.segments(vs.a, vs.cuts), VS_COL);
+  }
+  async function vsLoad(key, slot, file) {
+    const list = snap.scripts[key];
+    const idxs = list.map((l, i) => i).filter((i) => slot === 'all' || list[i].who === slot);
+    if (!idxs.length) return alert('이 시나리오에 해당 대사가 없습니다.');
+    try {
+      const a = await VoiceSet.decode(await file.arrayBuffer());
+      vs = { key, slot, name: file.name, a, idxs, cuts: VoiceSet.autoCuts(a, idxs.length).cuts };
+    } catch (e) { alert(`오디오 파일을 읽을 수 없습니다: ${file.name}`); return; }
+    vsVer++;
+    renderTranscript(true);
+  }
+  async function vsApply() {
+    const segs = VoiceSet.segments(vs.a, vs.cuts);
+    vs.busy = true; vsVer++; renderTranscript(true);
+    const audios = [];
+    const stamp = Date.now().toString(36);
+    for (let j = 0; j < Math.min(segs.length, vs.idxs.length); j++) {
+      const idx = vs.idxs[j];
+      const audio = await VoiceSet.store(`${vs.key}_${idx}_${stamp}`, VoiceSet.wav(vs.a, segs[j]));
+      audios.push({ idx, audio, dur: +(segs[j].end - segs[j].start).toFixed(2) });
+    }
+    cmd('script', { key: vs.key, audios });
+    vs = null; vsVer++;
+    renderTranscript(true);
+  }
+  async function lineFile(key, idx, file) {
+    try {
+      const a = await VoiceSet.decode(await file.arrayBuffer());
+      const seg = VoiceSet.segments(a, [])[0];
+      const audio = await VoiceSet.store(`${key}_${idx}_${Date.now().toString(36)}`, VoiceSet.wav(a, seg));
+      cmd('script', { key, audios: [{ idx, audio, dur: +(seg.end - seg.start).toFixed(2) }] });
+    } catch (e) { alert(`오디오 파일을 읽을 수 없습니다: ${file.name}`); }
+  }
+  // drag a cut, or click the waveform to add one when lines are missing
+  function vsAt(e) { const r = e.target.getBoundingClientRect(); return { t: ((e.clientX - r.left) / r.width) * vs.a.dur, px: r.width / vs.a.dur }; }
+  tr.addEventListener('pointerdown', (e) => {
+    if (!vs || !e.target.matches('[data-vwave]')) return;
+    const { t, px } = vsAt(e);
+    let best = -1;
+    vs.cuts.forEach((c, i) => { if (Math.abs(c - t) * px < 10 && (best < 0 || Math.abs(c - t) < Math.abs(vs.cuts[best] - t))) best = i; });
+    if (best < 0 && vs.cuts.length < vs.idxs.length - 1) { vs.cuts.push(t); vs.cuts.sort((x, y) => x - y); best = vs.cuts.indexOf(t); }
+    if (best < 0) return;
+    vsDrag = best;
+    e.target.setPointerCapture(e.pointerId);
+    drawVs();
+  });
+  tr.addEventListener('pointermove', (e) => {
+    if (!vs || vsDrag < 0) return;
+    const lo = vsDrag > 0 ? vs.cuts[vsDrag - 1] + 0.1 : 0.1, hi = vsDrag < vs.cuts.length - 1 ? vs.cuts[vsDrag + 1] - 0.1 : vs.a.dur - 0.1;
+    vs.cuts[vsDrag] = Math.max(lo, Math.min(hi, vsAt(e).t));
+    drawVs();
+  });
+  tr.addEventListener('pointerup', () => { if (vsDrag >= 0) { vsDrag = -1; vsVer++; renderTranscript(true); } });
+
+  function tickTranscript() {
+    const st = $('[data-trst]', tr);
+    const v = convo();
+    if (!st) return;
+    const call = v && v.call;
+    st.textContent = !call ? '' : call.state === 'connected' ? `● 통화 중 ${E.mmss(Date.now() - call.connectedAt)}` : call.state === 'dialing' ? (call.dir === 'dealer' ? '서비스센터 발신 중…' : '발신 중…') : call.state === 'ringing' ? '전화 수신 중…' : call.state === 'failed' ? '연결 실패 · 고객 미응답' : `통화 종료${call.connectedAt ? ` · ${E.mmss((call.endedAt || Date.now()) - call.connectedAt)}` : ''}`;
+    st.classList.toggle('off', !call || call.state !== 'connected');
+  }
+  if (VIEW === 'transcript') {
+    setInterval(tickTranscript, 250);
+    tr.addEventListener('click', (e) => {
+      const t = e.target.closest('button,[data-line],[data-trsys]');
+      if (!t) return;
+      const v = convo();
+      const ref = (x) => { const [key, idx] = x.split(':'); return { key, idx: +idx }; };
+      if (t.dataset.trtab) { trTab = t.dataset.trtab; trSel = trEdit = -1; }
+      else if (t.hasAttribute('data-trsys')) trSys = !trSys;
+      else if (t.dataset.editLine) { trEdit = +t.dataset.editLine; renderTranscript(true); const ta = $('textarea', tr); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
+      else if (t.dataset.saveLine && v) { cmd('line', { id: v.id, general: v.general, idx: +t.dataset.saveLine, text: $('[data-edit]', tr).value.trim() }); trEdit = trSel = -1; }
+      else if (t.hasAttribute('data-cancel')) trEdit = -1;
+      else if (t.dataset.delLine && v) { cmd('line', { id: v.id, general: v.general, idx: +t.dataset.delLine, del: true }); trSel = -1; }
+      else if (t.dataset.line) trSel = trSel === +t.dataset.line ? -1 : +t.dataset.line;
+      else if (t.dataset.swho) { const r = ref(t.dataset.swho); const l = snap.scripts[r.key][r.idx]; cmd('script', { ...r, who: l.who === 'agent' ? 'customer' : 'agent' }); }
+      else if (t.dataset.sdel) cmd('script', { ...ref(t.dataset.sdel), del: true });
+      else if (t.dataset.pick) { const [kind, key] = t.dataset.pick.split(':'); cmd('pick', { kind, key }); }
+      else if (t.dataset.sadd) { const [key, who] = t.dataset.sadd.split(':'); cmd('script', { key, add: true, who, text: who === 'agent' ? '상담원 대사를 입력하세요.' : '고객 대사를 입력하세요.' }); }
+      else if (t.hasAttribute('data-sreset')) { if (confirm('대화 스크립트를 기본 대사 · 기본 음성으로 되돌릴까요?')) cmd('script', { reset: true }); }
+      else if (t.dataset.vplay) { const sg = VoiceSet.segments(vs.a, vs.cuts)[+t.dataset.vplay]; if (sg) VoiceSet.preview(vs.a, sg); return; }
+      else if (t.hasAttribute('data-vapply')) { if (!vs.busy) vsApply(); return; }
+      else if (t.hasAttribute('data-vauto')) { vs.cuts = VoiceSet.autoCuts(vs.a, vs.idxs.length).cuts; vsVer++; }
+      else if (t.hasAttribute('data-vcancel')) { VoiceSet.stop(); vs = null; vsVer++; }
+      else if (t.dataset.splay) { const r = ref(t.dataset.splay); const l = snap.scripts[r.key][r.idx]; VoiceSet.url(l.audio).then((u) => { if (u) { const a = new Audio(u); a.play().catch(() => {}); } }); return; }
+      else return;
+      renderTranscript(true);
+    });
+    tr.addEventListener('change', (e) => {
+      const d = e.target.dataset || {};
+      if (d.vslot && e.target.files[0]) { const [key, slot] = d.vslot.split(':'); vsLoad(key, slot, e.target.files[0]); return; }
+      if (d.sfile && e.target.files[0]) { const [key, idx] = d.sfile.split(':'); lineFile(key, +idx, e.target.files[0]); return; }
+      const k = d.stext;
+      if (!k) return;
+      const [key, idx] = k.split(':');
+      cmd('script', { key, idx: +idx, text: e.target.value.trim() });
+    });
+    tr.addEventListener('focusout', () => setTimeout(() => renderTranscript(), 50));
+  }
+
+  // a tablet showing the transcript should not dim or lock during the demo
+  let wake = null;
+  async function keepAwake() {
+    if (VIEW !== 'transcript' || !navigator.wakeLock || document.visibilityState !== 'visible' || (wake && !wake.released)) return;
+    try { wake = await navigator.wakeLock.request('screen'); } catch (e) { /* needs a tap first on some browsers */ }
+  }
+  document.addEventListener('pointerdown', keepAwake);
+  document.addEventListener('visibilitychange', keepAwake);
+  keepAwake();
+
+  /* ---------------- controls ---------------- */
+  let hudT = 0;
+  const hudShow = () => { document.body.classList.add('hud-on'); clearTimeout(hudT); hudT = setTimeout(() => document.body.classList.remove('hud-on'), 4000); };
+  ['pointermove', 'pointerdown', 'touchstart', 'keydown'].forEach((ev) => addEventListener(ev, hudShow, { passive: true }));
+  hudShow();
+  $('#viewBtn').addEventListener('click', () => { camHold = cam.to !== 'office' ? 'office' : 'monitor'; camTo(camHold, 2200); });
+  $('#fsBtn').addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}));
+  $('#noiseBtn').addEventListener('click', () => { unlock(); setNoise(!noise.on); });
+  noiseUi();
+  addEventListener('keydown', (e) => {
+    if (e.target.matches && e.target.matches('textarea,input')) return;
+    if (e.code === 'KeyV') { camHold = cam.to !== 'office' ? 'office' : 'monitor'; camTo(camHold, 2200); }
+    if (e.code === 'KeyF') $('#fsBtn').click();
+    if (e.code === 'KeyN') setNoise(!noise.on);
+  });
+
+  function frame(t) {
+    if (VIEW !== 'transcript') {
+      placeStage();
+      if (t - mapT > 60) { mapT = t; drawMap(t); }
+    }
+    requestAnimationFrame(frame);
+  }
+  render(true);
+  requestAnimationFrame(frame);
+  // the office view settles on the agent screen after a moment
+  /* camera of the office view: held by the control panel, or 'auto' — the room while
+   * nothing happens, the monitor while the agent works (a new case, a call ringing or
+   * in progress, the memo), back to the room a few seconds after it settles */
+  let camHold = VIEW === 'monitor' ? 'monitor' : 'auto', quietSince = 0;
+  function setMode(m) {
+    if (m === mode || mode === 'transcript') return;
+    mode = m;
+    setBodyClass();
+    tabIdentity();
+    app.style.transform = '';            // the office monitor scales the screen by its CSS
+    $('#stage').style.transform = '';
+    render(true);
+  }
+  function busy() {
+    if (!snap) return false;
+    const now = Date.now();
+    const g = snap.general;
+    if (g && g.state !== 'ended') return true;
+    return snap.cases.some((c) => now - c.at < 9000 || (c.inbound && !c.call) || (c.call && c.call.state !== 'ended' && c.call.state !== 'failed') || (c.sheet && !c.sheet.saved && c.sheet.open) || (c.assign && !c.call));
+  }
+  /* what the agent screen is about now: a selector of the element to look at (auto mode) */
+  function focusTarget() {
+    if (!snap) return null;
+    const now = Date.now();
+    const c = active();
+    if (app.querySelector('.ov .pop')) return '.ov .pop';                       // call ringing, auto-assign popup
+    if (app.querySelector('.ov .dlg2')) return '.ov .dlg2';                     // consultation details
+    if (app.querySelector('.sheet:not(.closed)')) return '.sheet:not(.closed)'; // writing the memo
+    if (c && c.sheet && c.sheet.saved && now - c.sheet.saved < 9000) return '.box.hist';
+    if (c && c.dispatch >= 0 && c.dispatch < 3 && c.call && c.call.state !== 'connected') return '.box.loc';
+    if (c && c.call && c.call.state === 'connected') return c.dispatch >= 0 ? '.box.loc' : '.wpanel';
+    if (c && now - c.at < 9000 && app.querySelector('tr.hot')) return 'tr.hot';
+    return null;
+  }
+  function rectOf(sel) {
+    const e = app.querySelector(sel);
+    if (!e) return null;
+    const ar = app.getBoundingClientRect(), k = ar.width / 1920 || 1;
+    let er = e.getBoundingClientRect();
+    let r = { x: (er.left - ar.left) / k, y: (er.top - ar.top) / k, w: er.width / k, h: er.height / k };
+    if (sel === 'tr.hot') { const t = e.closest('table'); if (t) { const tr = t.getBoundingClientRect(); r = { x: (tr.left - ar.left) / k, y: r.y - 60, w: tr.width / k, h: r.h + 220 }; } }
+    if (r.w < 20 || r.h < 20) return null;
+    return r;
+  }
+  /* the caption for the step on screen: [title, detail, red] */
+  function stepText(sel) {
+    const c = active();
+    if (!c && !(snap && snap.general && snap.general.state !== 'ended')) return null;
+    const g = snap.general;
+    if (g && g.state !== 'ended' && !c) return ['일반 전화 상담', '경고 없는 고객 재문의'];
+    const W = c ? `${c.warn.sys} · ${E.CASE[c.wcase] ? E.CASE[c.wcase].label : ''}` : '';
+    switch (sel) {
+      case '.ov .pop': return c.inbound ? ['고객 전화 수신 · 상담원 배정', `HU [전화연결] → 헤드유닛 콜 · ${W}`, true] : ['25분 경과 · 상담원 자동 배정', `고객 미연락 · ${W}`, true];
+      case '.wpanel': return ['통화 중 · 차량 진단 정보 확인', `${W} · 고객 안전 확인`, true];
+      case '.box.loc': return dispOf(c) >= 2 ? ['긴급출동 차량 도착', '고객 차량 앞 정차 · 견인 준비', true] : ['긴급출동 요청 · 위치 확인', `출동 상태 ${E.DISPATCH[Math.max(0, dispOf(c))]}`, true];
+      case '.sheet:not(.closed)': return ['상담 메모 작성', '통화 후 처리 · 서비스센터 전달 선택'];
+      case '.box.hist': return ['상담 메모 저장 · 서비스센터 이관', '상담 메모 → 서비스센터 DMS'];
+      case 'tr.hot': return ['긴급 경고 접수', `${W} · VEP 판정 → 고객지원실`, true];
+      case '.ov .dlg2': return ['상담 이력 상세', ''];
+      default: return null;
+    }
+  }
+  const capEl = $('#cap');
+  function caption(sel) {
+    const t = mode === 'office' ? stepText(sel) : null;
+    capEl.classList.toggle('on', !!t);
+    if (!t) return;
+    capEl.classList.toggle('red', !!t[2]);
+    $('b', capEl).textContent = t[0];
+    $('small', capEl).textContent = t[1] || '';
+  }
+  function camPolicy() {
+    if (mode !== 'office') { caption(null); return; }
+    caption(camHold === 'office' ? null : focusTarget());
+    if (screenOnly) {
+      const sel = focusTarget(), r = sel && rectOf(sel);
+      if (r) camTo('focus', cam.to === 'focus' ? 1600 : 2200, r); else camTo('screen', 2200);
+      return;
+    }
+    if (camHold === 'office' || camHold === 'monitor') { camTo(camHold, 2400); return; }
+    const b = busy();
+    if (b) quietSince = 0; else if (!quietSince) quietSince = Date.now();
+    if (!b && Date.now() - quietSince >= 4000) { camTo('office', 2800); return; }
+    const sel = focusTarget();
+    const r = sel && rectOf(sel);
+    if (r) camTo('focus', cam.to === 'focus' ? 1600 : 2400, r);
+    else camTo('monitor', 2400);
+  }
+  if (!camLocked) {
+    Link.on('ccw-cam', (d) => {
+      const v = d.view || 'auto';
+      // 화면만: the same page, the room fading away while the camera moves onto the monitor (eased)
+      setMode('office');
+      screenOnly = v === 'screen';
+      document.body.classList.toggle('screen-only', screenOnly);
+      if (screenOnly) { camHold = 'auto'; camPolicy(); return; }
+      camHold = v === 'office' || v === 'monitor' ? v : 'auto';
+      camPolicy();
+    });
+    Link.send('ccw-hello', {});
+  }
+  setInterval(camPolicy, 400);
+})();

@@ -40,7 +40,7 @@ html, body {
   position: absolute;
   left: 0;
   top: 0;
-  width: 1672px;
+  width: 2300px;
   height: 941px;
   transform-origin: 0 0;
   will-change: transform;
@@ -50,8 +50,44 @@ html, body {
 body.ready #stage { opacity: 1; }
 
 #stage > * { position: absolute; display: block; }
-#plate, #ambient, #focusShade { left: 0; top: 0; width: 1672px; height: 941px; pointer-events: none; }
+#plate, #ambient, #focusShade { left: 0; top: 0; width: 2300px; height: 941px; pointer-events: none; }
 #exterior { filter: blur(1.4px) saturate(0.95); }
+/* filmed drive on the same road as the rescue scene, warped onto the cabin photo:
+   seen through the windshield and the side glass, its speed follows the car */
+#drive { left: 0; top: 0; width: 2300px; height: 240px; object-fit: fill; pointer-events: none; opacity: 0; transition: opacity 0.6s; filter: saturate(0.96) contrast(1.02); }
+#drive.ready { opacity: 1; }
+/* the other shots of the same band (first drive · pull-over · truck in front), shown one at a time */
+.extv { left: 0; top: 0; width: 2300px; height: 240px; object-fit: fill; pointer-events: none; opacity: 0; transition: opacity 0.45s; filter: saturate(0.96) contrast(1.02); }
+.extv.on { opacity: 1; }
+#drive.ready.off { opacity: 0; }
+/* the driver's side window: tinted side glass, the roadside a motion-blurred smear */
+#sideGlass { left: 0; top: 0; width: 250px; height: 236px; pointer-events: none; transition: opacity 0.8s;
+  -webkit-backdrop-filter: blur(7px) saturate(0.6) brightness(0.72); backdrop-filter: blur(7px) saturate(0.6) brightness(0.72);
+  background: linear-gradient(100deg, rgba(12, 16, 22, 0.5), rgba(24, 30, 40, 0.28) 70%, rgba(24, 30, 40, 0.18)); }
+/* the windshield: the tinted band at the top, a shade along the A-pillars and a faint
+   veiling glare of the dashboard where the glass meets it */
+#screenShade { left: 0; top: 0; width: 2300px; height: 240px; pointer-events: none; transition: opacity 0.8s;
+  background:
+    linear-gradient(to bottom, rgba(16, 22, 32, 0.32) 0, rgba(16, 22, 32, 0.1) 52px, rgba(16, 22, 32, 0) 104px),
+    linear-gradient(to right, rgba(10, 13, 18, 0.55) 300px, rgba(10, 13, 18, 0.18) 420px, rgba(10, 13, 18, 0) 560px),
+    linear-gradient(to left, rgba(10, 13, 18, 0.42) 0, rgba(10, 13, 18, 0.1) 190px, rgba(10, 13, 18, 0) 320px),
+    linear-gradient(to top, rgba(150, 160, 172, 0.16) 0, rgba(150, 160, 172, 0) 36%); }
+body.rescue #sideGlass, body.rescue #screenShade { opacity: 0; }
+
+/* the switched-off display: black glass with a faint reflection of the cabin.
+   Slightly larger than the hole in the plate so nothing behind it shows. */
+#glass {
+  left: 584.5px;
+  top: 188.5px;
+  width: 456.5px;
+  height: 170.5px;
+  border-radius: 8px;
+  pointer-events: none;
+  background:
+    linear-gradient(168deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 38%, rgba(255, 255, 255, 0) 60%),
+    radial-gradient(ellipse 70% 120% at 50% 110%, rgba(40, 46, 56, 0.35), transparent 70%),
+    #050608;
+}
 #wheel { pointer-events: none; will-change: opacity; }
 #ambient { mix-blend-mode: soft-light; filter: blur(10px); }
 
@@ -59,7 +95,7 @@ body.ready #stage { opacity: 1; }
 #footShade {
   left: 0;
   top: 600px;
-  width: 1672px;
+  width: 2300px;
   height: 341px;
   pointer-events: none;
   background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.45));
@@ -70,20 +106,25 @@ body.ready #stage { opacity: 1; }
   opacity: 0;
   background:
     linear-gradient(to bottom, transparent 380px, rgba(0, 0, 0, 0.45) 520px, rgba(0, 0, 0, 0.7) 941px),
-    radial-gradient(ellipse 320px 190px at 807px 262px, transparent 72%, rgba(0, 0, 0, 0.42) 100%);
+    radial-gradient(ellipse 300px 160px at 812px 274px, transparent 72%, rgba(0, 0, 0, 0.42) 100%);
 }
 
+/* START button: a thin LED ring that follows the chrome bezel (centre 1139.5, 173) */
 #startGlow {
-  left: 1108px;
-  top: 128px;
-  width: 72px;
-  height: 72px;
+  left: 1113px;
+  top: 146.5px;
+  width: 53px;
+  height: 53px;
   border-radius: 50%;
   opacity: 0;
   pointer-events: none;
   mix-blend-mode: screen;
-  box-shadow: 0 0 0 2px rgba(150, 205, 255, 0.55), 0 0 14px 3px rgba(110, 180, 255, 0.45), inset 0 0 10px rgba(130, 195, 255, 0.4);
-  transition: opacity 0.4s ease;
+  box-shadow:
+    0 0 0 1.4px rgb(64, 150, 255),
+    0 0 4px 1.5px rgba(40, 130, 255, 0.75),
+    0 0 10px 2px rgba(30, 110, 255, 0.35),
+    inset 0 0 4px 1px rgba(40, 130, 255, 0.55);
+  transition: opacity 0.35s ease;
 }
 
 .hot {
@@ -96,7 +137,7 @@ body.ready #stage { opacity: 1; }
   pointer-events: auto;
 }
 .hot:focus-visible { outline: 2px solid #6aa8ff; }
-#hotStart { left: 1110px; top: 130px; width: 68px; height: 68px; }
+#hotStart { left: 1106px; top: 139.5px; width: 67px; height: 67px; }
 #hotMode { left: 966px; top: 498px; width: 46px; height: 32px; border-radius: 10px; }
 .hot:active { background: rgba(255, 255, 255, 0.08); }
 body.zoomed #hotMode { pointer-events: none; }
@@ -109,27 +150,42 @@ body.zoomed #hotMode { pointer-events: none; }
 }
 
 /* ---------- control panel ---------- */
+/* bottom control bar: vehicle | e-Care call center | system */
 #controls {
+  --dock: bottom;
   position: fixed;
-  right: max(16px, env(safe-area-inset-right));
-  top: 50%;
-  transform: translateY(-50%);
-  width: 264px;
-  padding: 16px;
-  border-radius: 20px;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(1480px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border-radius: 18px;
   background: var(--panel);
   border: 1px solid var(--panel-line);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
   display: flex;
-  flex-direction: column;
+  align-items: stretch;
   gap: 14px;
   z-index: 10;
   transition: opacity 0.35s ease, transform 0.35s ease;
 }
+.grp { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.grp + .grp { border-left: 1px solid rgba(255, 255, 255, 0.08); padding-left: 14px; }
+.grp-car { flex: 0 0 auto; }
+.grp-care { flex: 1 1 auto; flex-direction: column; align-items: stretch; gap: 8px; }
+.grp-sys { flex: 0 0 auto; flex-direction: column; align-items: stretch; justify-content: center; gap: 8px; max-width: 260px; }
+.grp .col { display: flex; flex-direction: column; gap: 8px; }
+.glabel { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.glabel b { color: var(--text); font-weight: 600; font-size: 13px; }
+.glabel .link { margin-left: auto; font: 500 11px "Barlow", sans-serif; letter-spacing: 0.04em; }
+.grid.care { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.btn.accent { border-color: rgba(255, 70, 80, 0.5); background: linear-gradient(180deg, rgba(235, 10, 30, 0.28), rgba(235, 10, 30, 0.12)); color: #fff; }
+.btn.toggle[aria-pressed="true"] { border-color: rgba(255, 196, 64, 0.65); color: #ffd36b; background: rgba(255, 186, 40, 0.12); }
+.btn.muted { color: #8d939c; }
 
-body.ui-hidden #controls { opacity: 0; pointer-events: none; transform: translateY(-50%) translateX(30px); }
+body.ui-hidden #controls { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(30px); }
 
 #showUi {
   position: fixed;
@@ -166,8 +222,8 @@ body.ui-hidden #showUi:hover { opacity: 1; }
 .ign-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .ign {
   position: relative;
-  width: 104px;
-  height: 104px;
+  width: 92px;
+  height: 92px;
   border-radius: 50%;
   border: 0;
   padding: 0;
@@ -220,15 +276,15 @@ body[data-ign="starting"] .ign .led { animation: blink 0.35s steps(2) infinite; 
   50% { box-shadow: 0 0 0 6px rgba(255, 173, 24, 0.35), 0 6px 18px rgba(0, 0, 0, 0.6); }
 }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
 .btn {
   position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 0 12px;
-  border-radius: 12px;
+  min-height: 40px;
+  padding: 0 11px;
+  border-radius: 11px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
   color: var(--text);
@@ -241,6 +297,7 @@ body[data-ign="starting"] .ign .led { animation: blink 0.35s steps(2) infinite; 
 .btn:hover { background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04)); }
 .btn:active, .btn.key { transform: scale(0.97); }
 .btn.small { min-height: 40px; font-size: 13px; font-weight: 500; color: #c8ccd2; }
+.btn kbd { margin-left: auto; }
 .btn.go { color: var(--go); }
 .btn.go span { color: var(--text); }
 .btn.halt svg { color: var(--halt); }
@@ -302,6 +359,34 @@ kbd {
 
 button:focus-visible { outline: 2px solid #6aa8ff; outline-offset: 2px; }
 
+/* ---------- start-up notice ---------- */
+#notice {
+  position: fixed;
+  left: 50%;
+  top: 72%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100vw - 32px);
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(235, 240, 246, 0.92);
+  font: 400 12.5px/1.4 "Noto Sans KR", sans-serif;
+  letter-spacing: 0.01em;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 15;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+#notice.show { animation: notice 3.6s ease forwards; }
+@keyframes notice {
+  0% { opacity: 0; transform: translate(-50%, -40%); }
+  12% { opacity: 1; transform: translate(-50%, -50%); }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* ---------- toast & loading ---------- */
 #toast {
   position: fixed;
@@ -345,61 +430,109 @@ body.ready #loading { opacity: 0; visibility: hidden; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- narrow / portrait: dock the controls at the bottom ---------- */
-@media (max-width: 900px), (orientation: portrait) {
-  :root { --dock: bottom; }
-  #controls {
-    left: 50%;
-    right: auto;
-    top: auto;
-    bottom: max(12px, env(safe-area-inset-bottom));
-    transform: translateX(-50%);
-    width: min(560px, calc(100vw - 24px));
-    padding: 12px;
-    gap: 10px;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-areas: "status status" "ign grid" "row row";
-  }
-  body.ui-hidden #controls { transform: translateX(-50%) translateY(30px); }
-  #status { grid-area: status; }
-  .ign-wrap { grid-area: ign; }
-  .grid { grid-area: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-  .row { grid-area: row; }
-  .ign { width: 84px; height: 84px; }
-  .ign .face .t2, .ign .face .t3 { font-size: 11px; }
-  .ign-label { font-size: 11px; }
-  .btn { min-height: 44px; padding: 0 9px; font-size: 14px; gap: 6px; }
-  .btn.small { min-height: 44px; font-size: 12px; }
+@media (max-width: 1100px) {
+  .grp-sys .keys { display: none; }
   .btn kbd { display: none; }
-  .keys { display: none; }
+}
+
+@media (max-width: 900px), (orientation: portrait) {
+  #controls {
+    width: calc(100vw - 16px);
+    bottom: max(8px, env(safe-area-inset-bottom));
+    padding: 10px;
+    gap: 8px;
+    flex-direction: column;
+  }
+  .grp + .grp { border-left: 0; padding-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px; }
+  .grp-sys { max-width: none; }
+  .grp-car { align-items: stretch; }
+  .grp-car .col { flex: 1; }
+  .ign { width: 72px; height: 72px; }
+  .ign .face .t1 { display: none; }
+  .ign .face .t2, .ign .face .t3 { font-size: 10px; }
+  .btn, .btn.small { min-height: 36px; padding: 0 8px; font-size: 12.5px; gap: 6px; }
+  .btn svg { width: 16px; height: 16px; }
+  .grid { gap: 5px; }
+  .grid.care { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .grid.care .btn span { font-size: 11.5px; }
+  .glabel { font-size: 11px; }
+  #status { font-size: 11px; }
   #toast { bottom: auto; top: max(16px, env(safe-area-inset-top)); }
 }
 
 @media (max-width: 900px) and (orientation: landscape) and (max-height: 520px) {
-  :root { --dock: right; }
   #controls {
+    --dock: right;
     left: auto;
     right: max(8px, env(safe-area-inset-right));
     top: 50%;
     bottom: auto;
     transform: translateY(-50%);
-    width: 230px;
-    display: flex;
+    width: 250px;
     max-height: calc(100vh - 16px);
     overflow-y: auto;
   }
   body.ui-hidden #controls { transform: translateY(-50%) translateX(30px); }
-  .grid { grid-template-columns: 1fr 1fr; }
-  .ign-wrap { flex-direction: row; justify-content: center; }
-  .ign { width: 64px; height: 64px; }
-  .ign .face .t1 { display: none; }
-  .ign .face .t2, .ign .face .t3 { font-size: 9px; }
-  .ign .led { margin-bottom: 4px; width: 18px; }
-  .btn { min-height: 38px; }
-  .btn.small { min-height: 34px; }
+  .grid, .grid.care { grid-template-columns: 1fr 1fr; }
+  .ign { width: 56px; height: 56px; }
   .row .chip span { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   #controls, #toast { transition: none; }
 }
+
+/* big-screen stage mode (index.html?stage=1, driven by remote.html) */
+body.stage #showUi, body.stage #toast { display: none !important; }
+
+/* head unit drawn into the centre display (index.html?hu) */
+#huScreen { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; background: #000; pointer-events: none; z-index: 1; }
+#huGlass { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 1; pointer-events: none; mix-blend-mode: screen; border-radius: 3px;
+  background:
+    linear-gradient(117deg, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0.16) 30%, rgba(255, 255, 255, 0.04) 41%, rgba(255, 255, 255, 0) 52%),
+    linear-gradient(117deg, rgba(255, 255, 255, 0) 56%, rgba(255, 255, 255, 0.07) 63%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(ellipse 120% 90% at 50% 0%, rgba(180, 210, 255, 0.10), transparent 60%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 0 14px rgba(0, 0, 0, 0.55); }
+#huShade { left: 0; top: 0; width: 2300px; height: 941px; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse 460px 260px at 1447px 262px, transparent 64%, rgba(0, 0, 0, 0.55) 100%); }
+#huPhone { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; z-index: 5; background: transparent; }
+/* the driver's hand over the head unit (alpha video) */
+#huHand { position: absolute; left: 0; top: 0; z-index: 3; transform-origin: 0 0; pointer-events: none; display: none; }
+#huHand.on { display: block; }
+/* climate band of the real 14" unit, high resolution, under the head unit screen */
+#huBand, #huBandFull { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: 1; pointer-events: none; user-select: none; }
+/* the hazard button on the centre console: its red triangle lights with the flashers */
+#hazBtn { position: absolute; pointer-events: none; }
+#hazBtn svg { width: 100%; height: 100%; display: block; }
+#hazBtn path { fill: #ff2b1c; opacity: 0; filter: drop-shadow(0 0 3px rgba(255, 60, 30, 0.95)) drop-shadow(0 0 9px rgba(255, 40, 20, 0.7)); }
+#hazBtn.on path { opacity: 1; }
+#hazBtn.on { background: radial-gradient(ellipse 60% 55% at 50% 52%, rgba(255, 60, 30, 0.28), transparent 70%); }
+/* a second vehicle simulator in the same group of devices */
+#dupSim { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 50; display: none; max-width: 90vw; padding: 12px 20px; border-radius: 12px; background: rgba(120, 10, 20, 0.95); border: 1px solid #ff6b78; color: #fff; font: 600 15px/1.45 "Pretendard", sans-serif; text-align: center; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+#dupSim.on { display: block; }
+
+/* the rescue truck arrives: a filmed wide shot of the cockpit over the photo */
+/* behind the stage: the live cabin is drawn over the film, only the windows and the area around
+   the photo show it */
+#rescue { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; display: none; }
+#rescue.on { display: block; }
+#rescue .bg { position: absolute; inset: -60px; background: #0b0d10 url(../assets/rescue_first.webp?v=2) center / cover; filter: blur(26px) brightness(0.45); opacity: 0; }
+#rescue .frame { position: absolute; left: 0; top: 0; width: 2560px; height: 1086px; transform-origin: 0 0; will-change: transform, opacity; opacity: 0; }
+#rescue video { position: absolute; left: 0; top: 0; display: block; width: 100%; height: 100%; }
+/* the light bar keeps flashing once the clip has stopped on the truck */
+#rescue .bar { position: absolute; left: 1069px; top: 157px; width: 180px; height: 90px; border-radius: 50%; mix-blend-mode: screen; opacity: 0;
+  background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(255, 196, 70, 0.95), rgba(255, 150, 20, 0.45) 38%, rgba(255, 140, 0, 0) 72%); }
+#rescue.stopped .bar { animation: rescueBar 0.62s steps(1, end) infinite; }
+@keyframes rescueBar { 0% { opacity: 0.95; } 50% { opacity: 0.08; } }
+#rescueCap { position: fixed; z-index: 8; pointer-events: none; left: 50%; bottom: 7%; transform: translate(-50%, 12px); padding: 0.55em 1.2em; border-radius: 999px; font: 700 clamp(15px, 2.1vw, 30px) "Noto Sans KR", sans-serif; color: #1c1205;
+  background: rgba(255, 184, 40, 0.94); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45); opacity: 0; transition: opacity 0.5s, transform 0.5s; white-space: nowrap; }
+#rescueCap.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* while the filmed wide shot is behind it, the cabin photo's sides blend into the film */
+body.rescue #plate, body.rescue #ambient, body.rescue #footShade, body.rescue #focusShade {
+  /* eased feathers: the photo melts into the (colour-matched, sharpened) film. The passenger
+     side of the photo is an extension that the film shows for real, so it hands over sooner. */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, rgba(0,0,0,.4) 70px, rgba(0,0,0,.85) 150px, #000 210px, #000 calc(100% - 430px), rgba(0,0,0,.7) calc(100% - 330px), rgba(0,0,0,.25) calc(100% - 220px), transparent calc(100% - 140px)), linear-gradient(to bottom, transparent 0, rgba(0,0,0,.5) 50px, #000 110px);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent 0, rgba(0,0,0,.4) 70px, rgba(0,0,0,.85) 150px, #000 210px, #000 calc(100% - 430px), rgba(0,0,0,.7) calc(100% - 330px), rgba(0,0,0,.25) calc(100% - 220px), transparent calc(100% - 140px)), linear-gradient(to bottom, transparent 0, rgba(0,0,0,.5) 50px, #000 110px);
+  mask-composite: intersect; }

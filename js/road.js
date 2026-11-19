@@ -41,29 +41,30 @@
     push((q) => k * (1 - q), T);
   }
 
+  // an urban expressway along the river (Olympic-daero): long straights and wide, gentle
+  // sweeps — the wheel only ever moves a few degrees, there are no sharp corners
   function addSection() {
-    push(0, Math.round(pick(70, 220)));
-    const r = rnd();
+    push(0, Math.round(pick(350, 800)));
     const dir = rnd() < 0.5 ? -1 : 1;
-    if (r < 0.35) corner(dir, pick(300, 650), pick(20, 45));             // sweeping bend
-    else if (r < 0.7) corner(dir, pick(R_MIN, 190), pick(45, 85));       // proper corner
-    else {                                                                // S-bend
-      corner(dir, pick(R_MIN + 20, 220), pick(30, 55));
-      push(0, Math.round(pick(25, 70)));
-      corner(-dir, pick(R_MIN + 20, 220), pick(30, 55));
+    if (rnd() < 0.6) corner(dir, pick(700, 1400), pick(6, 14));          // wide sweep
+    else {                                                                // gentle S along the river
+      corner(dir, pick(800, 1500), pick(5, 10));
+      push(0, Math.round(pick(150, 300)));
+      corner(-dir, pick(800, 1500), pick(5, 10));
     }
   }
 
-  // corners from the very start: a short straight while pulling away, then a
-  // right-hander, a left-hander and an S-bend before the random sections begin
+  // the first drive after a reset: a short straight, then a gentle S-curve (left, then right —
+  // the same bends as the first filmed shot), so the wheel and the map's curve guidance move
+  // at once; then the river's long sweeps
+  push(0, 140);
+  corner(-1, 300, 13);
   push(0, 70);
-  corner(1, 150, 55);
-  push(0, 60);
-  corner(-1, 135, 65);
-  push(0, 90);
-  corner(1, 170, 40);
-  push(0, 35);
-  corner(-1, 170, 40);
+  corner(1, 300, 13);
+  push(0, 700);
+  corner(-1, 1100, 9);
+  push(0, 500);
+  corner(1, 1300, 8);
   function ensure(s) { while (K.length - 2 < s) addSection(); }
 
   function sample(arr, s) {
@@ -75,8 +76,8 @@
 
   const Road = {
     LANE: 1.8,                     // the car keeps to the middle of the right-hand lane
-    NAME: '456번 지방도',
-    JUNCTION_EVERY: 1800,
+    NAME: '올림픽대로',
+    JUNCTION_EVERY: 1200,
 
     curvature: (s) => sample(K, s),
     heading: (s) => sample(TH, s),
@@ -123,10 +124,87 @@
   };
 
   // named junctions for turn-by-turn guidance
-  const NAMES = ['진부 IC', '월정사 입구', '대관령 삼거리', '횡계 교차로', '용평 리조트', '봉평 IC', '장평 교차로', '속사 삼거리'];
+  const NAMES = ['반포대교', '동작대교', '한남대교 남단', '잠수교', '성수대교', '영동대교', '청담대교', '잠실대교'];
   Road.nextJunction = (s) => {
     const n = Math.floor(s / Road.JUNCTION_EVERY) + 1;
     return { name: NAMES[n % NAMES.length], dist: n * Road.JUNCTION_EVERY - s, right: n % 3 !== 0 };
+  };
+
+
+  /* ---------- the town the road runs through ----------
+   * Deterministic city blocks laid out in the road's own frame (distance along
+   * the road, metres right of the centre line), so the cluster map and the
+   * windshield view show the same buildings. Towns alternate with countryside. */
+  const hash2 = (a, b) => { const v = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return v - Math.floor(v); };
+  const BLOCK = 72, STREET = 14, SETBACK = 11;
+  const LANDMARKS = [
+    { name: '강남 서비스센터', sub: 'SERVICE · DMS', band: '#2ee6cf' },
+    { name: 'e-Care 고객지원실', sub: 'CONTACT CENTER', band: '#ff3b4a', tall: true },
+    { name: '서초 서비스센터', sub: 'SERVICE · DMS', band: '#2ee6cf' },
+    { name: 'VEP 데이터센터', sub: 'TSP · KOREA', band: '#59a8ff' },
+  ];
+  const blockCache = new Map();
+  Road.BLOCK = BLOCK;
+  Road.STREET = STREET;
+  Road.isUrban = (S) => { const n = Math.floor(S / BLOCK); return n >= 0 && ((n * BLOCK) % 1700) < 1080; };
+
+  function block(n) {
+    if (blockCache.has(n)) return blockCache.get(n);
+    const out = [];
+    const S0 = n * BLOCK + STREET / 2, S1 = (n + 1) * BLOCK - STREET / 2;
+    if (Road.isUrban(n * BLOCK) && Road.isUrban((n + 1) * BLOCK - 1)) {
+      for (const side of [-1, 1]) {
+        const r = hash2(n, side + 3);
+        const depth = 34 + hash2(n, side + 7) * 22;
+        if (r < 0.16) {                                  // park with trees
+          const trees = [];
+          for (let i = 0; i < 9; i++) {
+            trees.push({ S: S0 + 4 + hash2(n * 9 + i, side) * (S1 - S0 - 8), lat: side * (SETBACK + 3 + hash2(n * 9 + i, side + 1) * (depth - 6)), h: 6 + hash2(i, n) * 5 });
+          }
+          out.push({ kind: 'park', side, S0, S1, l0: side * SETBACK, l1: side * (SETBACK + depth), trees });
+          continue;
+        }
+        if (r > 0.93) {                                  // landmark with its sign
+          const lm = LANDMARKS[(n * 7 + (side > 0 ? 1 : 0)) % LANDMARKS.length];
+          out.push({ kind: 'bldg', id: n * 10 + side, side, S0: S0 + 3, S1: S1 - 3, l0: side * (SETBACK + 2), l1: side * (SETBACK + depth - 4),
+            h: lm.tall ? 46 : 13, lm, lit: 0.55 });
+          continue;
+        }
+        // one to three buildings per block side, some with a stepped tower
+        const lots = 1 + Math.floor(hash2(n, side + 11) * 3);
+        for (let i = 0; i < lots; i++) {
+          const a = S0 + (S1 - S0) * i / lots, b = S0 + (S1 - S0) * (i + 1) / lots;
+          const inset = 1.5 + hash2(n * 3 + i, side) * 2.5;
+          const d = depth * (0.55 + 0.45 * hash2(n * 5 + i, side + 2));
+          const tall = hash2(n * 11 + i, side + 5);
+          const h = tall > 0.88 ? 48 + tall * 30 : 8 + tall * 26;
+          out.push({ kind: 'bldg', id: n * 10 + side * 3 + i, side, S0: a + inset, S1: b - inset,
+            l0: side * (SETBACK + 1 + hash2(i, n) * 2), l1: side * (SETBACK + 1 + d), h, lit: 0.22 + 0.3 * hash2(n, i + 9),
+            cool: hash2(n * 13 + i, side) < 0.3 });
+        }
+      }
+    }
+    blockCache.set(n, out);
+    if (blockCache.size > 400) blockCache.delete(blockCache.keys().next().value);
+    return out;
+  }
+
+  /** Buildings and parks between distances s0 and s1. */
+  Road.city = (s0, s1) => {
+    const out = [];
+    for (let n = Math.floor(s0 / BLOCK); n <= Math.floor(s1 / BLOCK); n++) out.push(...block(n));
+    return out;
+  };
+  /** Side streets (distance along the road of each crossing) between s0 and s1. */
+  Road.streets = (s0, s1) => {
+    const out = [];
+    for (let n = Math.ceil(s0 / BLOCK); n <= Math.floor(s1 / BLOCK); n++) if (Road.isUrban(n * BLOCK)) out.push(n * BLOCK);
+    return out;
+  };
+  /** World position of the point `lat` m right of the centre line at distance S. */
+  Road.at = (S, lat) => {
+    const th = Road.heading(S), p = Road.pos(S);
+    return [p[0] + Math.cos(th) * lat, p[1] - Math.sin(th) * lat];
   };
 
   ensure(4000);
