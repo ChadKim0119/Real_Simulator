@@ -491,6 +491,7 @@
     $('#next').disabled = hold || !next;
     $('#next').classList.toggle('hold', hold);
     sendStep();
+    talk(s, next);
     let grp = '';
     $('#steps').innerHTML = sc.steps.map((x, i) => {
       const head = x.grp && x.grp !== grp ? `<div class="grp">${esc(x.grp)}</div>` : '';
@@ -500,6 +501,24 @@
     // the list scrolls inside its column: keep the step playing (or the next one) in view
     const at = $(`#steps [data-step="${Math.max(0, cur)}"]`);
     if (at && at.scrollIntoView) at.scrollIntoView({ block: 'nearest' });
+  }
+
+  /* the presenter's talk track for the step playing (js/talk-script.js), under the manual
+   * controls: the point in one line, what to say, where to point, and what comes next */
+  let talkKey = '';
+  function talk(s, next) {
+    const el = $('#talk');
+    if (!el || !window.TalkScript) return;
+    const key = `${sc.id}|${cur}`;
+    if (key === talkKey) return;
+    talkKey = key;
+    const k = TalkScript.get(s || sc.steps[0]);
+    const n = s ? TalkScript.get(next) : null;
+    const head = s ? `${cur + 1}/${sc.steps.length} · ${s.t}` : `시작 전 · 첫 단계 ${sc.steps[0].t}`;
+    el.innerHTML = `<h2>발표 스크립트 <small>${esc(head)}</small></h2>`
+      + (k ? `<p class="pt">${esc(k.point)}</p><p class="say">${esc(k.say)}</p><p class="look"><b>가리킬 곳</b>${esc(k.look)}</p>`
+        : `<p class="say">${esc(s ? s.cue : '')}</p>`)
+      + (next && s ? `<p class="nx"><b>다음 · ${esc(next.t)}</b>${esc(n ? n.point : '')}</p>` : '');
   }
 
   /* ---------------- status ---------------- */
