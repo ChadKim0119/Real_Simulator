@@ -21,7 +21,8 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   /* ---------------- state from the other screens ---------------- */
-  let snap = null, veh = null, scene = 'live', say = null;
+  // the Final screens open on the opening (js/scenes.js): the panel starts from there too
+  let snap = null, veh = null, scene = 'opening', say = null;
   // the demo wall (wall.html): ratio, labels, layout editing
   let wall = { labels: false, edit: false, mode: null }, camView = 'auto';
   Link.on('wall-state', (d) => { Object.assign(wall, d); manualState(); });
@@ -33,7 +34,12 @@
   const engineId = () => (veh && veh.engine) || engineSel || 'ls500';
   Link.on('say', (d) => { say = d.line; status(); });
   Link.on('toast', (d) => { const t = $('#toast'); t.textContent = d.msg; clearTimeout(t.tid); t.tid = setTimeout(() => { t.textContent = ''; }, 5000); });
-  Link.on('stage-hello', () => Link.send('stage', { scene }));
+  // a Final screen that opens (or reloads) always starts on the opening: every screen follows,
+  // so the panel and the screens agree on the scene
+  Link.on('stage-hello', (d) => {
+    if (d && d.opening && scene !== 'opening') { scene = 'opening'; manualState(); }
+    Link.send('stage', { scene });
+  });
   // the call-center room camera (office photo ↔ monitor ↔ screen only), kept for new screens
   let ccwCam = localStorage.getItem('control-ccwcam') || 'auto';
   Link.on('ccw-hello', () => Link.send('ccw-cam', { view: ccwCam }));
@@ -144,12 +150,14 @@
   // the repair (정비 진행 → 정비 완료), then the last scene: the car goes back to the customer and
   // the case closes (고객 인도 → 종결 · the e-Care task ends) — each state DMS → TSP
   const REPAIR = { t: '정비 진행 → 정비 완료', cue: '“서비스센터가 DTC로 정밀 진단하고 엔진오일 압력 센서를 교체합니다. 오일 · 필터 교환과 시운전까지 마치면 정비 완료입니다. 상태는 DMS → TSP로 기록됩니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 900], ['cmd', 'dmsAdvance']], until: 'repDone', pause: 1200 };
-  const HANDOVER = { t: '고객 인도 · 정비 종결', cue: '“정비를 마친 차량을 홍길동 고객에게 인도합니다. 고객이 인도를 확인하면 서비스센터가 종결하고, 종결이 TSP에 기록되면 e-Care 과업이 끝납니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 5000], ['cmd', 'dmsAdvance']], until: 'done', pause: 9000 };
+  // hold: [다음] pressed while it plays finishes the close and stays here, so the e-Care
+  // ceremony plays out in full; the next [다음] moves on
+  const HANDOVER = { t: '고객 인도 · 정비 종결', cue: '“정비를 마친 차량을 홍길동 고객에게 인도합니다. 고객이 인도를 확인하면 서비스센터가 종결하고, 종결이 TSP에 기록되면 e-Care 과업이 끝납니다.”', run: [['cmd', 'dmsAdvance'], ['wait', 5000], ['cmd', 'dmsAdvance']], until: 'done', pause: 9000, hold: true };
   // the end: the recap ceremony stays up until [다음]; then the end message and silence everywhere
   const SIM_END = { t: 'e-Care 시뮬레이션 종료', cue: '종료 메시지를 띄우고 모든 소리(시동 · 비상등 · 콜센터 소음)를 멈춥니다. 처음부터 다시 하려면 [초기화] 또는 시나리오를 다시 고릅니다.', run: [['hush'], ['scene', 'end']] };
-  // the full show between act 1 and act 2: the 'e-Care 과업 종료' recap stays up and says
-  // the next simulation is coming; [다음] then starts act 2 (the recap leaves there)
-  const NEXT_SIM = { t: '다음 시뮬레이션 진행', cue: '“1막이 끝났습니다. 다음은 고객이 전화하지 못하는 상황 — 상담원 아웃바운드입니다.” e-Care 과업 종료 화면은 그대로 두고 아래에 ‘다음 시뮬레이션 진행’을 띄웁니다. [다음]을 누르면 2막이 시작됩니다.', run: [], keepFin: '다음 시뮬레이션 진행 · 2막 상담원 아웃바운드', grp: '1막 · 고객 인바운드' };
+  // the full show, end of act 1: the close and the 'next simulation' are one step — the
+  // 'e-Care 과업 종료' recap comes up with the act 2 note under it, and [다음] starts act 2
+  const ACT1_END = { ...HANDOVER, cue: HANDOVER.cue + ' 과업 종료 화면 아래에 ‘다음 시뮬레이션 진행 · 2막 상담원 아웃바운드’가 뜹니다. [다음]을 누르면 2막이 시작됩니다.', keepFin: '다음 시뮬레이션 진행 · 2막 상담원 아웃바운드' };
   // the rescue truck the agent called pulls up in front of the customer's car (car panel scene)
   const ARRIVE = { t: '긴급출동 차량 도착', cue: '“상담원이 요청한 긴급출동 차량이 도착합니다. 출동 기사가 고객에게 직접 연락하고, 운전석 옆을 지나 고객 차 앞에 정차합니다.”', run: [['wait', 1200], ['cmd', 'arrive']], until: 'arrived', pause: 6500, timeout: 40000 };
   const PREP = { t: '준비 · 초기화 · 시동', cue: '경고와 상담 기록을 지우고 라이브 화면에서 시동을 켭니다.', run: [['reset'], ['scene', 'live'], ['ign', true]] };
@@ -210,8 +218,7 @@
     steps: [
       { t: '오프닝', cue: '“Real Simulator 시연 — e-Care에 대한 고객의 경험 여정과 업무 flow를 보여 드리겠습니다.”', run: [['reset'], ['scene', 'opening']] },
       { t: '라이브 · 시동', cue: '라이브 화면으로 전환하며 시동을 켭니다.', run: [['scene', 'live'], ['wait', 900], ['ign', true]] },
-      ...SCENARIOS[0].steps.slice(1).filter((s) => s !== SIM_END).map((s) => ({ ...s, grp: '1막 · 고객 인바운드' })),
-      NEXT_SIM,
+      ...SCENARIOS[0].steps.slice(1).filter((s) => s !== SIM_END).map((s) => ({ ...(s === HANDOVER ? ACT1_END : s), grp: '1막 · 고객 인바운드' })),
       { t: '다른 상황 · 다시 주행', cue: '“이번에는 고객이 전화하지 못하는 상황입니다.” 견인으로 꺼졌던 시동을 다시 켜고 출발합니다.', run: [['act', 'clear'], ['ign', true], ['act', 'drive']], pause: 2500, grp: '2막 · 상담원 아웃바운드' },
       ...SCENARIOS[1].steps.slice(2).filter((s) => s !== SIM_END).map((s) => ({ ...s, grp: '2막 · 상담원 아웃바운드' })),
       { ...SCENARIOS[3].steps[2], run: [['act', 'clear'], ['ign', true], ['act', 'drive'], ['wait', 2500], ['warn', 'airbag']], grp: '3막 · 경고 등급' },
@@ -320,6 +327,8 @@
     advancing = false;
     if (tok !== token) return;
     busy = false; skip = false; waiting = '';
+    // a closing step stays put: its ceremony plays out, the next [다음] moves on
+    if (s && s.hold) { auto = false; steps(); return; }
     go(i + 1);
   }
   // the end message is over once the presenter goes back or jumps to another step

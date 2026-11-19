@@ -155,6 +155,7 @@
   // who speaks: the wave under the conversation follows the voice
   let sayT = 0;
   Link.on('say', (d) => {
+    if (d.line && d.line.quiet) return;            // a caption only: no voice to follow
     const dur = ((d.line && d.line.dur) || 3) * 1000;
     talk.classList.add('speaking');
     talk.style.setProperty('--w', d.line && d.line.who === 'agent' ? '#5aa2ff' : '#3ddc84');

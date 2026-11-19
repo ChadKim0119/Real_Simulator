@@ -183,6 +183,23 @@
       <div class="ctl"><div><i>🎤</i>음소거</div><div><i>⌨</i>키패드</div><div><i>🔊</i>스피커</div><div></div><div class="end"><i>${phoneSvg.replace('fill="#fff"', 'fill="#fff" style="transform:rotate(135deg);width:60px"')}</i>종료</div><div></div></div></div>`;
   }
 
+  /* the customer's phone, as a real one looks: a status bar, the caller in a circle, the name on
+   * one line, and the call's own buttons (거절 · 응답 while it rings; mute, keypad, speaker … and
+   * the red end button once connected) */
+  const I = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const IC = {
+    msg: I('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
+    alarm: I('<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.2 1.6M5 4.5 3 6.5M19 4.5l2 2"/>'),
+    mute: I('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M4 4l16 16"/>'),
+    pad: '<svg viewBox="0 0 24 24" fill="#fff">' + [4, 12, 20].flatMap((y) => [4, 12, 20].map((x) => `<circle cx="${x}" cy="${y}" r="2.1"/>`)).join('') + '</svg>',
+    spk: I('<path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
+    add: I('<path d="M12 5v14M5 12h14"/>'),
+    video: I('<rect x="3" y="7" width="12.5" height="10" rx="2.2"/><path d="m15.5 11 5-3v8l-5-3"/>'),
+    who: I('<circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>'),
+  };
+  const bar = () => `<div class="sb"><b data-clock></b><span><i class="sig"><u></u><u></u><u></u><u></u></i>5G<i class="bat"><u></u></i></span></div>`;
+  const caller = (sub) => `<div class="cid"><div class="pav">e</div><b>e-Care 고객지원실</b><small>${sub}</small></div>`;
+  const endIc = phoneSvg.replace('<svg', '<svg style="transform:rotate(135deg)"');
   let phoneKey = '';
   function phone(s) {
     const el = $('#phone');
@@ -190,9 +207,14 @@
     el.classList.toggle('on', !!k);
     if (k === phoneKey) return;
     phoneKey = k;
-    if (k === 'dialing') el.innerHTML = `<div class="ps"><small>휴대전화 수신</small><b>e-Care 고객지원실</b><span>전화가 왔습니다</span><div class="btn2"><i class="no">✕</i><i class="yes">${phoneSvg.replace('<svg', '<svg width="60"')}</i></div></div>`;
-    else if (k === 'connected') el.innerHTML = `<div class="ps"><small>통화 중</small><b>e-Care 고객지원실</b><span data-ptime>00:00</span></div>`;
-    else if (k === 'sms') el.innerHTML = `<div class="ps"><small>메시지</small><b>e-Care 고객지원실</b><div class="sms">[e-Care] 고객님 차량에서 주행 불가 경고가 감지되어 3차례 연락드렸으나 연결되지 않았습니다. 안전한 곳에 정차 후 고객지원실로 연락 주시기 바랍니다.</div></div>`;
+    if (k === 'dialing') el.innerHTML = `<div class="ps ring">${bar()}${caller('휴대전화 · 수신 전화')}
+      <div class="qa"><div><i>${IC.alarm}</i>나중에 알림</div><div><i>${IC.msg}</i>메시지</div></div>
+      <div class="btn2"><div><i class="no">${endIc}</i>거절</div><div><i class="yes">${phoneSvg}</i>응답</div></div></div>`;
+    else if (k === 'connected') el.innerHTML = `<div class="ps live">${bar()}${caller('<span data-ptime>00:00</span>')}
+      <div class="grid">${[['mute', '소리 끔'], ['pad', '키패드'], ['spk', '스피커'], ['add', '통화 추가'], ['video', '영상 통화'], ['who', '연락처']].map(([i, t]) => `<div><i>${IC[i]}</i>${t}</div>`).join('')}</div>
+      <div class="end"><i>${endIc}</i></div></div>`;
+    else if (k === 'sms') el.innerHTML = `<div class="ps msg">${bar()}<div class="mh"><div class="pav">e</div><b>e-Care 고객지원실</b><small>문자 메시지 · 지금</small></div>
+      <div class="sms">[e-Care] 고객님 차량에서 주행 불가 경고가 감지되어 3차례 연락드렸으나 연결되지 않았습니다. 안전한 곳에 정차 후 고객지원실로 연락 주시기 바랍니다.</div></div>`;
   }
 
   function tick() {

@@ -16,7 +16,8 @@
   function mount(host) {
     const sc = document.createElement('div'); sc.id = 'scene'; host.appendChild(sc);
     const fin = document.createElement('div'); fin.id = 'fin'; fin.setAttribute('aria-live', 'polite'); host.appendChild(fin);
-    let snap = null, scene = 'live';
+    // the screen always opens on the opening; the control panel then moves it on
+    let snap = null, scene = 'opening';
 
     function closing() {
       const c = snap && (snap.cases.slice().reverse().find((x) => x.wcase === 'A') || snap.cases[snap.cases.length - 1]);
@@ -56,6 +57,9 @@
       const html = `<div class="fx"><svg viewBox="0 0 200 200" class="ring"><circle cx="100" cy="100" r="86" class="bg"/><circle cx="100" cy="100" r="86" class="fg"/><path d="M64 102 L90 128 L140 76" class="ck"/></svg>
         <b>e-Care 과업 종료</b><span>${steps.map((t) => `<i>${esc(t)}</i>`).join('<em>›</em>')}</span>
         <small>${esc(c.dealer || '서비스센터')} 고객 인도 · 정비 종결 · 모든 상태가 TSP에 기록되었습니다</small></div>`;
+      clearTimeout(noteT);
+      // the closing step itself may carry the note (the full show's end of act 1): it comes up once the check is drawn
+      if (keepNow) { const id = c.id; noteT = setTimeout(() => { if (finCase === id) finNext(fin, keepNow); }, 3400); }
       if (window.FX && FX.ceremony(fin, html)) return;
       fin.innerHTML = html;
       fin.classList.remove('on'); void fin.offsetWidth; fin.classList.add('on');
@@ -64,9 +68,10 @@
     // the recap stays until the presenter moves on; it leaves when the close is undone or reset
     let finCase = null;
     // the presenter moved on to another step: the recap leaves (e.g. act 2 of the full show)
-    let stepNow = '', finStep = '';
+    let stepNow = '', finStep = '', keepNow = '', noteT = 0;
     Link.on('scn-step', (d) => {
       stepNow = d ? `${d.sc}|${d.i}` : '';
+      keepNow = (d && d.keepFin) || '';
       if (!finCase || stepNow === finStep) return;
       // a step that keeps the recap up (the full show's “다음 시뮬레이션 진행”) adds its note under it
       if (d && d.keepFin) { finStep = stepNow; finNext(fin, d.keepFin); return; }
@@ -91,7 +96,7 @@
       first = false;
     });
     Link.on('stage', (d) => { if (d.scene && d.scene !== scene) { scene = d.scene; render(); } });
-    Link.send('stage-hello', { screen: 'final' });
+    Link.send('stage-hello', { screen: 'final', opening: true });
     render();
     return { get scene() { return scene; } };
   }

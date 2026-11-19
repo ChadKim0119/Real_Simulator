@@ -193,7 +193,7 @@
     } catch (e) { /* plays at its own level */ }
   }
   function speak(line) {
-    if (!soundOn) return;
+    if (!soundOn || line.quiet) return;            // quiet: a caption only (the dealer call)
     if (line.audio) {
       VoiceSet.url(line.audio).then((u) => {
         if (!u) return;
