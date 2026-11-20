@@ -172,7 +172,7 @@ body.overlay .label, body.overlay #hu, body.overlay #cap { display: none; }
 #hu:has(.music) .bar { left: 104px; background: none; color: #fff; text-shadow: 0 1px 6px rgba(0, 30, 70, 0.5); }
 #hu:has(.music) .bar .ecare { color: #fff; }
 /* over the car (Final_Instrument): clear of the conversation panel on the right */
-body.overlay #phone { right: 230px; }
+body.overlay #phone { right: 400px; }
 body.overlay #phone { visibility: hidden; transition: transform 0.8s cubic-bezier(.2, .9, .3, 1), visibility 0s 0.8s; }
 body.overlay #phone.on { visibility: visible; transition: transform 0.8s cubic-bezier(.2, .9, .3, 1), visibility 0s; }
 #hu:has(.pop) .music .cards { display: none; }

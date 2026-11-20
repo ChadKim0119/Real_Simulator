@@ -74,18 +74,22 @@
     setOpen(want);
     // header: who talks to whom, the call time
     const st = $('#talkState'), tm = $('#talkTime'), sub = $('#talkSub');
-    if (k && k.live) { st.textContent = '통화 중'; st.className = 'live'; tm.textContent = k.at ? mmss(now - k.at) : ''; }
-    else if (k && k.ring) { st.textContent = k.dir === 'out' || k.dealer ? '발신 중' : '연결 중'; st.className = ''; tm.textContent = ''; }
-    else if (k && k.ended) { st.textContent = '통화 종료'; st.className = ''; }
-    else { st.textContent = '대기'; st.className = ''; tm.textContent = ''; }
+    const tr = E.tr;
+    if (k && k.live) { st.textContent = tr('live'); st.className = 'live'; tm.textContent = k.at ? mmss(now - k.at) : ''; }
+    else if (k && k.ring) { st.textContent = k.dir === 'out' || k.dealer ? tr('dialing') : tr('ringing'); st.className = ''; tm.textContent = ''; }
+    else if (k && k.ended) { st.textContent = tr('ended'); st.className = ''; }
+    else { st.textContent = tr('idle'); st.className = ''; tm.textContent = ''; }
+    $('#talkLang').querySelectorAll('span').forEach((x) => x.classList.toggle('on', x.dataset.l === E.lang()));
     const male = !!(k && k.c && k.c.call && (k.c.call.lines || []).some((l) => /ecare_[ma]_/.test(l.audio || '')));
     const ci = $('#talk .av2 img:last-child'), avSrc = `assets/avatar_${male ? 'customer_m' : 'customer'}.webp`;
     if (!ci.src.endsWith(avSrc)) ci.src = avSrc;
     const ai = $('#talk .av2 img:first-child'), agSrc = `assets/avatar_${k && k.dealer ? 'dealer' : 'agent'}.webp`;
     if (!ai.src.endsWith(agSrc)) ai.src = agSrc;
     talk.classList.toggle('dealer', !!(k && k.dealer));
-    $('#talk header b').textContent = k && k.dealer ? '딜러 통화' : '상담 대화';
-    sub.textContent = !k ? 'e-Care 고객지원실 · 고객' : k.dealer ? `${(k.c && k.c.dealer) || '서비스센터'} 이정비 → ${E.CUSTOMER.name} 고객 휴대폰` : k.general ? `${E.CUSTOMER.name} 고객 · 일반 전화` : k.dir === 'out' ? `상담원 → ${E.CUSTOMER.name} 고객 휴대폰` : `${E.CUSTOMER.name} 고객 → 헤드유닛 콜`;
+    $('#talk header b').textContent = k && k.dealer ? tr('dcall') : tr('talk');
+    const ja = E.lang() === 'ja';
+    if (ja) sub.textContent = !k ? 'e-Care カスタマーサポート · お客様' : k.dealer ? 'サービスセンター イ・ジョンビ → ホン・ギルドン様の携帯' : k.general ? 'ホン・ギルドン様 · 一般のお問い合わせ' : k.dir === 'out' ? 'オペレーター → ホン・ギルドン様の携帯' : 'ホン・ギルドン様 → ヘッドユニット通話';
+    else sub.textContent = !k ? 'e-Care 고객지원실 · 고객' : k.dealer ? `${(k.c && k.c.dealer) || '서비스센터'} 이정비 → ${E.CUSTOMER.name} 고객 휴대폰` : k.general ? `${E.CUSTOMER.name} 고객 · 일반 전화` : k.dir === 'out' ? `상담원 → ${E.CUSTOMER.name} 고객 휴대폰` : `${E.CUSTOMER.name} 고객 → 헤드유닛 콜`;
     // closed: a badge counts the lines said meanwhile, the button rings while a call comes in
     const n = k ? k.lines : 0;
     if (open) seenLines = n;
@@ -99,7 +103,7 @@
   }
 
   /* after the rescue the car view is masked: the service center (dealer) follows up (js/follow.js) */
-  const follow = Follow.mount($('#canvas'), { before: $('#journey'), padRight: 520 });
+  const follow = Follow.mount($('#canvas'), { before: $('#journey'), padRight: 730 });
   const renderFollow = () => follow.render(snap);
   let scn = null, stepKey = '';
   function renderStep() {
@@ -158,13 +162,17 @@
     if (d.line && d.line.quiet) return;            // a caption only: no voice to follow
     const dur = ((d.line && d.line.dur) || 3) * 1000;
     talk.classList.add('speaking');
-    talk.style.setProperty('--w', d.line && d.line.who === 'agent' ? '#5aa2ff' : '#3ddc84');
+    talk.style.setProperty('--w', d.line && d.line.who === 'agent' ? '#5aa2ff' : d.line && d.line.who === 'dealer' ? '#ffb02e' : '#3ddc84');
     clearTimeout(sayT); sayT = setTimeout(() => talk.classList.remove('speaking'), dur);
   });
   Link.on('hush', () => { clearTimeout(sayT); talk.classList.remove('speaking'); });
   fab.addEventListener('click', () => { manual = !open; setOpen(manual); });
+  // the caption language (every screen follows: Link 'talk-lang')
+  const flipLang = () => E.setLang(E.lang() === 'ja' ? 'ko' : 'ja');
+  $('#talkLang').addEventListener('click', flipLang);
+  E.onLang(() => tick());
   $('#talkMin').addEventListener('click', () => { manual = false; setOpen(false); });
   Link.on('talk-panel', (d) => { manual = d.open === 'auto' ? null : !!d.open; tick(); });
-  addEventListener('keydown', (e) => { if (e.code === 'KeyT') { manual = !open; setOpen(manual); } });
+  addEventListener('keydown', (e) => { if (e.code === 'KeyT') { manual = !open; setOpen(manual); } if (e.code === 'KeyJ' && !e.ctrlKey && !e.metaKey) flipLang(); });
   Link.send('hello', { screen: 'final-instrument' });
 })();

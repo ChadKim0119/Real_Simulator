@@ -560,6 +560,7 @@
         + chunk('시연 화면 비율', b('data-wmode="21"', '21:9') + b('data-wmode="169"', '16:9') + b('data-wmode="63"', '63:9'))
         + chunk('Final 화면 · 데이터 흐름', b('data-dfmode="simple"', '심플 (시연 중)') + b('data-dfmode="detail"', '상세 (Q&A)') + b('data-flowlog', flowLog ? '상세 로그 접기' : '상세 로그 펼치기'), 'Final_Dataflow')
         + chunk('Final 화면 · 상담 대화', b('data-talk="auto"', '자동') + b('data-talk="open"', '펼치기') + b('data-talk="close"', '접기'), 'Final_Instrument')
+        + chunk('대화 자막 언어', b('data-tlang="ja"', '日本語') + b('data-tlang="ko"', '한국어'), '음성은 한국어 · 기본 日本語')
         + chunk('시연 화면 배치', b('data-wedit', '배치 편집') + b('data-wlabels', '라벨') + b('data-wreset', '기본 배치'))
         + chunk('점검 · 열기', b('data-identify', '화면 번호 표시') + ['final_instrument.html:Final_Instrument', 'final_dataflow.html:Final_Dataflow', 'wall.html:시연 화면 (1대)', 'dms.html:DMS 열기', 'test.html:모니터 테스트'].map((x) => { const i = x.indexOf(':'); return `<a href="${x.slice(0, i)}" target="_blank">${x.slice(i + 1)}</a>`; }).join(''))],
     };
@@ -572,9 +573,11 @@
   function engineMarks() { const id = engineId(); document.querySelectorAll('[data-engine]').forEach((x) => x.classList.toggle('on', x.dataset.engine === id)); }
   let dfMode = 'simple', talkMode = 'auto';
   Link.on('df-state', (d) => { dfMode = d.mode; manualState(); });
+  if (window.ECare) ECare.onLang(() => manualState());
   function manualState() {
     document.querySelectorAll('[data-dfmode]').forEach((x) => x.classList.toggle('on', x.dataset.dfmode === dfMode));
     document.querySelectorAll('[data-talk]').forEach((x) => x.classList.toggle('on', x.dataset.talk === talkMode));
+    document.querySelectorAll('[data-tlang]').forEach((x) => x.classList.toggle('on', x.dataset.tlang === ECare.lang()));
     document.querySelectorAll('[data-wmode]').forEach((x) => x.classList.toggle('on', x.dataset.wmode === wall.mode));
     document.querySelectorAll('[data-cam]').forEach((x) => x.classList.toggle('on', x.dataset.cam === camView));
     document.querySelectorAll('[data-ccwcam]').forEach((x) => x.classList.toggle('on', x.dataset.ccwcam === ccwCam));
@@ -614,6 +617,7 @@
     else if (d.cam) { camView = d.cam; Link.send('cam', { view: d.cam }); manualState(); }
     else if (d.dms) Link.send(d.dms === 'open' ? 'dms-open' : 'dms-close', {});
     else if (d.dfmode) { dfMode = d.dfmode; Link.send('df-mode', { mode: d.dfmode }); manualState(); }
+    else if (d.tlang) { ECare.setLang(d.tlang); manualState(); }
     else if (d.talk) { talkMode = d.talk; Link.send('talk-panel', { open: d.talk === 'auto' ? 'auto' : d.talk === 'open' }); manualState(); }
     else if ('flowlog' in d) { flowLog = !flowLog; Link.send('flow-log', { open: flowLog }); manual(); }
     else if (d.ccwcam) { ccwCam = d.ccwcam; ccwManual = true; localStorage.setItem('control-ccwcam-manual', '1'); localStorage.setItem('control-ccwcam', ccwCam); Link.send('ccw-cam', { view: ccwCam }); manualState(); }

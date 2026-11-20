@@ -95,27 +95,31 @@ iframe { border: 0; display: block; }
 #link i { width: 12px; height: 12px; border-radius: 50%; background: var(--lc, #4f8cff); box-shadow: 0 0 14px var(--lc, #4f8cff); animation: blink 0.8s infinite; }
 #link span b { color: var(--lc, #4f8cff); font-weight: 800; margin-right: 8px; font-family: "Barlow", "Pretendard", sans-serif; }
 /* the conversation: a button until a call starts, then a tall glass panel on the right */
-#talk { position: absolute; top: 22px; right: 22px; bottom: 22px; z-index: 8; width: 430px; display: flex; flex-direction: column; border-radius: 26px; overflow: hidden;
+#talk { position: absolute; top: 22px; right: 22px; bottom: 22px; z-index: 8; width: 640px; display: flex; flex-direction: column; border-radius: 26px; overflow: hidden;
   background: linear-gradient(180deg, rgba(14, 22, 38, 0.84), rgba(6, 10, 18, 0.9)); border: 1px solid rgba(160, 200, 255, 0.2);
   -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transform-origin: calc(100% - 50px) calc(100% - 50px); transform: translateX(40px) scale(0.9); opacity: 0; pointer-events: none;
   transition: transform 0.75s cubic-bezier(.2,.8,.2,1), opacity 0.45s ease; }
 #talk.on { transform: none; opacity: 1; pointer-events: auto; }
-#talk header { flex: none; display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 4px 14px; padding: 22px 22px 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+#talk header { flex: none; display: grid; grid-template-columns: auto 1fr auto auto auto; align-items: center; gap: 4px 14px; padding: 24px 24px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 #talk header .av2 { grid-row: span 2; position: relative; width: 74px; height: 54px; }
 #talk header .av2 img { position: absolute; top: 0; width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 3px solid #0c1424; }
 #talk header .av2 img:first-child { left: 0; box-shadow: 0 0 0 2px #5aa2ff; }
 #talk header .av2 img:last-child { left: 26px; top: 6px; box-shadow: 0 0 0 2px #3ddc84; }
 #talk header .av { grid-row: span 2; width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; background: linear-gradient(140deg, #3ddc84, #22a8a0); box-shadow: 0 6px 20px rgba(61, 220, 132, 0.35); }
 #talk header .av svg { width: 30px; height: 30px; }
-#talk header b { font-size: 26px; font-weight: 800; }
-#talk header small { grid-column: 2; font-size: 16px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#talk header b { min-width: 0; font-size: 27px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#talk header small { grid-column: 2; font-size: 18px; color: var(--mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #talk header .st { grid-row: span 2; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-#talk header .st em { font-style: normal; font: 700 15px "Pretendard", sans-serif; padding: 5px 11px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: #b8c6da; }
+#talk header .st em { white-space: nowrap; font-style: normal; font: 700 15px "Pretendard", sans-serif; padding: 5px 11px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); color: #b8c6da; }
 #talk header .st em.live { background: rgba(61, 220, 132, 0.16); color: #8ff0b3; }
 #talk header .st em.live::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--green); vertical-align: 1px; animation: blink 1.2s infinite; }
 #talk header .st span { font: 700 22px "Barlow", sans-serif; color: #dfe8f5; }
 #talk header .min { grid-row: span 2; width: 46px; height: 46px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06); color: #cfdbec; display: grid; place-items: center; cursor: pointer; transition: background 0.3s, transform 0.3s; }
+/* the caption language: 日本語 (default) or 한국어, the voices stay Korean */
+#talk header .lang { grid-row: span 2; display: flex; padding: 4px; gap: 2px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); cursor: pointer; }
+#talk header .lang span { padding: 8px 10px; border-radius: 10px; font: 700 14.5px "Pretendard", sans-serif; color: #8fa0b5; white-space: nowrap; transition: background 0.3s, color 0.3s; }
+#talk header .lang span.on { background: #4f8cff; color: #fff; }
 #talk header .min:hover { background: rgba(255, 255, 255, 0.14); transform: translateY(1px); }
 #talk header .min svg { width: 22px; height: 22px; }
 @keyframes blink { 50% { opacity: 0.25; } }

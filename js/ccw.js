@@ -920,9 +920,12 @@
     const c = snap.cases[0];                 // the newest case (new cases go in front)
     if (!c) return null;
     // the service center's follow-up call takes over the panel once it starts
-    if (c.dcall) return { general: false, dealer: true, id: c.id + ':dealer', lines: c.dcall.lines, title: `서비스센터 후속 통화 · ${E.CUSTOMER.name} 고객`, call: c.dcall, log: c.log, c };
+    // (its customer is the one of the earlier call: a man after the recorded Case A call)
+    if (c.dcall) return { general: false, dealer: true, id: c.id + ':dealer', lines: c.dcall.lines, title: `서비스센터 후속 통화 · ${E.CUSTOMER.name} 고객`, call: c.dcall, log: c.log, c, male: !!(c.call && (c.call.lines || []).some((l) => /ecare_[ma]_/.test(l.audio || ''))) };
     return { general: false, id: c.id, lines: c.call ? c.call.lines : [], title: `${c.warn.title} · ${E.CUSTOMER.name} 고객`, call: c.call, log: c.log, c };
   }
+  // the text language changed (the panel's toggle or the control panel): the list is rebuilt
+  E.onLang(() => { trLive = null; trKey = ''; if (VIEW === 'transcript') renderTranscript(true); });
   function renderTranscript(force) {
     if (!snap) return;
     const v = convo();
@@ -938,7 +941,7 @@
     if (!force && trTab === 'live' && v && trSel < 0 && trEdit < 0 && liveAppend(v)) return;
     let body;
     if (trTab === 'script') body = scriptsView();
-    else if (!v || !v.lines.some((l) => !l.deleted)) body = `<div class="tr-empty">통화가 시작되면 대화가 여기에 실시간으로 표시됩니다.</div>`;
+    else if (!v || !v.lines.some((l) => !l.deleted)) body = `<div class="tr-empty">${E.tr('empty')}</div>`;
     else body = liveView(v);
     const prev = $('.tr-list', tr);
     const keep = prev && (trSel >= 0 || trEdit >= 0) ? prev.scrollTop : null;
@@ -954,7 +957,7 @@
   let trLive = null;
   const liveSig = (v) => {
     const conv = v.general ? `G${v.call.at}` : v.id;
-    const male = v.lines.some((l) => /ecare_[ma]_/.test(l.audio || ''));
+    const male = v.male != null ? v.male : v.lines.some((l) => /ecare_[ma]_/.test(l.audio || ''));
     return { conv, male, rows: v.lines.map((l, i) => (l.deleted ? null : `${i}|${l.who}|${l.text}`)).filter(Boolean) };
   };
   function liveAppend(v) {
@@ -974,10 +977,10 @@
     return true;
   }
   function bubble(l, i, male, isNew) {
-    const who = l.who === 'agent' ? 'e-Care 상담원' : l.who === 'dealer' ? '서비스센터 · 이정비 어드바이저' : `${E.CUSTOMER.name} 고객`;
+    const who = l.who === 'agent' ? E.tr('agent') : l.who === 'dealer' ? E.tr('dealer') : E.tr('customer')(E.CUSTOMER.name);
     const av = `<img class="av" src="assets/avatar_${l.who === 'agent' ? 'agent' : l.who === 'dealer' ? 'dealer' : male ? 'customer_m' : 'customer'}.webp" alt="">`;
     if (i === trEdit) return `<div class="tb ${l.who} editing"><span class="who">${who}</span><textarea data-edit="${i}" rows="3">${esc(l.text)}</textarea><div class="acts on"><button data-save-line="${i}" class="pri">저장</button><button data-cancel>취소</button></div></div>`;
-    return `<div class="tb ${l.who === 'dealer' ? 'agent dealer' : l.who} ${i === trSel ? 'picked' : ''}${isNew ? ' new' : ''}" data-line="${i}"><span class="who">${av}${who}</span><div class="msg">${esc(l.text)}</div>
+    return `<div class="tb ${l.who === 'dealer' ? 'agent dealer' : l.who} ${i === trSel ? 'picked' : ''}${isNew ? ' new' : ''}" data-line="${i}"><span class="who">${av}${who}</span><div class="msg" lang="${E.lang()}">${esc(E.lineText(l))}</div>
         <div class="acts"><button data-edit-line="${i}">✎ 편집</button><button data-del-line="${i}" class="del">삭제</button></div></div>`;
   }
   function liveView(v) {
@@ -986,7 +989,7 @@
     const fresh = (k) => { if (trSeen.has(k)) return false; trSeen.add(k); return true; };
     const items = v.lines.map((l, i) => ({ t: l.t, l, i })).filter((x) => !x.l.deleted);
     // the second inbound set is a male customer
-    const male = v.lines.some((l) => /ecare_[ma]_/.test(l.audio || ''));
+    const male = v.male != null ? v.male : v.lines.some((l) => /ecare_[ma]_/.test(l.audio || ''));
     trLive = liveSig(v);
     return `<div class="tr-wrap solo"><div class="tr-list">${items.map(({ l, i }) => bubble(l, i, male, fresh('l' + i))).join('')}</div></div>`;
   }

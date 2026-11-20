@@ -50,7 +50,7 @@
       const cline = c.done || c.dms >= 7 ? '고객 인도 · 정비 종결 · e-Care 과업 종료'
         : c.dms >= 3 ? `${E.DMS[c.dms]} · 서비스센터 → TSP 상태 기록`
           : c.towing ? '견인차가 차량을 서비스센터로 운송하고 있습니다'
-            : last ? `${last.who === 'dealer' ? '이정비' : E.CUSTOMER.name} · “${last.text}”` : d ? '서비스 어드바이저가 고객에게 전화를 겁니다' : '서비스센터가 고객에게 연락할 차례입니다';
+            : last ? `${last.who === 'dealer' ? E.tr('dealerShort') : E.CUSTOMER.name} · “${E.lineText(last)}”` : d ? '서비스 어드바이저가 고객에게 전화를 겁니다' : '서비스센터가 고객에게 연락할 차례입니다';
       const cl = q('[data-f="cline"]');
       if (cl.textContent !== cline) cl.textContent = cline;
       el.classList.toggle('live', !!d && d.state === 'connected');

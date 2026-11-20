@@ -38,7 +38,7 @@
   Link.on('ecare', (d) => { snap = E.gate(d, 'car'); render(); });   // only what has reached this screen
   Link.on('veh', (d) => { veh = d; });
   // the dealer's follow-up call goes to the customer's phone, not the car
-  Link.on('say', (d) => { if (d.dealer) return; caption = { who: d.line.who, text: d.line.text, until: Date.now() + (d.line.dur || 4) * 1000 + 2500 }; });
+  Link.on('say', (d) => { if (d.dealer) return; caption = { who: d.line.who, line: d.line, until: Date.now() + (d.line.dur || 4) * 1000 + 2500 }; });
   const show = () => { const c = current(); if (c) { closed[c.id] = false; reopen[c.id] = Date.now(); render(true); } };
   Link.on('hu', (d) => {
     if (MODE === 'overlay') return;           // the screen instance handles the press
@@ -229,7 +229,7 @@
     if (pt && call && call.connectedAt) pt.textContent = E.mmss(Date.now() - call.connectedAt);
     const cap = $('#cap');
     if (caption && Date.now() < caption.until) {
-      cap.innerHTML = `<small class="${caption.who === 'agent' ? '' : 'c'}">${caption.who === 'agent' ? 'e-Care 상담원' : `${E.CUSTOMER.name} 고객`}</small><p>${esc(caption.text)}</p>`;
+      cap.innerHTML = `<small class="${caption.who === 'agent' ? '' : 'c'}">${caption.who === 'agent' ? E.tr('agent') : E.tr('customer')(E.CUSTOMER.name)}</small><p>${esc(E.lineText(caption.line))}</p>`;
       cap.classList.add('on');
     } else cap.classList.remove('on');
   }

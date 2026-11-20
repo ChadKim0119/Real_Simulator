@@ -79,57 +79,59 @@
   // outbound call after 25 minutes (act 2): the same lines, voiced with ElevenLabs eleven_v4
   // (agent: Suri, customer: Han Aim), as the presenter asked
   const CALL_OUT = [
-    { who: 'agent', text: '안녕하세요, e-Care 상담센터입니다. 홍길동 고객님 휴대폰 맞으신가요?', audio: 'assets/audio/ecare_out4_01_agent.mp3', dur: 5.67 },
-    { who: 'customer', text: '네, 맞아요.', audio: 'assets/audio/ecare_out4_02_customer.mp3', dur: 1.7 },
-    { who: 'agent', text: '25분 전에 차량에서 브레이크 시스템 경고가 감지됐는데, 연락이 없으셔서 먼저 전화드렸습니다. 지금 안전한 곳에 계신가요?', audio: 'assets/audio/ecare_out4_03_agent.mp3', dur: 8.93 },
-    { who: 'customer', text: '경황이 없어서 연락을 못 했어요. 갓길에 세워 뒀어요.', audio: 'assets/audio/ecare_out4_04_customer.mp3', dur: 4.57 },
-    { who: 'agent', text: '다행입니다. 현재 위치로 긴급출동을 요청해 드렸고, 출동 기사님이 곧 직접 연락드릴 거예요. 비상등을 켜고 안전한 곳에서 기다려 주세요.', audio: 'assets/audio/ecare_out4_05_agent.mp3', dur: 10.19, dispatch: true },
-    { who: 'customer', text: '네, 알겠습니다. 감사합니다.', audio: 'assets/audio/ecare_out4_06_customer.mp3', dur: 2.66 },
+    { who: 'agent', text: '안녕하세요, e-Care 상담센터입니다. 홍길동 고객님 휴대폰 맞으신가요?', ja: 'こんにちは、e-Care相談センターです。ホン・ギルドン様の携帯電話でお間違いないでしょうか？', audio: 'assets/audio/ecare_out4_01_agent.mp3', dur: 5.67 },
+    { who: 'customer', text: '네, 맞아요.', ja: 'はい、そうです。', audio: 'assets/audio/ecare_out4_02_customer.mp3', dur: 1.7 },
+    { who: 'agent', text: '25분 전에 차량에서 브레이크 시스템 경고가 감지됐는데, 연락이 없으셔서 먼저 전화드렸습니다. 지금 안전한 곳에 계신가요?', ja: '25分前にお車からブレーキシステムの警告を検知しましたが、ご連絡がなかったため、こちらからお電話いたしました。今、安全な場所にいらっしゃいますか？', audio: 'assets/audio/ecare_out4_03_agent.mp3', dur: 8.93 },
+    { who: 'customer', text: '경황이 없어서 연락을 못 했어요. 갓길에 세워 뒀어요.', ja: '慌ててしまって連絡できませんでした。路肩に停めてあります。', audio: 'assets/audio/ecare_out4_04_customer.mp3', dur: 4.57 },
+    { who: 'agent', text: '다행입니다. 현재 위치로 긴급출동을 요청해 드렸고, 출동 기사님이 곧 직접 연락드릴 거예요. 비상등을 켜고 안전한 곳에서 기다려 주세요.', ja: '安心しました。現在地へ緊急出動を手配しましたので、まもなく出動スタッフから直接ご連絡します。ハザードランプをつけて、安全な場所でお待ちください。', audio: 'assets/audio/ecare_out4_05_agent.mp3', dur: 10.19, dispatch: true },
+    { who: 'customer', text: '네, 알겠습니다. 감사합니다.', ja: 'はい、わかりました。ありがとうございます。', audio: 'assets/audio/ecare_out4_06_customer.mp3', dur: 2.66 },
   ];
   // inbound MM call (customer presses the e-Care button / calls from the app)
   // secondary inbound set: a calm man, brake warning; short (the agent only sends the rescue truck).
   // stop: the car pulls over while that line plays
   const CALL_IN = [
-    { who: 'customer', text: '여보세요, 운전 중인데 빨간 경고등이 켜져서 연락드렸습니다.', audio: 'assets/audio/ecare_m_01_customer.mp3', dur: 4.23 },
-    { who: 'agent', text: '네, 고객님. 차량에서 브레이크 시스템 이상이 감지된 것이 확인됩니다. 안전한 곳에 정차하시고 비상등을 켜 주시겠어요?', audio: 'assets/audio/ecare_m_02_agent.mp3', dur: 8.39 },
-    { who: 'customer', text: '네, 지금 갓길에 세우고 비상등 켰습니다.', audio: 'assets/audio/ecare_m_03_customer.mp3', dur: 3.71, stop: true },
-    { who: 'agent', text: '감사합니다. 현재 위치로 긴급출동을 요청했고, 출동 기사님이 곧 직접 연락드릴 겁니다. 그때까지 안전한 곳에서 기다려 주세요.', audio: 'assets/audio/ecare_m_04_agent.mp3', dur: 9.06, dispatch: true },
-    { who: 'customer', text: '네, 알겠습니다. 감사합니다.', audio: 'assets/audio/ecare_m_05_customer.mp3', dur: 2.64 },
+    { who: 'customer', text: '여보세요, 운전 중인데 빨간 경고등이 켜져서 연락드렸습니다.', ja: 'もしもし、運転中に赤い警告灯がついたので連絡しました。', audio: 'assets/audio/ecare_m_01_customer.mp3', dur: 4.23 },
+    { who: 'agent', text: '네, 고객님. 차량에서 브레이크 시스템 이상이 감지된 것이 확인됩니다. 안전한 곳에 정차하시고 비상등을 켜 주시겠어요?', ja: 'はい、お客様。お車からブレーキシステムの異常が検知されたことを確認しております。安全な場所に停車して、ハザードランプをつけていただけますか？', audio: 'assets/audio/ecare_m_02_agent.mp3', dur: 8.39 },
+    { who: 'customer', text: '네, 지금 갓길에 세우고 비상등 켰습니다.', ja: 'はい、今、路肩に停めてハザードランプをつけました。', audio: 'assets/audio/ecare_m_03_customer.mp3', dur: 3.71, stop: true },
+    { who: 'agent', text: '감사합니다. 현재 위치로 긴급출동을 요청했고, 출동 기사님이 곧 직접 연락드릴 겁니다. 그때까지 안전한 곳에서 기다려 주세요.', ja: 'ありがとうございます。現在地へ緊急出動を手配しましたので、まもなく出動スタッフから直接ご連絡します。それまで安全な場所でお待ちください。', audio: 'assets/audio/ecare_m_04_agent.mp3', dur: 9.06, dispatch: true },
+    { who: 'customer', text: '네, 알겠습니다. 감사합니다.', ja: 'はい、わかりました。ありがとうございます。', audio: 'assets/audio/ecare_m_05_customer.mp3', dur: 2.64 },
   ];
   // general call: the customer calls with no open warning case (11.1.1.3)
   const CALL_GEN = [
-    { who: 'agent', text: '네, e-Care 상담센터 김상담입니다. 무엇을 도와드릴까요?', dur: 3.6 },
-    { who: 'customer', text: '지난번 경고등 때문에 상담받았는데요, 서비스센터 입고 예약이 잘 됐는지 확인하고 싶어요.', dur: 5.2 },
-    { who: 'agent', text: '확인해 보니 서비스센터로 상담 내용이 전달되어 있고, 담당 어드바이저가 오늘 중 연락드릴 예정입니다.', dur: 6.4 },
-    { who: 'customer', text: '네, 알겠습니다. 감사합니다.', dur: 2.2 },
+    { who: 'agent', text: '네, e-Care 상담센터 김상담입니다. 무엇을 도와드릴까요?', ja: 'はい、e-Care相談センターのキム・サンダムです。どのようなご用件でしょうか？', dur: 3.6 },
+    { who: 'customer', text: '지난번 경고등 때문에 상담받았는데요, 서비스센터 입고 예약이 잘 됐는지 확인하고 싶어요.', ja: '先日、警告灯の件で相談したのですが、サービスセンターへの入庫予約がきちんとできているか確認したいです。', dur: 5.2 },
+    { who: 'agent', text: '확인해 보니 서비스센터로 상담 내용이 전달되어 있고, 담당 어드바이저가 오늘 중 연락드릴 예정입니다.', ja: '確認しましたところ、相談内容はサービスセンターへ引き継がれており、担当アドバイザーが本日中にご連絡する予定です。', dur: 6.4 },
+    { who: 'customer', text: '네, 알겠습니다. 감사합니다.', ja: 'はい、わかりました。ありがとうございます。', dur: 2.2 },
   ];
   // main inbound set: a worried woman driving alone, engine warning. The agent already sees
   // where the car is, so she starts by confirming it; then pull over and hazards, the rescue
   // truck (dispatch: on that line), the preferred service center, the callback number, anything
   // to pass on, and who calls next (the truck driver, the service center). Short, to the point.
   const CALL_IN2 = [
-    { who: 'agent', text: '네, e-Care 상담센터입니다. 홍길동 고객님, 차량에서 엔진 이상 경고가 접수됐습니다. 지금 올림픽대로 한남대교 남단 부근에 계신 걸로 확인되는데, 맞으신가요?', audio: 'assets/audio/ecare_k_01_agent.mp3', dur: 14.17 },
-    { who: 'customer', text: '네, 맞아요. 갑자기 경고등이 떠서 좀 놀랐어요.', audio: 'assets/audio/ecare_k_02_customer.mp3', dur: 4.95 },
-    { who: 'agent', text: '많이 놀라셨죠. 우선 갓길에 차를 세우시고 비상등을 켜 주세요.', audio: 'assets/audio/ecare_k_03_agent.mp3', dur: 5.5 },
-    { who: 'customer', text: '네, 갓길에 세우고 비상등 켰어요.', audio: 'assets/audio/ecare_k_04_customer.mp3', dur: 3.56, stop: true },
-    { who: 'agent', text: '잘하셨습니다. 지금 바로 긴급출동을 요청해 드렸습니다. 고객님 선호 서비스센터가 강남 서비스센터로 되어 있는데, 이곳으로 진행을 도와드릴까요?', audio: 'assets/audio/ecare_k_05_agent.mp3', dur: 11.43, dispatch: true },
-    { who: 'customer', text: '네, 그럼 그렇게 해 주세요.', audio: 'assets/audio/ecare_k_06_customer.mp3', dur: 1.74 },
-    { who: 'agent', text: '서비스센터에서 따로 연락을 드릴 예정인데, 지금 이 번호로 연락드리면 될까요?', audio: 'assets/audio/ecare_k_07_agent.mp3', dur: 5.42 },
-    { who: 'customer', text: '네, 이 번호로 주세요.', audio: 'assets/audio/ecare_k_08_customer.mp3', dur: 2.13 },
-    { who: 'agent', text: '추가로 서비스센터에 전달하실 내용 있으실까요?', audio: 'assets/audio/ecare_k_09_agent.mp3', dur: 3.64 },
-    { who: 'customer', text: '아니요, 없어요.', audio: 'assets/audio/ecare_k_10_customer.mp3', dur: 1.92 },
-    { who: 'agent', text: '네, 곧 긴급출동 차량이 도착할 예정이고, 자세한 진행 사항은 출동 기사님이 직접 연락드릴 겁니다. 서비스센터에도 최대한 빨리 연락드리도록 요청하겠습니다.', audio: 'assets/audio/ecare_k_11_agent.mp3', dur: 11.51 },
-    { who: 'customer', text: '네, 빠르게 조치해 주셔서 감사합니다.', audio: 'assets/audio/ecare_k_12_customer.mp3', dur: 3.33 },
-    { who: 'agent', text: '네, 고객님. 안전한 곳에서 기다려 주세요. e-Care 상담센터였습니다.', audio: 'assets/audio/ecare_k_13_agent.mp3', dur: 5.6 },
+    { who: 'agent', text: '네, e-Care 상담센터입니다. 홍길동 고객님, 차량에서 엔진 이상 경고가 접수됐습니다. 지금 올림픽대로 한남대교 남단 부근에 계신 걸로 확인되는데, 맞으신가요?', ja: 'はい、e-Care相談センターです。ホン・ギルドン様、お車からエンジン異常の警告を受信しました。現在、オリンピック大路の漢南大橋南端付近にいらっしゃると確認していますが、お間違いないでしょうか？', audio: 'assets/audio/ecare_k_01_agent.mp3', dur: 14.17 },
+    { who: 'customer', text: '네, 맞아요. 갑자기 경고등이 떠서 좀 놀랐어요.', ja: 'はい、そうです。急に警告灯がついて、少し驚きました。', audio: 'assets/audio/ecare_k_02_customer.mp3', dur: 4.95 },
+    { who: 'agent', text: '많이 놀라셨죠. 우선 갓길에 차를 세우시고 비상등을 켜 주세요.', ja: 'さぞ驚かれたことでしょう。まずは路肩に車を停めて、ハザードランプをつけてください。', audio: 'assets/audio/ecare_k_03_agent.mp3', dur: 5.5 },
+    { who: 'customer', text: '네, 갓길에 세우고 비상등 켰어요.', ja: 'はい、路肩に停めてハザードランプをつけました。', audio: 'assets/audio/ecare_k_04_customer.mp3', dur: 3.56, stop: true },
+    { who: 'agent', text: '잘하셨습니다. 지금 바로 긴급출동을 요청해 드렸습니다. 고객님 선호 서비스센터가 강남 서비스센터로 되어 있는데, 이곳으로 진행을 도와드릴까요?', ja: 'ありがとうございます。ただいま緊急出動を手配しました。お客様のご希望のサービスセンターは江南サービスセンターになっていますが、こちらで手続きを進めてよろしいでしょうか？', audio: 'assets/audio/ecare_k_05_agent.mp3', dur: 11.43, dispatch: true },
+    { who: 'customer', text: '네, 그럼 그렇게 해 주세요.', ja: 'はい、ではそのようにお願いします。', audio: 'assets/audio/ecare_k_06_customer.mp3', dur: 1.74 },
+    { who: 'agent', text: '서비스센터에서 따로 연락을 드릴 예정인데, 지금 이 번호로 연락드리면 될까요?', ja: 'サービスセンターから別途ご連絡する予定ですが、今お使いのこちらの番号にご連絡してよろしいでしょうか？', audio: 'assets/audio/ecare_k_07_agent.mp3', dur: 5.42 },
+    { who: 'customer', text: '네, 이 번호로 주세요.', ja: 'はい、この番号にお願いします。', audio: 'assets/audio/ecare_k_08_customer.mp3', dur: 2.13 },
+    { who: 'agent', text: '추가로 서비스센터에 전달하실 내용 있으실까요?', ja: 'ほかにサービスセンターへお伝えしたいことはございますか？', audio: 'assets/audio/ecare_k_09_agent.mp3', dur: 3.64 },
+    { who: 'customer', text: '아니요, 없어요.', ja: 'いいえ、ありません。', audio: 'assets/audio/ecare_k_10_customer.mp3', dur: 1.92 },
+    { who: 'agent', text: '네, 곧 긴급출동 차량이 도착할 예정이고, 자세한 진행 사항은 출동 기사님이 직접 연락드릴 겁니다. 서비스센터에도 최대한 빨리 연락드리도록 요청하겠습니다.', ja: 'はい、まもなく緊急出動車両が到着する予定で、詳しい進捗は出動スタッフから直接ご連絡します。サービスセンターにも、できるだけ早くご連絡するよう依頼いたします。', audio: 'assets/audio/ecare_k_11_agent.mp3', dur: 11.51 },
+    { who: 'customer', text: '네, 빠르게 조치해 주셔서 감사합니다.', ja: 'はい、迅速に対応していただき、ありがとうございます。', audio: 'assets/audio/ecare_k_12_customer.mp3', dur: 3.33 },
+    { who: 'agent', text: '네, 고객님. 안전한 곳에서 기다려 주세요. e-Care 상담센터였습니다.', ja: 'はい、お客様。安全な場所でお待ちください。e-Care相談センターでした。', audio: 'assets/audio/ecare_k_13_agent.mp3', dur: 5.6 },
   ];
-  // the service center's follow-up call (no voice: the lines run as captions), kept short: the advisor introduces himself, reassures the
-  // customer and books the visit (resv: the reservation is confirmed on that line)
+  // the service center's follow-up call, kept short: the advisor introduces himself, reassures the
+  // customer and books the visit (resv: the reservation is confirmed on that line). Voiced with
+  // ElevenLabs eleven_v4 as the presenter asked (advisor: Mr. K; the customer's one line twice, so it
+  // matches the act: audioM for the male customer of the Case A call, audio for the woman of act 2)
   const CALL_DEALER = [
-    { who: 'dealer', text: '안녕하세요, 렉서스 강남 서비스센터 이정비 어드바이저입니다. 홍길동 고객님 되시죠? e-Care 상담센터에서 내용 전달받고 연락드렸습니다.', dur: 10.06, quiet: true },
-    { who: 'dealer', text: '많이 놀라셨죠. 지금 견인 차량이 고객님 차를 저희 센터로 안전하게 옮기고 있으니, 걱정하지 않으셔도 됩니다.', dur: 7.52, quiet: true },
-    { who: 'dealer', text: '차량은 오늘 입고해 두고, 내일 오전 10시에 엔진 점검을 진행하려고 하는데요. 일정 괜찮으실까요?', dur: 6.79, quiet: true },
-    { who: 'customer', text: '네, 내일 10시 좋아요.', dur: 2.8, quiet: true },
-    { who: 'dealer', text: '네, 내일 오전 10시로 예약 확정해 드렸습니다. 점검 결과는 제가 직접 연락드리겠습니다.', dur: 6.74, quiet: true, resv: true },
+    { who: 'dealer', text: '안녕하세요, 렉서스 강남 서비스센터 이정비 어드바이저입니다. 홍길동 고객님 되시죠? e-Care 상담센터에서 내용 전달받고 연락드렸습니다.', ja: 'こんにちは、レクサス江南サービスセンターのアドバイザー、イ・ジョンビです。ホン・ギルドン様でいらっしゃいますか？ e-Care相談センターから内容を引き継ぎ、ご連絡いたしました。', audio: 'assets/audio/ecare_dlr4_01_dealer.mp3', dur: 9.95 },
+    { who: 'dealer', text: '많이 놀라셨죠. 지금 견인 차량이 고객님 차를 저희 센터로 안전하게 옮기고 있으니, 걱정하지 않으셔도 됩니다.', ja: 'さぞ驚かれたことでしょう。ただいまレッカー車がお客様のお車を当センターへ安全に搬送しておりますので、ご安心ください。', audio: 'assets/audio/ecare_dlr4_02_dealer.mp3', dur: 7.89 },
+    { who: 'dealer', text: '차량은 오늘 입고해 두고, 내일 오전 10시에 엔진 점검을 진행하려고 하는데요. 일정 괜찮으실까요?', ja: 'お車は本日入庫しておき、明日午前10時にエンジン点検を行う予定です。ご都合はいかがでしょうか？', audio: 'assets/audio/ecare_dlr4_03_dealer.mp3', dur: 7.31 },
+    { who: 'customer', text: '네, 내일 10시 좋아요.', ja: 'はい、明日の10時で大丈夫です。', audio: 'assets/audio/ecare_dlr4_04_customer_f.mp3', dur: 2.35, audioM: 'assets/audio/ecare_dlr4_04_customer_m.mp3', durM: 2.43 },
+    { who: 'dealer', text: '네, 내일 오전 10시로 예약 확정해 드렸습니다. 점검 결과는 제가 직접 연락드리겠습니다.', ja: 'はい、明日午前10時でご予約を確定いたしました。点検結果は私から直接ご連絡いたします。', audio: 'assets/audio/ecare_dlr4_05_dealer.mp3', dur: 6.53, resv: true },
   ];
   // main inbound set (Case A), the recorded narration as it was given: the agent and the customer
   // each recorded their part in one take, cut into lines and put in call order. Kept short for act 1:
@@ -137,19 +139,19 @@
   // with the hazards on while the agent asks for it (stop), so it stands on the shoulder when the
   // customer says so; the rescue is requested when she agrees (dispatch). The voices are used exactly as recorded; nothing is generated.
   const CALL_CASEA = [
-    { who: 'agent', text: '네, 안녕하세요. e-Care 고객지원실입니다. 홍길동 고객님 맞으실까요?', audio: 'assets/audio/ecare_a_01_agent.mp3', dur: 6.11 },
-    { who: 'customer', text: '아, 예예. 네, 맞아요. 갑자기 경고등이 떠서 당황했는데, 여기 콜 버튼이 있어서 눌러봤어요.', audio: 'assets/audio/ecare_a_02_customer.mp3', dur: 7.6 },
-    { who: 'agent', text: '우선 고객님, 지금 올림픽대로 한남대교 남단 부근에 계신 걸로 확인되는데 맞으신가요? 차량에 엔진 이상 경고등이 발생한 상태이고, 진단 정보도 파악되었습니다.', audio: 'assets/audio/ecare_a_05_agent.mp3', dur: 12.96 },
-    { who: 'agent', text: '많이 놀라셨겠지만 위험하지 않은 가까운 갓길에 차를 세우시고 비상등을 켜 주세요.', audio: 'assets/audio/ecare_a_06_agent.mp3', dur: 6.27, hazard: true },
+    { who: 'agent', text: '네, 안녕하세요. e-Care 고객지원실입니다. 홍길동 고객님 맞으실까요?', ja: 'はい、こんにちは。e-Careカスタマーサポートです。ホン・ギルドン様でお間違いないでしょうか？', audio: 'assets/audio/ecare_a_01_agent.mp3', dur: 6.11 },
+    { who: 'customer', text: '아, 예예. 네, 맞아요. 갑자기 경고등이 떠서 당황했는데, 여기 콜 버튼이 있어서 눌러봤어요.', ja: 'あ、はいはい。そうです。急に警告灯がついて慌てたんですが、ここに通話ボタンがあったので押してみました。', audio: 'assets/audio/ecare_a_02_customer.mp3', dur: 7.6 },
+    { who: 'agent', text: '우선 고객님, 지금 올림픽대로 한남대교 남단 부근에 계신 걸로 확인되는데 맞으신가요? 차량에 엔진 이상 경고등이 발생한 상태이고, 진단 정보도 파악되었습니다.', ja: 'まずお客様、現在オリンピック大路の漢南大橋南端付近にいらっしゃると確認していますが、お間違いないでしょうか？ お車にエンジン異常の警告灯が点灯しており、診断情報も把握しております。', audio: 'assets/audio/ecare_a_05_agent.mp3', dur: 12.96 },
+    { who: 'agent', text: '많이 놀라셨겠지만 위험하지 않은 가까운 갓길에 차를 세우시고 비상등을 켜 주세요.', ja: '驚かれたと思いますが、危険のない近くの路肩に車を停めて、ハザードランプをつけてください。', audio: 'assets/audio/ecare_a_06_agent.mp3', dur: 6.27, hazard: true },
     // the car pulls over as the customer says it has (“잘 세웠어요”)
-    { who: 'customer', text: '고맙습니다. 차량은 위험하지 않은 곳에 잘 세웠어요.', audio: 'assets/audio/ecare_a_07_customer.mp3', dur: 3.74, stop: true },
-    { who: 'agent', text: '잘하셨습니다. 안전을 위해서 지금 바로 긴급출동을 접수해 드리는 것이 좋겠습니다. 긴급출동 접수를 진행해 드릴까요? 아울러 선호하시는 강남 서비스센터로 입고도 함께 진행을 도와 드릴까요?', audio: 'assets/audio/ecare_a_08_agent.mp3', dur: 14.63 },
-    { who: 'customer', text: '네네, 그렇게 해 주세요.', audio: 'assets/audio/ecare_a_09_customer.mp3', dur: 1.91, dispatch: true },
-    { who: 'agent', text: '서비스센터에서 따로 연락을 드릴 예정인데, 지금 이 번호로 연락드리면 될까요?', audio: 'assets/audio/ecare_a_10_agent.mp3', dur: 5.88 },
-    { who: 'customer', text: '네, 이 번호로 연락 부탁드려요.', audio: 'assets/audio/ecare_a_11_customer.mp3', dur: 3.16 },
-    { who: 'agent', text: '네, 곧 긴급출동 차량이 도착할 예정이고, 자세한 진행 사항은 출동 기사님이 직접 연락드릴 겁니다. 서비스센터에도 최대한 빨리 연락드리도록 요청하겠습니다.', audio: 'assets/audio/ecare_a_14_agent.mp3', dur: 12.15 },
-    { who: 'customer', text: '네, 빠르게 조치해 주셔서 감사합니다.', audio: 'assets/audio/ecare_a_15_customer.mp3', dur: 2.64 },
-    { who: 'agent', text: '네, 고객님. 안전한 곳에서 기다려 주세요. e-Care 고객지원실이었습니다.', audio: 'assets/audio/ecare_a_16_agent.mp3', dur: 5.83 },
+    { who: 'customer', text: '고맙습니다. 차량은 위험하지 않은 곳에 잘 세웠어요.', ja: 'ありがとうございます。車は危なくない場所にちゃんと停めました。', audio: 'assets/audio/ecare_a_07_customer.mp3', dur: 3.74, stop: true },
+    { who: 'agent', text: '잘하셨습니다. 안전을 위해서 지금 바로 긴급출동을 접수해 드리는 것이 좋겠습니다. 긴급출동 접수를 진행해 드릴까요? 아울러 선호하시는 강남 서비스센터로 입고도 함께 진행을 도와 드릴까요?', ja: 'ありがとうございます。安全のため、今すぐ緊急出動を受け付けるのがよろしいかと思います。緊急出動の受付を進めてもよろしいでしょうか？ あわせて、ご希望の江南サービスセンターへの入庫も一緒に手配いたしましょうか？', audio: 'assets/audio/ecare_a_08_agent.mp3', dur: 14.63 },
+    { who: 'customer', text: '네네, 그렇게 해 주세요.', ja: 'はいはい、そうしてください。', audio: 'assets/audio/ecare_a_09_customer.mp3', dur: 1.91, dispatch: true },
+    { who: 'agent', text: '서비스센터에서 따로 연락을 드릴 예정인데, 지금 이 번호로 연락드리면 될까요?', ja: 'サービスセンターから別途ご連絡する予定ですが、今お使いのこちらの番号にご連絡してよろしいでしょうか？', audio: 'assets/audio/ecare_a_10_agent.mp3', dur: 5.88 },
+    { who: 'customer', text: '네, 이 번호로 연락 부탁드려요.', ja: 'はい、この番号に連絡をお願いします。', audio: 'assets/audio/ecare_a_11_customer.mp3', dur: 3.16 },
+    { who: 'agent', text: '네, 곧 긴급출동 차량이 도착할 예정이고, 자세한 진행 사항은 출동 기사님이 직접 연락드릴 겁니다. 서비스센터에도 최대한 빨리 연락드리도록 요청하겠습니다.', ja: 'はい、まもなく緊急出動車両が到着する予定で、詳しい進捗は出動スタッフから直接ご連絡します。サービスセンターにも、できるだけ早くご連絡するよう依頼いたします。', audio: 'assets/audio/ecare_a_14_agent.mp3', dur: 12.15 },
+    { who: 'customer', text: '네, 빠르게 조치해 주셔서 감사합니다.', ja: 'はい、迅速に対応していただき、ありがとうございます。', audio: 'assets/audio/ecare_a_15_customer.mp3', dur: 2.64 },
+    { who: 'agent', text: '네, 고객님. 안전한 곳에서 기다려 주세요. e-Care 고객지원실이었습니다.', ja: 'はい、お客様。安全な場所でお待ちください。e-Careカスタマーサポートでした。', audio: 'assets/audio/ecare_a_16_agent.mp3', dur: 5.83 },
   ];
   const SCRIPTS = { a: CALL_CASEA, in: CALL_IN, in2: CALL_IN2, out: CALL_OUT, gen: CALL_GEN, dealer: CALL_DEALER };
   const SCRIPT_NAMES = { a: '메인 · Case A 녹음 나레이션', in2: '이전 메인 · 여성 운전자 · 엔진 경고', in: '보조 · 남성 고객 · 브레이크 경고', out: '25분 경과 아웃바운드', gen: '일반 전화 (재문의)', dealer: '서비스센터 후속 통화 (딜러 ↔ 고객)' };
@@ -181,6 +183,41 @@
     return !!(l.stop && prev && prev.who === 'agent' && /비상등/.test(prev.text));
   }
   const SERVICE_ADVISOR = '이정비';
+  /** The customer of the earlier call was a man (the recorded Case A call, or the male set). */
+  const maleCustomer = (c) => !!(c && c.call && (c.call.lines || []).some((l) => /ecare_[ma]_/.test(l.audio || '')));
+  /** A line of the dealer's call, with the customer's voice of this act. */
+  function dealerLine(c, l) {
+    if (!l.audioM || !maleCustomer(c)) return l;
+    return { ...l, audio: l.audioM, dur: l.durM || l.dur };
+  }
+
+  /* The conversation text is shown in Japanese or Korean (the voices stay Korean).
+   * Default Japanese; the toggle on the conversation panel or the control panel switches every
+   * screen (Link 'talk-lang', kept per browser). */
+  let LANG = 'ja';
+  try { LANG = localStorage.getItem('talk-lang') || 'ja'; } catch (e) { /* private mode */ }
+  const langHooks = [];
+  const lang = () => LANG;
+  function setLang(v, quiet) {
+    if ((v !== 'ko' && v !== 'ja') || v === LANG) return;
+    LANG = v;
+    try { localStorage.setItem('talk-lang', v); } catch (e) { /* private mode */ }
+    langHooks.forEach((f) => f(v));
+    if (!quiet && window.Link) Link.send('talk-lang', { lang: v });
+  }
+  const onLang = (f) => langHooks.push(f);
+  if (window.Link) {
+    Link.on('talk-lang', (d) => { if (d && d.lang) setLang(d.lang, true); });
+  }
+  addEventListener('storage', (e) => { if (e.key === 'talk-lang' && e.newValue) setLang(e.newValue, true); });
+  /** A line's text in the shown language (Korean when it has no Japanese, e.g. an edited line). */
+  const lineText = (l) => (LANG === 'ja' && l && l.ja ? l.ja : (l && l.text) || '');
+  // the words around the conversation, in both languages
+  const T = {
+    ko: { agent: 'e-Care 상담원', customer: (n) => `${n} 고객`, dealer: '서비스센터 · 이정비 어드바이저', dealerShort: '이정비', talk: '상담 대화', dcall: '딜러 통화', live: '통화 중', dialing: '발신 중', ringing: '연결 중', ended: '통화 종료', idle: '대기', empty: '통화가 시작되면 대화가 여기에 실시간으로 표시됩니다.' },
+    ja: { agent: 'e-Care オペレーター', customer: () => 'ホン・ギルドン 様', dealer: 'サービスセンター · イ・ジョンビ アドバイザー', dealerShort: 'イ・ジョンビ', talk: '通話内容', dcall: 'ディーラー通話', live: '通話中', dialing: '発信中', ringing: '接続中', ended: '通話終了', idle: '待機', empty: '通話が始まると、会話がここにリアルタイムで表示されます。' },
+  };
+  const tr = (k) => T[LANG][k];
   // a reservation slot: tomorrow 10:00
   function nextSlot() { const d = new Date(Date.now() + 864e5); d.setHours(10, 0, 0, 0); return d.getTime(); }
   const pad = (n) => String(n).padStart(2, '0');
@@ -537,7 +574,7 @@
       const l = lines && lines[args.idx];
       if (!l) return;
       if (args.del) l.deleted = true;
-      else if (typeof args.text === 'string') { l.text = args.text; l.edited = true; }
+      else if (typeof args.text === 'string') { if (args.text !== l.text) delete l.ja; l.text = args.text; l.edited = true; }
       this.publish();
     }
 
@@ -562,7 +599,7 @@
       else if (args.del) list.splice(args.idx, 1);
       else if (list[args.idx]) {
         const l = list[args.idx];
-        if (typeof args.text === 'string' && args.text !== l.text) { l.text = args.text; l.audio = null; l.dur = Math.max(2, args.text.length * 0.16); }
+        if (typeof args.text === 'string' && args.text !== l.text) { l.text = args.text; delete l.ja; delete l.audioM; l.audio = null; l.dur = Math.max(2, args.text.length * 0.16); }
         if (args.who) l.who = args.who;
       }
       saveScripts(this.scripts);
@@ -805,11 +842,12 @@
       if (!call || call.state !== 'connected') return;
       if (i >= script.length) { this.after(1200, () => this.dealerEnd(c)); return; }
       call.line = i;
-      call.lines.push({ ...script[i], t: Date.now() });
+      const line = dealerLine(c, script[i]);
+      call.lines.push({ ...line, t: Date.now() });
       this.publish();
-      Link.send('say', { caseId: c.id, line: script[i], index: i, dealer: true });
-      if (script[i].resv) this.dealerConfirm(c);
-      this.after(script[i].dur * 1000 + 700, () => { if (c.dcall === call) this.nextDealer(c, i + 1); });
+      Link.send('say', { caseId: c.id, line, index: i, dealer: true });
+      if (line.resv) this.dealerConfirm(c);
+      this.after(line.dur * 1000 + 700, () => { if (c.dcall === call) this.nextDealer(c, i + 1); });
     }
     /** the visit is booked (DMS: 예약) */
     dealerConfirm(c) {
@@ -841,7 +879,7 @@
       const call = c.dcall;
       if (call.state === 'ended') return;
       const script = this.scripts.dealer || CALL_DEALER;
-      for (let i = (call.line == null ? -1 : call.line) + 1; i < script.length; i++) call.lines.push({ ...script[i], t: Date.now() });
+      for (let i = (call.line == null ? -1 : call.line) + 1; i < script.length; i++) call.lines.push({ ...dealerLine(c, script[i]), t: Date.now() });
       call.line = script.length;
       this.dealerEnd(c);
     }
@@ -923,7 +961,7 @@
   function loadScripts() {
     const d = defaults();
     try {
-      const v = JSON.parse(localStorage.getItem('ecare-scripts-v8'));
+      const v = JSON.parse(localStorage.getItem('ecare-scripts-v9'));
       // sets added since the scripts were saved come from the defaults
       if (v && typeof v === 'object') {
         Object.keys(d).forEach((k) => { if (!Array.isArray(v[k])) v[k] = d[k]; });
@@ -952,7 +990,7 @@
     try { const v = JSON.parse(localStorage.getItem('ecare-pick-v3')); Object.keys(p).forEach((k) => { if (v && SCRIPT_SETS[k].keys.includes(v[k])) p[k] = v[k]; }); } catch (e) { /* none saved */ }
     return p;
   }
-  function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v8', JSON.stringify(v)); } catch (e) { /* private mode */ } }
+  function saveScripts(v) { try { localStorage.setItem('ecare-scripts-v9', JSON.stringify(v)); } catch (e) { /* private mode */ } }
 
   const TRAVEL = 1400;          // a message's trip across the data flow board, ms
   /* The case's journey in six steps, shared by the data flow screens. */
@@ -1014,5 +1052,5 @@
     return cases.length === snap.cases.length && cases.every((c, i) => c === snap.cases[i]) ? snap : { ...snap, cases, active: cases.some((c) => c.id === snap.active) ? snap.active : (cases[0] && cases[0].id) || null };
   }
 
-  window.ECare = { TRAVEL, REPAIR_ITEMS, JOURNEY, gate, JOURNEY_PLAIN, journey, stageOfFlow, SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss };
+  window.ECare = { TRAVEL, REPAIR_ITEMS, JOURNEY, gate, JOURNEY_PLAIN, journey, stageOfFlow, SLA, ASSIGN_TIMEOUT, RETRY_WAIT, RETRIES, WARN, CUSTOMER, VEHICLE, AGENTS, DEALERS, CALL_OUT, CALL_IN, CALL_GEN, CALL_IN2, SCRIPT_NAMES, SCRIPT_SETS, SCRIPT_WARN, WNG, CASE, CONTACT, DISPATCH, DMS, DMS_CODE, Director, hm, ymd, stamp, mmss, lang, setLang, onLang, lineText, tr };
 })();
