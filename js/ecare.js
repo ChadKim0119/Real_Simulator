@@ -210,8 +210,21 @@
     Link.on('talk-lang', (d) => { if (d && d.lang) setLang(d.lang, true); });
   }
   addEventListener('storage', (e) => { if (e.key === 'talk-lang' && e.newValue) setLang(e.newValue, true); });
-  /** A line's text in the shown language (Korean when it has no Japanese, e.g. an edited line). */
-  const lineText = (l) => (LANG === 'ja' && l && l.ja ? l.ja : (l && l.text) || '');
+  /* Japanese by the Korean words too: a line can come without its ja (a screen still running an
+   * earlier version, scripts saved before, a set shared over the cloud), so the screen showing it
+   * finds the translation itself. Lines dropped from the sets are kept here for such screens. */
+  const norm = (t) => String(t || '').replace(/김지현/g, '홍길동').replace(/\s+/g, ' ').trim();
+  const JA = {
+    [norm('네, 많이 당황하셨을 텐데요. 제가 지금부터 차분히 대처 요령을 안내해 드릴 테니 걱정하지 않으셔도 됩니다.')]: 'さぞ慌てられたことでしょう。これから落ち着いて対処方法をご案内しますので、ご心配はいりません。',
+    [norm('네, 고맙습니다. 이제 어떻게 해야 하죠?')]: 'はい、ありがとうございます。これからどうすればいいでしょうか？',
+  };
+  Object.keys(SCRIPTS).forEach((k) => SCRIPTS[k].forEach((l) => { if (l.ja) JA[norm(l.text)] = l.ja; }));
+  /** A line's text in the shown language (Korean when no Japanese is known, e.g. an edited line). */
+  const lineText = (l) => {
+    if (!l) return '';
+    if (LANG !== 'ja') return l.text || '';
+    return l.ja || JA[norm(l.text)] || l.text || '';
+  };
   // the words around the conversation, in both languages
   const T = {
     ko: { agent: 'e-Care 상담원', customer: (n) => `${n} 고객`, dealer: '서비스센터 · 이정비 어드바이저', dealerShort: '이정비', talk: '상담 대화', dcall: '딜러 통화', live: '통화 중', dialing: '발신 중', ringing: '연결 중', ended: '통화 종료', idle: '대기', empty: '통화가 시작되면 대화가 여기에 실시간으로 표시됩니다.' },
